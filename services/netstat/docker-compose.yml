@@ -1,4 +1,6 @@
 services:
+
+
   vnstat:
 #    cpus: "0.3"
 #    mem_limit: 50m
@@ -7,20 +9,40 @@ services:
     restart: unless-stopped
     network_mode: "host"
     volumes:
-      # - vnstatdb:/var/lib/vnstat
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+#      - vnstatdb:/var/lib/vnstat
       - $PWD/config/vnstatdb:/var/lib/vnstat
-      - /var/run/docker.sock:/var/run/docker.sock
     environment:
+      - HTTP_PORT=0
       - TZ=Europe/Moscow
+
+  vnstati:
+#    cpus: "0.3"
+#    mem_limit: 50m
+    image: vergoh/vnstat:latest
+    container_name: vnstati
+    restart: unless-stopped
+#    ports:
+#      - "8685:8685"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
+#      - vnstatdb:/var/lib/vnstat
+      - $PWD/config/vnstatdb:/var/lib/vnstat
+    environment:
+#      - SERVER_NAME=vnstat
+      - TZ=Europe/Moscow
+#      - HTTP_PORT=0
       - HTTP_PORT=8685
 #      - HTTP_BIND=*
+#      - HTTP_BIND=10.200.0.1
 #      - HTTP_BIND=10.219.0.1
 #      - HTTP_BIND=10.219.0.1
       - HTTP_LOG=/dev/stdout
-      - LARGE_FONTS=0
+      - LARGE_FONTS=1
       - CACHE_TIME=1
-      - DARK_MODE=0
+      - DARK_MODE=1
       - PAGE_REFRESH=0
       - INDEX_IMAGES_PER_ROW=1
       - INDEX_IMAGE_OUTPUT=hs
@@ -28,6 +50,66 @@ services:
       - VNSTAT_InterfaceOrder=0
       - VNSTAT_QueryMode=0
       - EXCLUDE_PATTERN=^docker|^veth|^br-|^lxc
+      - RUN_VNSTATD=0 #no collect statistics
+#     networks:
+# #      dmz_network:
+# #        ipv4_address: 10.219.0.10
+#       antizapret4_default:
+
+
+
+#    expose:
+#      - "8685"
+#      - "3000"
+#      - "8000-8002"
+
+
+#volumes:
+#  vnstatdb:
+
+
+#networks:
+#  dmz_network:
+#    external: true
+#    name: npm_dmz_network
+
+# networks:
+#   antizapret4_default:
+#     external: true
+#    name: 
+
+
+
+
+#   vnstat:
+# #    cpus: "0.3"
+# #    mem_limit: 50m
+#     image: vergoh/vnstat:latest
+#     container_name: vnstat
+#     restart: unless-stopped
+#     network_mode: "host"
+#     volumes:
+#       # - vnstatdb:/var/lib/vnstat
+#       - /etc/localtime:/etc/localtime:ro
+#       - $PWD/config/vnstatdb:/var/lib/vnstat
+#       - /var/run/docker.sock:/var/run/docker.sock
+#     environment:
+#       - TZ=Europe/Moscow
+#       - HTTP_PORT=8685
+# #      - HTTP_BIND=*
+# #      - HTTP_BIND=10.219.0.1
+# #      - HTTP_BIND=10.219.0.1
+#       - HTTP_LOG=/dev/stdout
+#       - LARGE_FONTS=0
+#       - CACHE_TIME=1
+#       - DARK_MODE=0
+#       - PAGE_REFRESH=0
+#       - INDEX_IMAGES_PER_ROW=1
+#       - INDEX_IMAGE_OUTPUT=hs
+#       - VNSTAT_RateUnit=1
+#       - VNSTAT_InterfaceOrder=0
+#       - VNSTAT_QueryMode=0
+#       - EXCLUDE_PATTERN=^docker|^veth|^br-|^lxc
 
 # volumes:
 #   vnstatdb:
