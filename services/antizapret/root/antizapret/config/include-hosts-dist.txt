@@ -189,6 +189,8 @@ discordapp.com
 discord.media
 discord-attachments-uploads-prd.storage.googleapis.com
 
+netflix.com
+
 # porn -- disable vk authorization
 pornhub.com
 phncdn.com
