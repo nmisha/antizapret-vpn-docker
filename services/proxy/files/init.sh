@@ -117,6 +117,16 @@ https://$PROXY_DOMAIN:$external_port {
   reverse_proxy {
     to http://$internal_host:$internal_port
   }
+#  basicauth {
+#    $PROXY_USERNAME $PROXY_PASSWORD
+#  }
+  log {
+    output file /var/log/caddy/access.log {
+      roll_size 10MB # Create new file when size exceeds 10MB
+      roll_keep 5 # Keep at most 5 rolled files
+      roll_keep_days 14 # Delete files older than 14 days
+    }
+  }
 }
 EOF
     fi

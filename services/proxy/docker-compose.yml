@@ -26,5 +26,7 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - $PWD/config/caddy/data:/data
       - $PWD/config/caddy/config:/config
+      - $PWD/log/caddy:/var/log/caddy
+#/var/log/caddy/
     depends_on:
       - antizapret
