@@ -59,6 +59,10 @@ chrome.google.com
 gemini.google.com
 googleapis.com
 
+# gemini
+gemini.google.com
+proactivebackend-pa.googleapis.com
+
 
 # google play and android
 play.google.com
@@ -128,7 +132,7 @@ openai.com
 
 # rutracker
 t-ru.org
-rutracker.cc
+rutracker.org
 rutrk.org
 
 
