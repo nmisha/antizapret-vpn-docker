@@ -8,7 +8,7 @@ CERT_KEY="$CERT_DIR/selfsigned.key"
 CONFIG_FILE="/etc/caddy/Caddyfile"
 REACHABLE_SERVICES=""
 IS_SELF_SIGNED=0
-CADDY_VERSION=""
+
 
 is_host_resolved() {
     sleep 1s
@@ -86,17 +86,6 @@ EOF
     echo "[INFO] Global configuration block created."
 }
 
-get_caddy_version_major_minor() {
-    if command -v caddy >/dev/null 2>&1; then
-        version=$(caddy version | cut -d' ' -f1)
-        major=$(echo "$version" | cut -d. -f1)
-        minor=$(echo "$version" | cut -d. -f2)
-        echo "${major}.${minor}"
-    else
-        echo "0.0"
-    fi
-}
-
 add_services_to_config() {
     echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
 
@@ -121,8 +110,7 @@ add_services_to_config() {
 }
 EOF
     else
-        if [ "$(echo "$CADDY_VERSION >= 2.6" | bc)" -eq 1 ]; then
-            cat <<EOF >>"$CONFIG_FILE"
+        cat <<EOF >>"$CONFIG_FILE"
 
 #$name#
 https://$PROXY_DOMAIN:$external_port {
@@ -141,28 +129,7 @@ https://$PROXY_DOMAIN:$external_port {
   }
 }
 EOF
-        else
-            cat <<EOF >>"$CONFIG_FILE"
-
-#$name#
-https://$PROXY_DOMAIN:$external_port {
-  reverse_proxy {
-    to http://$internal_host:$internal_port
-  }
-#  basicauth {
-#    $PROXY_USERNAME $PROXY_PASSWORD
-#  }
-  log {
-    output file /var/log/caddy/access.log {
-      roll_size 10MB # Create new file when size exceeds 10MB
-      roll_keep 5 # Keep at most 5 rolled files
-    }
-  }
-}
-EOF
-        fi
     fi
-
       echo "[INFO] Service added: $external_port -> $internal_host:$internal_port"
     done
 }
@@ -170,8 +137,6 @@ EOF
 main() {
     : >"$CONFIG_FILE"
     get_services
-
-    CADDY_VERSION=$(get_caddy_version_major_minor)
 
     if [ -z "${PROXY_DOMAIN:-}" ] || [ -z "${PROXY_EMAIL:-}" ]; then
         IS_SELF_SIGNED=1
