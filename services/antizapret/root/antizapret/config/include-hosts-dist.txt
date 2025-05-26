@@ -135,7 +135,6 @@ t-ru.org
 rutracker.org
 rutracker.cc
 rutrk.org
-rutracker.cc
 
 
 # nnmclub
