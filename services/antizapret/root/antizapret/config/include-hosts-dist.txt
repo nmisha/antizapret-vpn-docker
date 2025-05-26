@@ -207,6 +207,9 @@ livehdcams.com
 xvideos.com
 youporn.com
 
+# others
+barracuda.com
+
 # valve & steam
 deathmatchclassic.com
 modexpo.com
