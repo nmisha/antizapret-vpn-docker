@@ -130,7 +130,7 @@ filters:
     url: https://github.com/alexsannikov/adguardhome-filters/raw/master/rueasylist.txt
     name: alexsannikov rueasylist
     id: 1725134864
-  - enabled: false
+  - enabled: true
     url: https://github.com/alexsannikov/adguardhome-filters/raw/master/admalware.txt
     name: alexsannikov admalware
     id: 1725134865
@@ -198,6 +198,18 @@ filters:
     url: https://github.com/alexsannikov/adguardhome-filters/raw/refs/heads/master/fakenews.txt
     name: Alexsannikov fakenews
     id: 1736585235
+  - enabled: true
+    url: https://github.com/nmisha/adguardhome-filters/raw/refs/heads/master/testad.txt
+    name: Nmisha TestAD
+    id: 1749380733
+  - enabled: true
+    url: https://github.com/Zalexanninev15/NoADS_RU/raw/refs/heads/main/ads_list.txt
+    name: Zalexanninev15 NoADS_RU
+    id: 1749380734
+  - enabled: true
+    url: https://github.com/Zalexanninev15/NoADS_RU/raw/refs/heads/main/ads_list_extended.txt
+    name: Zalexanninev15 NoADS_RU Extended
+    id: 1749380735
 whitelist_filters:
   - enabled: true
     url: https://raw.githubusercontent.com/anudeepND/whitelist/master/domains/whitelist.txt
@@ -220,14 +232,24 @@ user_rules:
   - pornhub.com##div[id*=age-verification-wrapper]
   - pornhub.com##div[id*=age-verification-container]
   - '# @@||pornhub.com^'
-  - '@@sdkconfig.ad.rus.xiaomi.com'
-  - '@@||xiaomi.com^'
+  - '# ========='
+  - '#@@sdkconfig.ad.rus.xiaomi.com'
+  - '#@@||xiaomi.com^'
   - '||api.miwifi.com^'
   - '||static.ap.bittorrent.com^'
+  - '! Блокировка тестовых скриптов рекламы на d3ward.github.io (для прохождения Ad Script Loading Test)'
+  - '#/pagead.js$domain=d3ward.github.io'
+  - '#/widget/ads.js$domain=d3ward.github.io'
+  - /pagead.js$domain=d3ward.github.io
+  - /widget/ads.
+  - d3ward.github.io##.adbox.banner_ads.adsbox
+  - d3ward.github.io##.textads
+  - '# ========='
   - '# pornhub.com##div[id*=age-verification-wrapper]'
   - '# pornhub.com##div[id*=age-verification-container]'
   - '# @@||yastatic.net^$important'
   - '# @@||yastatic.net^'
+  - '# ========='
   - /^(.+[_.-])?adse?rv(er?|ice)?s?[0-9]*[_.-]/
   - /^(.+[_.-])?telemetry[_.-]/
   - /^ad([sxv]?[0-9]*|system)[_.-]([^.[:space:]]+\.){1,}|[_.-]ad([sxv]?[0-9]*|system)[_.-]/
