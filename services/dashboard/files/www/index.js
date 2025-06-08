@@ -38,6 +38,7 @@ function createTab(serviceName, serviceUrl, hashValue) {
     contentEl.className = 'content-container';
     let iframeEl = document.createElement('iframe');
     iframeEl.src = serviceUrl;
+    iframeEl.loading = "lazy";
     contentEl.appendChild(iframeEl);
 
     tabContainer.appendChild(tabEl);
