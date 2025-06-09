@@ -201,6 +201,10 @@ generate_authelia_proxy() {
     }
   }
 }
+EOF
+    else
+        cat <<EOF >>"$CONFIG_FILE"
+
 
 https://$PROXY_DOMAIN:9091 {
   tls /certs/cert.crt /certs/cert.key
