@@ -189,7 +189,7 @@ add_services_to_config_subnames_test() {
     # Authelia (доступ по /auth и /auth/*)
     cat <<EOF >>"$CONFIG_FILE"
   # Authelia web
-  handle_path /auth/* {
+  handle /auth/* {
 #  handle_path /auth* {
     reverse_proxy http://authelia:9091
   }
