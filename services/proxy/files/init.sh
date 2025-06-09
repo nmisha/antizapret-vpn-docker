@@ -125,32 +125,32 @@ EOF
 
 
 
-#Authelia /auth#
-https://$PROXY_DOMAIN:443 {
+# #Authelia /auth#
+# https://$PROXY_DOMAIN:443 {
 
-#  reverse_proxy {
-#    to http://authelia:9091
-#  }
-
-
-     redir /$AUTHELIA_SERVICE_NAME /$AUTHELIA_SERVICE_NAME/ # Just to redirect users that are missing the closing slash to the correct page
-     handle_path /$AUTHELIA_SERVICE_NAME/* { # Actually configures the used subfolder (also internally strips the path prefix)
-         reverse_proxy http://authelia:9091 { # Enables the reverse proxy for the configured program:port
-             header_up X-Forwarded-Prefix "/$AUTHELIA_SERVICE_NAME" # Sets the correct header for the login cookies
-         }
-     }
+# #  reverse_proxy {
+# #    to http://authelia:9091
+# #  }
 
 
+#      redir /$AUTHELIA_SERVICE_NAME /$AUTHELIA_SERVICE_NAME/ # Just to redirect users that are missing the closing slash to the correct page
+#      handle_path /$AUTHELIA_SERVICE_NAME/* { # Actually configures the used subfolder (also internally strips the path prefix)
+#          reverse_proxy http://authelia:9091 { # Enables the reverse proxy for the configured program:port
+#              header_up X-Forwarded-Prefix "/$AUTHELIA_SERVICE_NAME" # Sets the correct header for the login cookies
+#          }
+#      }
 
-  log {
-    output file /var/log/caddy/authelia-access.log {
-      roll_size 10MB
-      roll_keep 5
-    }
-  }
-}
 
-#reverse_proxy /app2/*
+
+#   log {
+#     output file /var/log/caddy/authelia-access.log {
+#       roll_size 10MB
+#       roll_keep 5
+#     }
+#   }
+# }
+
+# #reverse_proxy /app2/*
 
 #Authelia#
 https://$PROXY_DOMAIN:9091 {
