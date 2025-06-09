@@ -186,10 +186,9 @@ generate_authelia_proxy() {
 :9091 {
   tls $CERT_CRT $CERT_KEY
 
-  @auth regexp ^/auth(?P<rest>/.*)?$
-  rewrite @auth {http.regexp.auth.rest}
-
-  reverse_proxy @auth authelia:9091
+  handle_path /auth/* {
+      reverse_proxy authelia:9091
+  }
 
 
 
