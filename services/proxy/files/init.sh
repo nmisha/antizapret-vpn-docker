@@ -91,6 +91,7 @@ generate_authelia_proxy() {
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
         cat <<EOF >>"$CONFIG_FILE"
 
+#Authelia#
 :9091 {
   tls $CERT_CRT $CERT_KEY
 
@@ -116,6 +117,7 @@ EOF
     else
         cat <<EOF >>"$CONFIG_FILE"
 
+#Authelia#
 https://$PROXY_DOMAIN:9091 {
   tls $CERT_CRT $CERT_KEY
 
@@ -140,6 +142,10 @@ https://$PROXY_DOMAIN:9091 {
 EOF
     fi
     echo "[INFO] Authelia proxy block added."
+
+echo "$CONFIG_FILE"
+echo cat "$CONFIG_FILE"
+
 }
 
 
@@ -235,6 +241,7 @@ EOF
 
 
 echo "$CONFIG_FILE"
+echo cat "$CONFIG_FILE"
 
 }
 
@@ -255,7 +262,7 @@ main() {
 #        generate_authelia_proxy
     fi
 
-#    generate_authelia_proxy   # add authelia proxy
+    generate_authelia_proxy   # add authelia proxy
     add_services_to_config
 
     echo
