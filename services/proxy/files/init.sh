@@ -135,6 +135,7 @@ EOF
             X-Forwarded-Method {method}
             X-Forwarded-Proto {scheme}
       }
+    }
     reverse_proxy http://$internal_host:$internal_port {
       header_up Host {host}
       header_up X-Forwarded-Prefix /$subpath
