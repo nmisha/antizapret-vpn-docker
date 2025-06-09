@@ -177,7 +177,7 @@ generate_authelia_proxy() {
 
 ## Authelia web
 ## :9191 {
-# :9091 {
+ :9091 {
 #   tls $CERT_CRT $CERT_KEY
 #   reverse_proxy authelia:9091
 # }
@@ -188,7 +188,7 @@ generate_authelia_proxy() {
 # Authelia web
 #https://auth.$PROXY_DOMAIN:9191 {
 #https://$PROXY_DOMAIN:$external_port {
-https://$PROXY_DOMAIN:9091 {
+#https://$PROXY_DOMAIN:9091 {
   tls $CERT_CRT $CERT_KEY
   reverse_proxy authelia:9091
   {
