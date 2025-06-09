@@ -175,21 +175,28 @@ generate_authelia_proxy() {
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
         cat <<EOF >>"$CONFIG_FILE"
 
-# Authelia web
-# :9191 {
-:9091 {
-  tls $CERT_CRT $CERT_KEY
-  reverse_proxy authelia:9091
-}
-EOF
-    else
-        cat <<EOF >>"$CONFIG_FILE"
+## Authelia web
+## :9191 {
+# :9091 {
+#   tls $CERT_CRT $CERT_KEY
+#   reverse_proxy authelia:9091
+# }
+# EOF
+#     else
+#         cat <<EOF >>"$CONFIG_FILE"
 
 # Authelia web
 #https://auth.$PROXY_DOMAIN:9191 {
 #https://$PROXY_DOMAIN:$external_port {
 https://$PROXY_DOMAIN:9091 {
+  tls $CERT_CRT $CERT_KEY
   reverse_proxy authelia:9091
+  {
+    header_up Host {host}
+    header_up X-Real-IP {remote}
+    header_up X-Forwarded-For {remote}
+    header_up X-Forwarded-Proto {scheme}
+  }
 
   log {
     output file /var/log/caddy/authelia-access.log {
