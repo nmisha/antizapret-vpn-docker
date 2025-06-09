@@ -182,7 +182,7 @@ generate_authelia_proxy() {
         cat <<EOF >>"$CONFIG_FILE"
 
 :9091 {
-  tls /certs/cert.crt /certs/cert.key
+  tls $CERT_CRT $CERT_KEY
 
   # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
   handle_path /auth/* {
@@ -207,7 +207,7 @@ EOF
 
 
 https://$PROXY_DOMAIN:9091 {
-  tls /certs/cert.crt /certs/cert.key
+  tls $CERT_CRT $CERT_KEY
 
   # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
   handle_path /auth/* {
