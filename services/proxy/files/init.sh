@@ -113,8 +113,9 @@ add_services_to_config() {
   }
 
   route @protected {
-    forward_auth authelia:9091 {
+#    forward_auth authelia:9091 {
 #    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+    forward_auth az.vps-nl-1.20x40.ru:9091 {
       uri /api/verify?rd=https://{host}{uri}
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
       trusted_proxies private_ranges
@@ -144,8 +145,9 @@ https://$PROXY_DOMAIN:$external_port {
   }
 
   route @protected {
-    forward_auth authelia:9091 {
+#    forward_auth authelia:9091 {
 #    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+    forward_auth az.vps-nl-1.20x40.ru:9091 {
       uri /api/verify?rd=https://{host}{uri}
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
       trusted_proxies private_ranges
@@ -177,7 +179,7 @@ generate_authelia_proxy() {
 
 ## Authelia web
 ## :9191 {
- :9091 {
+:9091 {
 #   tls $CERT_CRT $CERT_KEY
 #   reverse_proxy authelia:9091
 # }
