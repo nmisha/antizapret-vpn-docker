@@ -291,6 +291,10 @@ EOF
     fi
       echo "[INFO] Service added: $external_port -> $internal_host:$internal_port"
     done
+
+
+echo "$CONFIG_FILE"
+
 }
 
 
