@@ -194,6 +194,17 @@ add_services_to_config_subnames_test() {
     reverse_proxy http://authelia:9091
   }
 
+
+  handle_path /srv1/* {
+    forward_auth authelia:9091 {
+      uri /api/authz/forward-auth
+#      auth/uri /api/authz/forward-auth
+      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+    reverse_proxy http://vnstati:8685
+  }
+
+
 EOF
 
 }
