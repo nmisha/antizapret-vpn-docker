@@ -119,7 +119,6 @@ EOF
 
 #Authelia#
 https://$PROXY_DOMAIN:9091 {
-  tls $CERT_CRT $CERT_KEY
 
   # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
   handle_path /auth/* {
