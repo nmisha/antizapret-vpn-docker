@@ -93,5 +93,6 @@ create_services_json() {
     echo "[INFO] JSON file has been successfully created at: $CONFIG_JSON"
 }
 
-create_auth
+# Отключаем basic auth на дашборде
+# create_auth
 create_services_json
