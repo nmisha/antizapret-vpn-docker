@@ -211,7 +211,8 @@ EOF
   # $name → /$subpath/
   handle_path /$subpath/* {
     forward_auth authelia:9091 {
-      uri /api/authz/forward-auth
+#      uri /api/authz/forward-auth
+      auth/uri /api/authz/forward-auth
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
     }
     reverse_proxy http://$internal_host:$internal_port
