@@ -130,11 +130,11 @@ EOF
       uri /auth/api/authz/forward-auth
 #      uri /api/authz/forward-auth
         copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-        request_headers X-Original-URL
-        set_headers {
-            X-Forwarded-Method {method}
-            X-Forwarded-Proto {scheme}
-      }
+      #   request_headers X-Original-URL
+      #   set_headers {
+      #       X-Forwarded-Method {method}
+      #       X-Forwarded-Proto {scheme}
+      # }
     }
     reverse_proxy http://$internal_host:$internal_port {
       header_up Host {host}
