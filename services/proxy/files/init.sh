@@ -177,6 +177,70 @@ EOF
 
 }
 
+add_services_to_config_subnames() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        echo ":443 {" >"$CONFIG_FILE"
+        echo "  tls $CERT_CRT $CERT_KEY" >>"$CONFIG_FILE"
+    else
+        echo "https://$PROXY_DOMAIN {" >"$CONFIG_FILE"
+    fi
+    echo "" >>"$CONFIG_FILE"
+
+    # Authelia (доступ по /auth и /auth/*)
+    cat <<EOF >>"$CONFIG_FILE"
+  # Authelia web
+  handle_path /auth* {
+    reverse_proxy http://authelia:9091
+  }
+
+EOF
+
+    # Счётчик subpath
+    idx=1
+    default_subpath="srv1"
+
+    echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
+        [ -z "$service_value" ] && continue
+
+        name=$(echo "$service_value" | cut -d':' -f1)
+        internal_host=$(echo "$service_value" | cut -d':' -f3)
+        internal_port=$(echo "$service_value" | cut -d':' -f4)
+        subpath="srv$idx"
+
+        cat <<EOF >>"$CONFIG_FILE"
+  # $name → /$subpath/
+  handle_path /$subpath/* {
+    forward_auth authelia:9091 {
+      uri /api/authz/forward-auth
+      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+    reverse_proxy http://$internal_host:$internal_port
+  }
+
+EOF
+        idx=$((idx+1))
+    done
+
+    # Дефолтный редирект на /srv1/
+    cat <<EOF >>"$CONFIG_FILE"
+  handle {
+    redir /$default_subpath/ 302
+  }
+
+  log {
+    output file /var/log/caddy/access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+EOF
+
+    echo "[INFO] Caddyfile with numbered subpaths and Authelia created."
+}
+
+
+
 
 add_services_to_config() {
 
@@ -320,8 +384,9 @@ main() {
 #        generate_authelia_proxy
     fi
 
-    generate_authelia_proxy   # add authelia proxy
-    add_services_to_config
+#    generate_authelia_proxy   # add authelia proxy
+#    add_services_to_config
+    add_services_to_config_subnames
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
