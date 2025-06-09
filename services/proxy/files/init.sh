@@ -179,10 +179,10 @@ EOF
 
 add_services_to_config_subnames() {
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
-        echo ":443 {" >"$CONFIG_FILE"
+        echo ":443 {" >>"$CONFIG_FILE"
         echo "  tls $CERT_CRT $CERT_KEY" >>"$CONFIG_FILE"
     else
-        echo "https://$PROXY_DOMAIN {" >"$CONFIG_FILE"
+        echo "https://$PROXY_DOMAIN {" >>"$CONFIG_FILE"
     fi
     echo "" >>"$CONFIG_FILE"
 
