@@ -87,6 +87,9 @@ EOF
 }
 
 add_services_to_config() {
+
+    generate_authelia_proxy
+
     echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
 
     if [ -z "$service_value" ]; then
@@ -248,7 +251,7 @@ main() {
 #        generate_authelia_proxy
     fi
 
-    generate_authelia_proxy   # add authelia proxy
+#    generate_authelia_proxy   # add authelia proxy
     add_services_to_config
 
     echo
