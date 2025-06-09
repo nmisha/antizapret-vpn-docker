@@ -120,15 +120,23 @@ EOF
 #Authelia#
 https://$PROXY_DOMAIN:9091 {
 
-  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
-#  handle_path /auth/* {
-  handle_path /auth/* {
-    reverse_proxy http://authelia:9091
-  }
+ reverse_proxy {
+   to http://authelia:9091
+ }
 
-  handle_path /auth {
-    reverse_proxy http://authelia:9091
-  }
+
+#   # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
+# #  handle_path /auth/* {
+#   handle_path /auth/* {
+#     reverse_proxy http://authelia:9091
+#   }
+
+#   handle_path /auth {
+#     reverse_proxy http://authelia:9091
+#   }
+
+
+
 
   # Всё остальное: редирект на /auth (если хочешь)
   #handle {
