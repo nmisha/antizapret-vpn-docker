@@ -97,7 +97,7 @@ generate_authelia_proxy() {
 
   # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
   handle_path /auth/* {
-    reverse_proxy authelia:9091
+    reverse_proxy http://authelia:9091
   }
 
   # Всё остальное: редирект на /auth (если хочешь)
@@ -122,7 +122,7 @@ https://$PROXY_DOMAIN:9091 {
 
   # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
   handle_path /auth/* {
-    reverse_proxy authelia:9091
+    reverse_proxy http://authelia:9091
   }
 
   # Всё остальное: редирект на /auth (если хочешь)
