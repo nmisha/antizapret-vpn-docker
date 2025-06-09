@@ -228,11 +228,12 @@ https://$PROXY_DOMAIN:9091 {
 }
 
 
+
 EOF
     fi
-    echo "[INFO] Authelia proxy block added."
+      echo "[INFO] Authelia proxy block added."
+    done
 }
-
 
 
 main() {
