@@ -108,8 +108,10 @@ add_services_to_config() {
 #    to http://$internal_host:$internal_port
 #  }
 
+  @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
+
   @protected {
-    not path /auth*  # защищаем всё кроме /auth
+    not path /auth* /favicon.ico /api/verify /locales/*
   }
 
   route @protected {
@@ -123,7 +125,7 @@ add_services_to_config() {
     reverse_proxy http://$internal_host:$internal_port
   }
 
-  reverse_proxy /auth* authelia:9091
+  reverse_proxy @auth_exempt authelia:9091
 #  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
 
 }
@@ -140,8 +142,10 @@ https://$PROXY_DOMAIN:$external_port {
 ##    $PROXY_USERNAME $PROXY_PASSWORD
 ##  }
 
+  @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
+
   @protected {
-    not path /auth*
+    not path /auth* /favicon.ico /api/verify /locales/*
   }
 
   route @protected {
@@ -155,7 +159,7 @@ https://$PROXY_DOMAIN:$external_port {
     reverse_proxy http://$internal_host:$internal_port
   }
 
-  reverse_proxy /auth* authelia:9091
+  reverse_proxy @auth_exempt authelia:9091
 #  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
 
   log {
