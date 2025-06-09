@@ -189,24 +189,24 @@ add_services_to_config_subnames_test() {
     # Authelia (доступ по /auth и /auth/*)
     cat <<EOF >>"$CONFIG_FILE"
   # Authelia web
-#  handle_path /auth/* {
-  handle_path /auth* {
-    reverse_proxy http://authelia:9091
-#    header_up Host {host}
-#    header_up X-Forwarded-Prefix /auth
-  }
+# #  handle_path /auth/* {
+#   handle_path /auth* {
+#     reverse_proxy http://authelia:9091
+# #    header_up Host {host}
+# #    header_up X-Forwarded-Prefix /auth
+#   }
 
 #redir /old.html /new.html
 
-  # # 1. Проксируем всё, связанное с Authelia
-  # @authelia {
-  #   path /auth* /api/* /static/* /assets/*
-  # }
-  # reverse_proxy @authelia http://authelia:9091 {
-  #   header_up Host {host}
-  #   # необязательно, но полезно
-  #   header_up X-Forwarded-Prefix /auth
-  # }
+  # 1. Проксируем всё, связанное с Authelia
+  @authelia {
+    path /auth* /api/* /static/* /assets/*
+  }
+  reverse_proxy @authelia http://authelia:9091 {
+    header_up Host {host}
+    # необязательно, но полезно
+    header_up X-Forwarded-Prefix /auth
+  }
 
 
   handle_path /srv1* {
