@@ -104,29 +104,29 @@ add_services_to_config() {
 #$name#
 :$external_port {
   tls $CERT_CRT $CERT_KEY
-#  reverse_proxy {
-#    to http://$internal_host:$internal_port
-#  }
+ reverse_proxy {
+   to http://$internal_host:$internal_port
+ }
 
-  @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
+#   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
 
-  @protected {
-    not path /auth* /favicon.ico /api/verify /locales/*
-  }
+#   @protected {
+#     not path /auth* /favicon.ico /api/verify /locales/*
+#   }
 
-  route @protected {
-    forward_auth authelia:9091 {
-#    forward_auth auth.vps-nl-1.20x40.ru:9091 {
-#    forward_auth az.vps-nl-1.20x40.ru:9091 {
-      uri /api/verify?rd=https://{host}{uri}
-      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-      trusted_proxies private_ranges
-    }
-    reverse_proxy http://$internal_host:$internal_port
-  }
+#   route @protected {
+#     forward_auth authelia:9091 {
+# #    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+# #    forward_auth az.vps-nl-1.20x40.ru:9091 {
+#       uri /api/verify?rd=https://{host}{uri}
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#       trusted_proxies private_ranges
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
 
-  reverse_proxy @auth_exempt authelia:9091
-#  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
+#   reverse_proxy @auth_exempt authelia:9091
+# #  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
 
 }
 EOF
@@ -135,32 +135,32 @@ EOF
 
 #$name#
 https://$PROXY_DOMAIN:$external_port {
-#  reverse_proxy {
-#    to http://$internal_host:$internal_port
+ reverse_proxy {
+   to http://$internal_host:$internal_port
+ }
+#  basicauth {
+#    $PROXY_USERNAME $PROXY_PASSWORD
 #  }
-##  basicauth {
-##    $PROXY_USERNAME $PROXY_PASSWORD
-##  }
 
-  @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
+#   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
 
-  @protected {
-    not path /auth* /favicon.ico /api/verify /locales/*
-  }
+#   @protected {
+#     not path /auth* /favicon.ico /api/verify /locales/*
+#   }
 
-  route @protected {
-    forward_auth authelia:9091 {
-#    forward_auth auth.vps-nl-1.20x40.ru:9091 {
-#    forward_auth az.vps-nl-1.20x40.ru:9091 {
-      uri /api/verify?rd=https://{host}{uri}
-      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-      trusted_proxies private_ranges
-    }
-    reverse_proxy http://$internal_host:$internal_port
-  }
+#   route @protected {
+#     forward_auth authelia:9091 {
+# #    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+# #    forward_auth az.vps-nl-1.20x40.ru:9091 {
+#       uri /api/verify?rd=https://{host}{uri}
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#       trusted_proxies private_ranges
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
 
-  reverse_proxy @auth_exempt authelia:9091
-#  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
+#   reverse_proxy @auth_exempt authelia:9091
+# #  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
 
   log {
     output file /var/log/caddy/access.log {
@@ -183,7 +183,7 @@ generate_authelia_proxy() {
 
 ## Authelia web
 ## :9191 {
-:9091 {
+:9091/auth {
 #   tls $CERT_CRT $CERT_KEY
 #   reverse_proxy authelia:9091
 # }
