@@ -208,6 +208,10 @@ generate_authelia_proxy() {
     header_up X-Forwarded-Proto {scheme}
   }
 
+  # Чтобы не редиректить служебные запросы authelia (API)
+  @authelia_api path /api/*
+  reverse_proxy @authelia_api authelia:9091
+
   # Всё остальное — редирект на /auth
   handle {
     @not_auth not path /auth*
