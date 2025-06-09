@@ -240,15 +240,15 @@ main() {
         IS_SELF_SIGNED=1
         generate_certificate
         generate_global_config
-        generate_authelia_proxy
+#        generate_authelia_proxy
 
     else
         IS_SELF_SIGNED=0
         generate_global_config
-        generate_authelia_proxy
+#        generate_authelia_proxy
     fi
 
-#    generate_authelia_proxy   # add authelia proxy
+    generate_authelia_proxy   # add authelia proxy
     add_services_to_config
 
     echo
