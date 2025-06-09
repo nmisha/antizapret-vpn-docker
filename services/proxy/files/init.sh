@@ -181,55 +181,18 @@ generate_authelia_proxy() {
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
         cat <<EOF >>"$CONFIG_FILE"
 
-
-## Authelia web only on /auth*
 :9091 {
-  tls $CERT_CRT $CERT_KEY
+  tls /certs/cert.crt /certs/cert.key
 
+  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
   handle_path /auth/* {
-      reverse_proxy authelia:9091
+    reverse_proxy authelia:9091
   }
 
-
-
-# ## Authelia web
-# ## :9191 {
-# :9091/auth {
-# #   tls $CERT_CRT $CERT_KEY
-# #   reverse_proxy authelia:9091
-# # }
-# # EOF
-# #     else
-# #         cat <<EOF >>"$CONFIG_FILE"
-
-# # Authelia web
-# #https://auth.$PROXY_DOMAIN:9191 {
-# #https://$PROXY_DOMAIN:$external_port {
-# #https://$PROXY_DOMAIN:9091 {
-#   tls $CERT_CRT $CERT_KEY
-
-#   @authelia_path path /auth*  # только путь /auth* будет проксироваться
-
-# #  reverse_proxy authelia:9091
-#   reverse_proxy @authelia_path authelia:9091
-#   {
-#     header_up Host {host}
-#     header_up X-Real-IP {remote}
-#     header_up X-Forwarded-For {remote}
-#     header_up X-Forwarded-Proto {scheme}
-#   }
-
-#   # Чтобы не редиректить служебные запросы authelia (API)
-#   @authelia_api path /api/*
-#   reverse_proxy @authelia_api authelia:9091
-
-#   # Всё остальное — редирект на /auth
-#   handle {
-#     @not_auth not path /auth* /api/*
-#     redir /auth 302
-#   }
-
-
+  # Всё остальное: редирект на /auth (если хочешь)
+  handle {
+    redir /auth 302
+  }
 
   log {
     output file /var/log/caddy/authelia-access.log {
