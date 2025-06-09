@@ -177,6 +177,27 @@ EOF
 
 }
 
+add_services_to_config_subnames_test() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        echo ":443 {" >>"$CONFIG_FILE"
+        echo "  tls $CERT_CRT $CERT_KEY" >>"$CONFIG_FILE"
+    else
+        echo "https://$PROXY_DOMAIN {" >>"$CONFIG_FILE"
+    fi
+    echo "" >>"$CONFIG_FILE"
+
+    # Authelia (доступ по /auth и /auth/*)
+    cat <<EOF >>"$CONFIG_FILE"
+  # Authelia web
+  handle_path /auth/* {
+#  handle_path /auth* {
+    reverse_proxy http://authelia:9091
+  }
+
+EOF
+
+}
+
 add_services_to_config_subnames() {
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
         echo ":443 {" >>"$CONFIG_FILE"
@@ -388,7 +409,8 @@ main() {
 
 #    generate_authelia_proxy   # add authelia proxy
 #    add_services_to_config
-    add_services_to_config_subnames
+#    add_services_to_config_subnames
+    add_services_to_config_subnames_test
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
