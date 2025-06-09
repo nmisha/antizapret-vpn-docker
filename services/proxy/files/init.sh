@@ -86,6 +86,63 @@ EOF
     echo "[INFO] Global configuration block created."
 }
 
+
+generate_authelia_proxy() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        cat <<EOF >>"$CONFIG_FILE"
+
+:9091 {
+  tls $CERT_CRT $CERT_KEY
+
+  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
+  handle_path /auth/* {
+    reverse_proxy authelia:9091
+  }
+
+  # Всё остальное: редирект на /auth (если хочешь)
+  handle {
+    redir /auth 302
+  }
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
+EOF
+    else
+        cat <<EOF >>"$CONFIG_FILE"
+
+https://$PROXY_DOMAIN:9091 {
+  tls $CERT_CRT $CERT_KEY
+
+  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
+  handle_path /auth/* {
+    reverse_proxy authelia:9091
+  }
+
+  # Всё остальное: редирект на /auth (если хочешь)
+  handle {
+    redir /auth 302
+  }
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
+EOF
+    fi
+    echo "[INFO] Authelia proxy block added."
+}
+
+
 add_services_to_config() {
 
     generate_authelia_proxy
@@ -179,61 +236,6 @@ EOF
     done
 }
 
-
-generate_authelia_proxy() {
-    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
-        cat <<EOF >>"$CONFIG_FILE"
-
-:9091 {
-  tls $CERT_CRT $CERT_KEY
-
-  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
-  handle_path /auth/* {
-    reverse_proxy authelia:9091
-  }
-
-  # Всё остальное: редирект на /auth (если хочешь)
-  handle {
-    redir /auth 302
-  }
-
-  log {
-    output file /var/log/caddy/authelia-access.log {
-      roll_size 10MB
-      roll_keep 5
-    }
-  }
-}
-
-EOF
-    else
-        cat <<EOF >>"$CONFIG_FILE"
-
-https://$PROXY_DOMAIN:9091 {
-  tls $CERT_CRT $CERT_KEY
-
-  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
-  handle_path /auth/* {
-    reverse_proxy authelia:9091
-  }
-
-  # Всё остальное: редирект на /auth (если хочешь)
-  handle {
-    redir /auth 302
-  }
-
-  log {
-    output file /var/log/caddy/authelia-access.log {
-      roll_size 10MB
-      roll_keep 5
-    }
-  }
-}
-
-EOF
-    fi
-    echo "[INFO] Authelia proxy block added."
-}
 
 main() {
     : >"$CONFIG_FILE"
