@@ -301,7 +301,7 @@ EOF
   handle_path /$subpath/* {
     # Если нужно, прокидываем оригинальный Host и X-Forwarded-Prefix,
     # чтобы upstream-приложение знало, где оно “сидит”
-    reverse_proxy http://localhost:3000 {
+    reverse_proxy http://$internal_host:$internal_port {
       header_up Host {host}
       header_up X-Forwarded-Prefix /$subpath
     }
