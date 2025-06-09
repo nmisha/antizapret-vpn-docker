@@ -250,16 +250,10 @@ main() {
     fi
 
     generate_authelia_proxy   # add authelia proxy
-    add_services_to_config
+#    add_services_to_config
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
 }
 
 main
-
-
-#https://auth.$PROXY_DOMAIN:9191 {
-#    reverse_proxy authelia:9091
-#    ...
-#}
