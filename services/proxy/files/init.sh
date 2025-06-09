@@ -232,7 +232,7 @@ https://$PROXY_DOMAIN:9091 {
 EOF
     fi
       echo "[INFO] Authelia proxy block added."
-    done
+#    done
 }
 
 
@@ -249,8 +249,8 @@ main() {
         generate_global_config
     fi
 
-    add_services_to_config
     generate_authelia_proxy   # add authelia proxy
+    add_services_to_config
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
