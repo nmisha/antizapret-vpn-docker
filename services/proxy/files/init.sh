@@ -214,7 +214,7 @@ generate_authelia_proxy() {
 
   # Всё остальное — редирект на /auth
   handle {
-    @not_auth not path /auth*
+    @not_auth not path /auth* /api/*
     redir /auth 302
   }
 
