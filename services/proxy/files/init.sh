@@ -142,9 +142,9 @@ EOF
       #       X-Forwarded-Proto {scheme}
       # }
     }
-    subfilter /static/ /$subpath/static/
-#    subfilter /assets/ /$subpath/assets/
-#    subfilter /api/ /$subpath/api/
+#     subfilter /static/ /$subpath/static/
+# #    subfilter /assets/ /$subpath/assets/
+# #    subfilter /api/ /$subpath/api/
 
   }
 
