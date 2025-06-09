@@ -137,10 +137,10 @@ EOF
       header_up Host {host}
       header_up X-Forwarded-Prefix /$subpath
       header_up X-Real-IP {remote}
-        set_headers {
-            X-Forwarded-Method {method}
-            X-Forwarded-Proto {scheme}
-      }
+      #   set_headers {
+      #       X-Forwarded-Method {method}
+      #       X-Forwarded-Proto {scheme}
+      # }
     }
     subfilter /static/ /$subpath/static/
 #    subfilter /assets/ /$subpath/assets/
