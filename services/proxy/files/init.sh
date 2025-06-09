@@ -282,16 +282,38 @@ EOF
 #     reverse_proxy http://$internal_host:$internal_port
 #   }
 
-  handle_path /$subpath* {
-    forward_auth authelia:9091 {
-#      uri /auth/api/authz/forward-auth
-      uri /api/authz/forward-auth
-     header_up Host {host}
-     header_up X-Forwarded-Prefix /auth
-      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#========================================
+
+#   handle_path /$subpath* {
+#     forward_auth authelia:9091 {
+# #      uri /auth/api/authz/forward-auth
+#       uri /api/authz/forward-auth
+#      header_up Host {host}
+#      header_up X-Forwarded-Prefix /auth
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
+
+#========================================
+
+  # 1. Ловим все запросы к /app и автоматически отрезаем этот префикс
+  handle_path /$subpath/* {
+    # Если нужно, прокидываем оригинальный Host и X-Forwarded-Prefix,
+    # чтобы upstream-приложение знало, где оно “сидит”
+    reverse_proxy http://localhost:3000 {
+      header_up Host {host}
+      header_up X-Forwarded-Prefix /$subpath
     }
-    reverse_proxy http://$internal_host:$internal_port
   }
+
+  # 2. (Опционально) редирект с /app на /app/ — чтобы нормально работали относительные пути
+  @bareApp {
+    path /$subpath
+  }
+  redir @bareApp /$subpath/ 301
+
+
 
 
 EOF
