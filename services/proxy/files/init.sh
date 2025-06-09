@@ -217,7 +217,7 @@ add_services_to_config_subnames_test() {
 #      header_up X-Forwarded-Prefix /auth
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
     }
-    reverse_proxy http://vnstati:8685
+    reverse_proxy http://dashboard.antizapret:80
   }
 
   # Всё остальное
