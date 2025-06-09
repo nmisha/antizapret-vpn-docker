@@ -104,9 +104,27 @@ add_services_to_config() {
 #$name#
 :$external_port {
   tls $CERT_CRT $CERT_KEY
-  reverse_proxy {
-    to http://$internal_host:$internal_port
+#  reverse_proxy {
+#    to http://$internal_host:$internal_port
+#  }
+
+  @protected {
+    not path /auth*  # защищаем всё кроме /auth
   }
+
+  route @protected {
+    forward_auth authelia:9091 {
+#    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+      uri /api/verify?rd=https://{host}{uri}
+      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+      trusted_proxies private_ranges
+    }
+    reverse_proxy http://$internal_host:$internal_port
+  }
+
+  reverse_proxy /auth* authelia:9091
+
+
 }
 EOF
     else
@@ -114,12 +132,28 @@ EOF
 
 #$name#
 https://$PROXY_DOMAIN:$external_port {
-  reverse_proxy {
-    to http://$internal_host:$internal_port
-  }
-#  basicauth {
-#    $PROXY_USERNAME $PROXY_PASSWORD
+#  reverse_proxy {
+#    to http://$internal_host:$internal_port
 #  }
+##  basicauth {
+##    $PROXY_USERNAME $PROXY_PASSWORD
+##  }
+
+  @protected {
+    not path /auth*
+  }
+
+  route @protected {
+    forward_auth authelia:9091 {
+      uri /api/verify?rd=https://{host}{uri}
+      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+      trusted_proxies private_ranges
+    }
+    reverse_proxy http://$internal_host:$internal_port
+  }
+
+  reverse_proxy /auth* authelia:9091
+
   log {
     output file /var/log/caddy/access.log {
       roll_size 10MB # Create new file when size exceeds 10MB
