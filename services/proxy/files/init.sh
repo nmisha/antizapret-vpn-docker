@@ -113,8 +113,8 @@ add_services_to_config() {
   }
 
   route @protected {
-    forward_auth authelia:9091 {
-#    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+#    forward_auth authelia:9091 {
+    forward_auth auth.vps-nl-1.20x40.ru:9091 {
       uri /api/verify?rd=https://{host}{uri}
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
       trusted_proxies private_ranges
@@ -122,8 +122,8 @@ add_services_to_config() {
     reverse_proxy http://$internal_host:$internal_port
   }
 
-  reverse_proxy /auth* authelia:9091
-
+#  reverse_proxy /auth* authelia:9091
+  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
 
 }
 EOF
@@ -144,7 +144,8 @@ https://$PROXY_DOMAIN:$external_port {
   }
 
   route @protected {
-    forward_auth authelia:9091 {
+#    forward_auth authelia:9091 {
+    forward_auth auth.vps-nl-1.20x40.ru:9091 {
       uri /api/verify?rd=https://{host}{uri}
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
       trusted_proxies private_ranges
@@ -152,7 +153,8 @@ https://$PROXY_DOMAIN:$external_port {
     reverse_proxy http://$internal_host:$internal_port
   }
 
-  reverse_proxy /auth* authelia:9091
+#  reverse_proxy /auth* authelia:9091
+  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
 
   log {
     output file /var/log/caddy/access.log {
