@@ -189,7 +189,8 @@ add_services_to_config_subnames() {
     # Authelia (доступ по /auth и /auth/*)
     cat <<EOF >>"$CONFIG_FILE"
   # Authelia web
-  handle_path /auth* {
+  handle_path /auth/* {
+#  handle_path /auth* {
     reverse_proxy http://authelia:9091
   }
 
@@ -385,9 +386,9 @@ main() {
 #        generate_authelia_proxy
     fi
 
-    generate_authelia_proxy   # add authelia proxy
-    add_services_to_config
-#    add_services_to_config_subnames
+#    generate_authelia_proxy   # add authelia proxy
+#    add_services_to_config
+    add_services_to_config_subnames
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
