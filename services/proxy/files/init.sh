@@ -211,12 +211,26 @@ EOF
 
 #$name#
 https://$PROXY_DOMAIN:$external_port {
- reverse_proxy {
-   to http://$internal_host:$internal_port
- }
-#  basicauth {
-#    $PROXY_USERNAME $PROXY_PASSWORD
+#  reverse_proxy {
+#    to http://$internal_host:$internal_port
 #  }
+# #  basicauth {
+# #    $PROXY_USERNAME $PROXY_PASSWORD
+# #  }
+
+
+
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#    trusted_proxies private_ranges
+	}
+
+  reverse_proxy {
+    to http://$internal_host:$internal_port
+  }
+
+
 
 #   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
 
