@@ -126,7 +126,7 @@ EOF
 
 
 #Authelia /auth#
-https://$PROXY_DOMAIN/auth* {
+https://$PROXY_DOMAIN:443 {
 
 #  reverse_proxy {
 #    to http://authelia:9091
