@@ -340,6 +340,85 @@ EOF
 
 
 
+add_services_to_config_subnames_2() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        echo ":443 {" >> "$CONFIG_FILE"
+        echo "  tls $CERT_CRT $CERT_KEY" >> "$CONFIG_FILE"
+    else
+        echo "https://$PROXY_DOMAIN {" >> "$CONFIG_FILE"
+    fi
+    echo "" >> "$CONFIG_FILE"
+
+    # 1. Проксируем всё, связанное с Authelia
+    cat <<EOF >> "$CONFIG_FILE"
+  @authelia {
+    path /auth* /api/* /static/* /assets/*
+  }
+  reverse_proxy @authelia http://authelia:9091 {
+    header_up Host {host}
+    header_up X-Forwarded-Prefix /auth
+  }
+
+EOF
+
+    idx=1
+    default_subpath="srv1"
+    subpaths=()
+
+    echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
+        [ -z "$service_value" ] && continue
+
+        name=$(echo "$service_value" | cut -d':' -f1)
+        internal_host=$(echo "$service_value" | cut -d':' -f3)
+        internal_port=$(echo "$service_value" | cut -d':' -f4)
+        subpath="srv$idx"
+        subpaths+=("/$subpath")
+
+        cat <<EOF >> "$CONFIG_FILE"
+  # $name → /$subpath/
+  handle_path /$subpath/* {
+    reverse_proxy http://$internal_host:$internal_port {
+      header_up Host {host}
+      header_up X-Forwarded-Prefix /$subpath
+    }
+  }
+
+EOF
+        idx=$((idx + 1))
+    done
+
+    # 2. Редирект для «голых» subpath — только один раз
+    if [ "${#subpaths[@]}" -gt 0 ]; then
+        echo "  @bareApp {" >> "$CONFIG_FILE"
+        echo -n "    path" >> "$CONFIG_FILE"
+        for p in "${subpaths[@]}"; do
+            echo -n " $p" >> "$CONFIG_FILE"
+        done
+        echo "" >> "$CONFIG_FILE"
+        echo "  }" >> "$CONFIG_FILE"
+        echo "  redir @bareApp {path}/ 301" >> "$CONFIG_FILE"
+        echo "" >> "$CONFIG_FILE"
+    fi
+
+    # 3. Дефолтный редирект на /srv1/
+    cat <<EOF >> "$CONFIG_FILE"
+  handle {
+    redir /$default_subpath/ 302
+  }
+
+  log {
+    output file /var/log/caddy/access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+EOF
+
+    echo "[INFO] Caddyfile with numbered subpaths and Authelia created."
+}
+
+
 
 add_services_to_config() {
 
@@ -485,7 +564,7 @@ main() {
 
 #    generate_authelia_proxy   # add authelia proxy
 #    add_services_to_config
-    add_services_to_config_subnames
+    add_services_to_config_subnames_2
 #    add_services_to_config_subnames_test
 
     echo
