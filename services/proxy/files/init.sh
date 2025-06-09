@@ -180,9 +180,24 @@ add_services_to_config() {
 #$name#
 :$external_port {
   tls $CERT_CRT $CERT_KEY
- reverse_proxy {
-   to http://$internal_host:$internal_port
- }
+#  reverse_proxy {
+#    to http://$internal_host:$internal_port
+#  }
+
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#    trusted_proxies private_ranges
+	}
+
+  reverse_proxy {
+    to http://$internal_host:$internal_port
+  }
+
+
+
+
+
 
 #   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
 
