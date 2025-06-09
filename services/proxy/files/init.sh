@@ -189,20 +189,30 @@ add_services_to_config_subnames_test() {
     # Authelia (доступ по /auth и /auth/*)
     cat <<EOF >>"$CONFIG_FILE"
   # Authelia web
-  handle /auth/* {
+  handle_path /auth/* {
 #  handle_path /auth* {
     reverse_proxy http://authelia:9091
+    header_up Host {host}
+    header_up X-Forwarded-Prefix /auth
   }
 
+#redir /old.html /new.html
 
   handle_path /srv1/* {
     forward_auth authelia:9091 {
       uri /api/authz/forward-auth
 #      auth/uri /api/authz/forward-auth
+      header_up Host {host}
+      header_up X-Forwarded-Prefix /auth
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
     }
     reverse_proxy http://vnstati:8685
   }
+
+  # Всё остальное
+  # handle /* {
+  #   reverse_proxy http://dashboard.antizapret:80
+  # }
 
 
 EOF
