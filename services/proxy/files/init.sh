@@ -361,19 +361,24 @@ add_services_to_config_subnames_2() {
 
 EOF
 
+    # Собираем bare paths в одну строку
+    bare_paths=""
     idx=1
     default_subpath="srv1"
-    subpaths=()
 
-    echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
+    # Используем for вместо echo|while, чтобы не было subshell’а
+    for service_value in $REACHABLE_SERVICES; do
         [ -z "$service_value" ] && continue
 
-        name=$(echo "$service_value" | cut -d':' -f1)
-        internal_host=$(echo "$service_value" | cut -d':' -f3)
-        internal_port=$(echo "$service_value" | cut -d':' -f4)
+        name=$(printf "%s" "$service_value" | cut -d':' -f1)
+        internal_host=$(printf "%s" "$service_value" | cut -d':' -f3)
+        internal_port=$(printf "%s" "$service_value" | cut -d':' -f4)
         subpath="srv$idx"
-        subpaths+=("/$subpath")
 
+        # Добавляем к списку bare_paths
+        bare_paths="$bare_paths /$subpath"
+
+        # Пишем блок проксирования для этого subpath
         cat <<EOF >> "$CONFIG_FILE"
   # $name → /$subpath/
   handle_path /$subpath/* {
@@ -387,17 +392,15 @@ EOF
         idx=$((idx + 1))
     done
 
-    # 2. Редирект для «голых» subpath — только один раз
-    if [ "${#subpaths[@]}" -gt 0 ]; then
-        echo "  @bareApp {" >> "$CONFIG_FILE"
-        echo -n "    path" >> "$CONFIG_FILE"
-        for p in "${subpaths[@]}"; do
-            echo -n " $p" >> "$CONFIG_FILE"
-        done
-        echo "" >> "$CONFIG_FILE"
-        echo "  }" >> "$CONFIG_FILE"
-        echo "  redir @bareApp {path}/ 301" >> "$CONFIG_FILE"
-        echo "" >> "$CONFIG_FILE"
+    # 2. Один общий @bareApp для всех subpath
+    if [ -n "$bare_paths" ]; then
+        cat <<EOF >> "$CONFIG_FILE"
+  @bareApp {
+    path$bare_paths
+  }
+  redir @bareApp {path}/ 301
+
+EOF
     fi
 
     # 3. Дефолтный редирект на /srv1/
