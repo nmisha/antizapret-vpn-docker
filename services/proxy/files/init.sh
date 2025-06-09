@@ -87,6 +87,8 @@ EOF
 }
 
 
+AUTHELIA_SERVICE_NAME="auth"
+
 generate_authelia_proxy() {
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
         cat <<EOF >>"$CONFIG_FILE"
@@ -122,12 +124,22 @@ EOF
         cat <<EOF >>"$CONFIG_FILE"
 
 
+
 #Authelia /auth#
 https://$PROXY_DOMAIN/auth* {
 
- reverse_proxy {
-   to http://authelia:9091
- }
+#  reverse_proxy {
+#    to http://authelia:9091
+#  }
+
+
+     redir /$AUTHELIA_SERVICE_NAME /$AUTHELIA_SERVICE_NAME/ # Just to redirect users that are missing the closing slash to the correct page
+     handle_path /$AUTHELIA_SERVICE_NAME/* { # Actually configures the used subfolder (also internally strips the path prefix)
+         reverse_proxy http://authelia:9091 { # Enables the reverse proxy for the configured program:port
+             header_up X-Forwarded-Prefix "/$AUTHELIA_SERVICE_NAME" # Sets the correct header for the login cookies
+         }
+     }
+
 
 
   log {
