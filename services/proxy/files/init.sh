@@ -211,8 +211,8 @@ EOF
   # $name → /$subpath/
   handle_path /$subpath/* {
     forward_auth authelia:9091 {
-#      uri /api/authz/forward-auth
-      auth/uri /api/authz/forward-auth
+      uri /api/authz/forward-auth
+#      auth/uri /api/authz/forward-auth
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
     }
     reverse_proxy http://$internal_host:$internal_port
@@ -385,9 +385,9 @@ main() {
 #        generate_authelia_proxy
     fi
 
-#    generate_authelia_proxy   # add authelia proxy
-#    add_services_to_config
-    add_services_to_config_subnames
+    generate_authelia_proxy   # add authelia proxy
+    add_services_to_config
+#    add_services_to_config_subnames
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
