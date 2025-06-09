@@ -113,8 +113,8 @@ add_services_to_config() {
   }
 
   route @protected {
-#    forward_auth authelia:9091 {
-    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+    forward_auth authelia:9091 {
+#    forward_auth auth.vps-nl-1.20x40.ru:9091 {
       uri /api/verify?rd=https://{host}{uri}
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
       trusted_proxies private_ranges
@@ -122,8 +122,8 @@ add_services_to_config() {
     reverse_proxy http://$internal_host:$internal_port
   }
 
-#  reverse_proxy /auth* authelia:9091
-  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
+  reverse_proxy /auth* authelia:9091
+#  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
 
 }
 EOF
@@ -144,8 +144,8 @@ https://$PROXY_DOMAIN:$external_port {
   }
 
   route @protected {
-#    forward_auth authelia:9091 {
-    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+    forward_auth authelia:9091 {
+#    forward_auth auth.vps-nl-1.20x40.ru:9091 {
       uri /api/verify?rd=https://{host}{uri}
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
       trusted_proxies private_ranges
@@ -153,8 +153,8 @@ https://$PROXY_DOMAIN:$external_port {
     reverse_proxy http://$internal_host:$internal_port
   }
 
-#  reverse_proxy /auth* authelia:9091
-  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
+  reverse_proxy /auth* authelia:9091
+#  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
 
   log {
     output file /var/log/caddy/access.log {
@@ -170,6 +170,38 @@ EOF
     done
 }
 
+
+generate_authelia_proxy() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        cat <<EOF >>"$CONFIG_FILE"
+
+# Authelia web
+:9191 {
+  tls $CERT_CRT $CERT_KEY
+  reverse_proxy authelia:9091
+}
+EOF
+    else
+        cat <<EOF >>"$CONFIG_FILE"
+
+# Authelia web
+https://auth.$PROXY_DOMAIN:9191 {
+  reverse_proxy authelia:9091
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+EOF
+    fi
+    echo "[INFO] Authelia proxy block added."
+}
+
+
+
 main() {
     : >"$CONFIG_FILE"
     get_services
@@ -184,6 +216,7 @@ main() {
     fi
 
     add_services_to_config
+    generate_authelia_proxy   # add authelia proxy
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
