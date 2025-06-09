@@ -86,7 +86,83 @@ EOF
     echo "[INFO] Global configuration block created."
 }
 
+
+generate_authelia_proxy() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        cat <<EOF >>"$CONFIG_FILE"
+
+#Authelia#
+:9091 {
+  tls $CERT_CRT $CERT_KEY
+
+  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
+  handle_path /auth/* {
+    reverse_proxy http://authelia:9091
+  }
+
+  # Всё остальное: редирект на /auth (если хочешь)
+  handle {
+    redir /auth 302
+  }
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
+EOF
+    else
+        cat <<EOF >>"$CONFIG_FILE"
+
+#Authelia#
+https://$PROXY_DOMAIN:9091 {
+
+ reverse_proxy {
+   to http://authelia:9091
+ }
+
+
+#   # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
+# #  handle_path /auth/* {
+#   handle_path /auth/* {
+#     reverse_proxy http://authelia:9091
+#   }
+
+#   handle_path /auth {
+#     reverse_proxy http://authelia:9091
+#   }
+
+
+
+
+  # Всё остальное: редирект на /auth (если хочешь)
+  #handle {
+  #  redir /auth 302
+  #}
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
+EOF
+    fi
+    echo "[INFO] Authelia proxy block added."
+
+echo "$CONFIG_FILE"
+echo cat "$CONFIG_FILE"
+
+}
+
+
 add_services_to_config() {
+
     echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
 
     if [ -z "$service_value" ]; then
@@ -104,9 +180,45 @@ add_services_to_config() {
 #$name#
 :$external_port {
   tls $CERT_CRT $CERT_KEY
+#  reverse_proxy {
+#    to http://$internal_host:$internal_port
+#  }
+
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#    trusted_proxies private_ranges
+	}
+
   reverse_proxy {
     to http://$internal_host:$internal_port
   }
+
+
+
+
+
+
+#   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
+
+#   @protected {
+#     not path /auth* /favicon.ico /api/verify /locales/*
+#   }
+
+#   route @protected {
+#     forward_auth authelia:9091 {
+# #    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+# #    forward_auth az.vps-nl-1.20x40.ru:9091 {
+#       uri /api/verify?rd=https://{host}{uri}
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#       trusted_proxies private_ranges
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
+
+#   reverse_proxy @auth_exempt authelia:9091
+# #  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
+
 }
 EOF
     else
@@ -114,12 +226,47 @@ EOF
 
 #$name#
 https://$PROXY_DOMAIN:$external_port {
+#  reverse_proxy {
+#    to http://$internal_host:$internal_port
+#  }
+# #  basicauth {
+# #    $PROXY_USERNAME $PROXY_PASSWORD
+# #  }
+
+
+
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#    trusted_proxies private_ranges
+	}
+
   reverse_proxy {
     to http://$internal_host:$internal_port
   }
-#  basicauth {
-#    $PROXY_USERNAME $PROXY_PASSWORD
-#  }
+
+
+
+#   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
+
+#   @protected {
+#     not path /auth* /favicon.ico /api/verify /locales/*
+#   }
+
+#   route @protected {
+#     forward_auth authelia:9091 {
+# #    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+# #    forward_auth az.vps-nl-1.20x40.ru:9091 {
+#       uri /api/verify?rd=https://{host}{uri}
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#       trusted_proxies private_ranges
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
+
+#   reverse_proxy @auth_exempt authelia:9091
+# #  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
+
   log {
     output file /var/log/caddy/access.log {
       roll_size 10MB # Create new file when size exceeds 10MB
@@ -132,7 +279,13 @@ EOF
     fi
       echo "[INFO] Service added: $external_port -> $internal_host:$internal_port"
     done
+
+
+echo "$CONFIG_FILE"
+echo cat "$CONFIG_FILE"
+
 }
+
 
 main() {
     : >"$CONFIG_FILE"
@@ -142,11 +295,15 @@ main() {
         IS_SELF_SIGNED=1
         generate_certificate
         generate_global_config
+#        generate_authelia_proxy
+
     else
         IS_SELF_SIGNED=0
         generate_global_config
+#        generate_authelia_proxy
     fi
 
+    generate_authelia_proxy   # add authelia proxy
     add_services_to_config
 
     echo
