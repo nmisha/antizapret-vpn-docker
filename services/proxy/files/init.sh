@@ -202,6 +202,27 @@ generate_authelia_proxy() {
   }
 }
 
+https://$PROXY_DOMAIN:9091 {
+  tls /certs/cert.crt /certs/cert.key
+
+  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
+  handle_path /auth/* {
+    reverse_proxy authelia:9091
+  }
+
+  # Всё остальное: редирект на /auth (если хочешь)
+  handle {
+    redir /auth 302
+  }
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
 
 EOF
     fi
