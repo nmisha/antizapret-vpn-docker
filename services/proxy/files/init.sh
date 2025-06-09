@@ -230,6 +230,10 @@ EOF
 
 }
 
+
+
+
+
 add_services_to_config_subnames() {
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
         echo ":443 {" >>"$CONFIG_FILE"
@@ -339,18 +343,17 @@ EOF
 }
 
 
-
-add_services_to_config_subnames_2() {
+add_services_to_config_subnames_2() { 
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
-        echo ":443 {" >> "$CONFIG_FILE"
-        echo "  tls $CERT_CRT $CERT_KEY" >> "$CONFIG_FILE"
+        echo ":443 {" >>"$CONFIG_FILE"
+        echo "  tls $CERT_CRT $CERT_KEY" >>"$CONFIG_FILE"
     else
-        echo "https://$PROXY_DOMAIN {" >> "$CONFIG_FILE"
+        echo "https://$PROXY_DOMAIN {" >>"$CONFIG_FILE"
     fi
-    echo "" >> "$CONFIG_FILE"
+    echo "" >>"$CONFIG_FILE"
 
-    # 1. Проксируем всё, связанное с Authelia
-    cat <<EOF >> "$CONFIG_FILE"
+    # Authelia (доступ по /auth и /auth/*)
+    cat <<EOF >>"$CONFIG_FILE"
   @authelia {
     path /auth* /api/* /static/* /assets/*
   }
@@ -361,25 +364,19 @@ add_services_to_config_subnames_2() {
 
 EOF
 
-    # Собираем bare paths в одну строку
-    bare_paths=""
     idx=1
     default_subpath="srv1"
 
-    # Используем for вместо echo|while, чтобы не было subshell’а
-    for service_value in $REACHABLE_SERVICES; do
+    echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
         [ -z "$service_value" ] && continue
 
-        name=$(printf "%s" "$service_value" | cut -d':' -f1)
-        internal_host=$(printf "%s" "$service_value" | cut -d':' -f3)
-        internal_port=$(printf "%s" "$service_value" | cut -d':' -f4)
+        name=$(echo "$service_value" | cut -d':' -f1)
+        internal_host=$(echo "$service_value" | cut -d':' -f3)
+        internal_port=$(echo "$service_value" | cut -d':' -f4)
         subpath="srv$idx"
+        bare_marker="@bareApp_$subpath"
 
-        # Добавляем к списку bare_paths
-        bare_paths="$bare_paths /$subpath"
-
-        # Пишем блок проксирования для этого subpath
-        cat <<EOF >> "$CONFIG_FILE"
+        cat <<EOF >>"$CONFIG_FILE"
   # $name → /$subpath/
   handle_path /$subpath/* {
     reverse_proxy http://$internal_host:$internal_port {
@@ -388,23 +385,16 @@ EOF
     }
   }
 
+  $bare_marker {
+    path /$subpath
+  }
+  redir $bare_marker /$subpath/ 301
+
 EOF
-        idx=$((idx + 1))
+        idx=$((idx+1))
     done
 
-    # 2. Один общий @bareApp для всех subpath
-    if [ -n "$bare_paths" ]; then
-        cat <<EOF >> "$CONFIG_FILE"
-  @bareApp {
-    path$bare_paths
-  }
-  redir @bareApp {path}/ 301
-
-EOF
-    fi
-
-    # 3. Дефолтный редирект на /srv1/
-    cat <<EOF >> "$CONFIG_FILE"
+    cat <<EOF >>"$CONFIG_FILE"
   handle {
     redir /$default_subpath/ 302
   }
@@ -420,7 +410,6 @@ EOF
 
     echo "[INFO] Caddyfile with numbered subpaths and Authelia created."
 }
-
 
 
 add_services_to_config() {
