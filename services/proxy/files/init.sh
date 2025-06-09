@@ -95,15 +95,19 @@ generate_authelia_proxy() {
 :9091 {
   tls $CERT_CRT $CERT_KEY
 
-  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
-  handle_path /auth/* {
-    reverse_proxy http://authelia:9091
-  }
+ reverse_proxy {
+   to http://authelia:9091
+ }
 
-  # Всё остальное: редирект на /auth (если хочешь)
-  handle {
-    redir /auth 302
-  }
+  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
+  # handle_path /auth/* {
+  #   reverse_proxy http://authelia:9091
+  # }
+
+  # # Всё остальное: редирект на /auth (если хочешь)
+  # handle {
+  #   redir /auth 302
+  # }
 
   log {
     output file /var/log/caddy/authelia-access.log {
@@ -117,6 +121,25 @@ EOF
     else
         cat <<EOF >>"$CONFIG_FILE"
 
+
+#Authelia /auth#
+https://$PROXY_DOMAIN/auth* {
+
+ reverse_proxy {
+   to http://authelia:9091
+ }
+
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
+#reverse_proxy /app2/*
+
 #Authelia#
 https://$PROXY_DOMAIN:9091 {
 
@@ -124,24 +147,6 @@ https://$PROXY_DOMAIN:9091 {
    to http://authelia:9091
  }
 
-
-#   # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
-# #  handle_path /auth/* {
-#   handle_path /auth/* {
-#     reverse_proxy http://authelia:9091
-#   }
-
-#   handle_path /auth {
-#     reverse_proxy http://authelia:9091
-#   }
-
-
-
-
-  # Всё остальное: редирект на /auth (если хочешь)
-  #handle {
-  #  redir /auth 302
-  #}
 
   log {
     output file /var/log/caddy/authelia-access.log {
@@ -153,10 +158,10 @@ https://$PROXY_DOMAIN:9091 {
 
 EOF
     fi
-    echo "[INFO] Authelia proxy block added."
+      echo "[INFO] Authelia proxy block added."
 
-echo "$CONFIG_FILE"
-echo cat "$CONFIG_FILE"
+#echo "$CONFIG_FILE"
+#echo cat "$CONFIG_FILE"
 
 }
 
@@ -281,8 +286,8 @@ EOF
     done
 
 
-echo "$CONFIG_FILE"
-echo cat "$CONFIG_FILE"
+#echo "$CONFIG_FILE"
+#echo cat "$CONFIG_FILE"
 
 }
 
