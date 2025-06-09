@@ -211,10 +211,10 @@ add_services_to_config_subnames_test() {
 
   handle_path /srv1* {
     forward_auth authelia:9091 {
-      uri /auth/api/authz/forward-auth
-#      uri /api/authz/forward-auth
-#      header_up Host {host}
-#      header_up X-Forwarded-Prefix /auth
+#      uri /auth/api/authz/forward-auth
+      uri /api/authz/forward-auth
+     header_up Host {host}
+     header_up X-Forwarded-Prefix /auth
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
     }
     reverse_proxy http://dashboard.antizapret:80
@@ -241,10 +241,20 @@ add_services_to_config_subnames() {
 
     # Authelia (доступ по /auth и /auth/*)
     cat <<EOF >>"$CONFIG_FILE"
-  # Authelia web
-  handle_path /auth/* {
-#  handle_path /auth* {
-    reverse_proxy http://authelia:9091
+#   # Authelia web
+#   handle_path /auth/* {
+# #  handle_path /auth* {
+#     reverse_proxy http://authelia:9091
+#   }
+
+  # 1. Проксируем всё, связанное с Authelia
+  @authelia {
+    path /auth* /api/* /static/* /assets/*
+  }
+  reverse_proxy @authelia http://authelia:9091 {
+    header_up Host {host}
+    # необязательно, но полезно
+    header_up X-Forwarded-Prefix /auth
   }
 
 EOF
@@ -263,14 +273,26 @@ EOF
 
         cat <<EOF >>"$CONFIG_FILE"
   # $name → /$subpath/
-  handle_path /$subpath/* {
+#   handle_path /$subpath/* {
+#     forward_auth authelia:9091 {
+#       uri /api/authz/forward-auth
+# #      auth/uri /api/authz/forward-auth
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
+
+  handle_path /$subpath* {
     forward_auth authelia:9091 {
+#      uri /auth/api/authz/forward-auth
       uri /api/authz/forward-auth
-#      auth/uri /api/authz/forward-auth
+     header_up Host {host}
+     header_up X-Forwarded-Prefix /auth
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
     }
     reverse_proxy http://$internal_host:$internal_port
   }
+
 
 EOF
         idx=$((idx+1))
@@ -441,8 +463,8 @@ main() {
 
 #    generate_authelia_proxy   # add authelia proxy
 #    add_services_to_config
-#    add_services_to_config_subnames
-    add_services_to_config_subnames_test
+    add_services_to_config_subnames
+#    add_services_to_config_subnames_test
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
