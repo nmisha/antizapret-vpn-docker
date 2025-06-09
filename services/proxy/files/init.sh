@@ -249,7 +249,7 @@ main() {
         generate_global_config
     fi
 
-    generate_authelia_proxy   # add authelia proxy
+#    generate_authelia_proxy   # add authelia proxy
     add_services_to_config
 
     echo
