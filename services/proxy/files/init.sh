@@ -176,7 +176,8 @@ generate_authelia_proxy() {
         cat <<EOF >>"$CONFIG_FILE"
 
 # Authelia web
-:9191 {
+# :9191 {
+:9091 {
   tls $CERT_CRT $CERT_KEY
   reverse_proxy authelia:9091
 }
@@ -185,7 +186,9 @@ EOF
         cat <<EOF >>"$CONFIG_FILE"
 
 # Authelia web
-https://auth.$PROXY_DOMAIN:9191 {
+#https://auth.$PROXY_DOMAIN:9191 {
+#https://$PROXY_DOMAIN:$external_port {
+https://$PROXY_DOMAIN:9091 {
   reverse_proxy authelia:9091
 
   log {
@@ -223,3 +226,9 @@ main() {
 }
 
 main
+
+
+#https://auth.$PROXY_DOMAIN:9191 {
+#    reverse_proxy authelia:9091
+#    ...
+#}
