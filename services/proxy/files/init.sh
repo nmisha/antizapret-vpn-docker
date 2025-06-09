@@ -196,12 +196,22 @@ generate_authelia_proxy() {
 #https://$PROXY_DOMAIN:$external_port {
 #https://$PROXY_DOMAIN:9091 {
   tls $CERT_CRT $CERT_KEY
-  reverse_proxy authelia:9091
+
+  @authelia_path path /auth*  # только путь /auth* будет проксироваться
+
+#  reverse_proxy authelia:9091
+  reverse_proxy @authelia_path authelia:9091
   {
     header_up Host {host}
     header_up X-Real-IP {remote}
     header_up X-Forwarded-For {remote}
     header_up X-Forwarded-Proto {scheme}
+  }
+
+  # Всё остальное — редирект на /auth
+  handle {
+    @not_auth not path /auth*
+    redir /auth 302
   }
 
   log {
