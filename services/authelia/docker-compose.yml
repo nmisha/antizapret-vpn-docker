@@ -1,0 +1,39 @@
+services:
+  authelia:
+    container_name: 'authelia'
+    image: 'docker.io/authelia/authelia:latest'
+    restart: unless-stopped
+#    hostname: dashboard.antizapret
+    hostname: authelia
+#    network_mode: host
+    # networks:
+    #   - antizapret5_default
+#    ports:
+#      - '9091:9091'
+#      - '9191:9091'
+#    environment:
+#      AUTHELIA_IDENTITY_VALIDATION_RESET_PASSWORD_JWT_SECRET_FILE: '/run/secrets/JWT_SECRET'
+#      AUTHELIA_SESSION_SECRET_FILE: '/run/secrets/SESSION_SECRET'
+#      AUTHELIA_STORAGE_POSTGRES_PASSWORD_FILE: '/run/secrets/STORAGE_PASSWORD'
+#      AUTHELIA_STORAGE_ENCRYPTION_KEY_FILE: '/run/secrets/STORAGE_ENCRYPTION_KEY'
+    volumes:
+      # - './data/authelia/config:/config'
+      # - './data/authelia/secrets/JWT_SECRET:/run/secrets/JWT_SECRET:rw'
+      # - './data/authelia/secrets/SESSION_SECRET:/run/secrets/SESSION_SECRET:rw'
+      # - './data/authelia/secrets/STORAGE_PASSWORD:/run/secrets/STORAGE_PASSWORD:rw'
+      # - './data/authelia/secrets/STORAGE_ENCRYPTION_KEY:/run/secrets/STORAGE_ENCRYPTION_KEY:rw'
+      - '$PWD/config/authelia/config:/config'
+      - '$PWD/config/authelia/secrets/JWT_SECRET:/run/secrets/JWT_SECRET:rw'
+      - '$PWD/config/authelia/secrets/SESSION_SECRET:/run/secrets/SESSION_SECRET:rw'
+      - '$PWD/config/authelia/secrets/STORAGE_PASSWORD:/run/secrets/STORAGE_PASSWORD:rw'
+      - '$PWD/config/authelia/secrets/STORAGE_ENCRYPTION_KEY:/run/secrets/STORAGE_ENCRYPTION_KEY:rw'
+      - /etc/timezone:/etc/timezone:ro
+
+
+    depends_on:
+      - antizapret
+
+# networks:
+#   antizapret5_default:
+#     external: true
+
