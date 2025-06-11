@@ -30,8 +30,8 @@ services:
       - /etc/timezone:/etc/timezone:ro
 
 
-    depends_on:
-      - antizapret
+    # depends_on:
+    #   - antizapret
 
 # networks:
 #   antizapret5_default:
