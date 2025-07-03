@@ -5,8 +5,8 @@ http:
   address: 0.0.0.0:300
   session_ttl: 720h
 users:
-  - name: nmisha
-    password: $2y$10$/7wWnV3eq2.TAt5DRlD4bOk2muF5JGWR776Zyf/xHXBQbq.JeIvza
+  - name: admin
+    password: ""
 auth_attempts: 5
 block_auth_min: 15
 http_proxy: ""
