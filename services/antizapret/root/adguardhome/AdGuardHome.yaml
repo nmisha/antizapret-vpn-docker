@@ -5,12 +5,12 @@ http:
   address: 0.0.0.0:300
   session_ttl: 720h
 users:
-  - name: admin
-    password: ""
+  - name: nmisha
+    password: $2y$10$/7wWnV3eq2.TAt5DRlD4bOk2muF5JGWR776Zyf/xHXBQbq.JeIvza
 auth_attempts: 5
 block_auth_min: 15
 http_proxy: ""
-language: ""
+language: en
 theme: auto
 dns:
   bind_hosts:
@@ -24,6 +24,8 @@ dns:
   ratelimit_whitelist: []
   refuse_any: true
   upstream_dns:
+    - https://dns10.quad9.net/dns-query
+  # upstream_dns:
   upstream_dns_file: /opt/adguardhome/conf/upstream_dns_file
   bootstrap_dns:
     - 8.8.8.8
@@ -130,7 +132,7 @@ filters:
     url: https://github.com/alexsannikov/adguardhome-filters/raw/master/rueasylist.txt
     name: alexsannikov rueasylist
     id: 1725134864
-  - enabled: true
+  - enabled: false
     url: https://github.com/alexsannikov/adguardhome-filters/raw/master/admalware.txt
     name: alexsannikov admalware
     id: 1725134865
@@ -210,16 +212,165 @@ filters:
     url: https://github.com/Zalexanninev15/NoADS_RU/raw/refs/heads/main/ads_list_extended.txt
     name: Zalexanninev15 NoADS_RU Extended
     id: 1749380735
+  - enabled: true
+    url: https://raw.githubusercontent.com/nmisha/adguardhome-filters/refs/heads/master/admalware.txt
+    name: nmisha alexsannikov admalware
+    id: 1750050398
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/CyrillicFilters/RussianFilter/sections/adservers_firstparty.txt
+    name: AdguardTeam adservers_firstparty.txt
+    id: 1750050399
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/CyrillicFilters/RussianFilter/sections/antiadblock.txt
+    name: AdguardTeam antiadblock.txt
+    id: 1750050400
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/CyrillicFilters/RussianFilter/sections/general_extensions.txt
+    name: AdguardTeam general_extensions.txt
+    id: 1750050401
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/CyrillicFilters/RussianFilter/sections/replace.txt
+    name: AdguardTeam replace.txt
+    id: 1750050402
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/CyrillicFilters/RussianFilter/sections/specific.txt
+    name: AdguardTeam specific.txt
+    id: 1750050403
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/CyrillicFilters/RussianFilter/sections/allowlist.txt
+    name: AdguardTeam allowlist.txt
+    id: 1750050404
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/antiadblock.txt
+    name: Popups/sections/antiadblock.txt
+    id: 1750050405
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/popups_allowlist.txt
+    name: Popups/sections/popups_allowlist.txt
+    id: 1750050406
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/popups_general.txt
+    name: Popups/sections/popups_general.txt
+    id: 1750050407
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/popups_specific.txt
+    name: Popups/sections/popups_specific.txt
+    id: 1750050408
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/push-notifications_allowlist.txt
+    name: Popups/sections/push-notifications_allowlist.txt
+    id: 1750050409
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/push-notifications_general.txt
+    name: Popups/sections/push-notifications_general.txt
+    id: 1750050410
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/push-notifications_specific.txt
+    name: Popups/sections/push-notifications_specific.txt
+    id: 1750050411
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/subscriptions_allowlist.txt
+    name: Popups/sections/subscriptions_allowlist.txt
+    id: 1750050412
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/subscriptions_general.txt
+    name: Popups/sections/subscriptions_general.txt
+    id: 1750050413
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Popups/sections/subscriptions_specific.txt
+    name: Popups/sections/subscriptions_specific.txt
+    id: 1750050414
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Widgets/sections/widgets.txt
+    name: Widgets/sections/widgets.txt
+    id: 1750050415
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Other/sections/annoyances.txt
+    name: Other/sections/annoyances.txt
+    id: 1750050416
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Other/sections/self-promo.txt
+    name: Other/sections/self-promo.txt
+    id: 1750050417
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Other/sections/tweaks.txt
+    name: Other/sections/tweaks.txt
+    id: 1750050418
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/MobileApp/sections/mobile-app_allowlist.txt
+    name: MobileApp/sections/mobile-app_allowlist.txt
+    id: 1750050419
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/MobileApp/sections/mobile-app_general.txt
+    name: MobileApp/sections/mobile-app_general.txt
+    id: 1750050420
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/MobileApp/sections/mobile-app_specific.txt
+    name: MobileApp/sections/mobile-app_specific.txt
+    id: 1750050421
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Cookies/sections/cookies_allowlist.txt
+    name: Cookies/sections/cookies_allowlist.txt
+    id: 1750050422
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Cookies/sections/cookies_general.txt
+    name: Cookies/sections/cookies_general.txt
+    id: 1750050423
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/AnnoyancesFilter/Cookies/sections/cookies_specific.txt
+    name: Cookies/sections/cookies_specific.txt
+    id: 1750050424
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/adservers.txt
+    name: MobileFilter/sections/adservers.txt
+    id: 1750050425
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/allowlist_app.txt
+    name: MobileFilter/sections/allowlist_app.txt
+    id: 1750050426
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/allowlist_web.txt
+    name: MobileFilter/sections/allowlist_web.txt
+    id: 1750050427
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/antiadblock.txt
+    name: MobileFilter/sections/antiadblock.txt
+    id: 1750050428
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/general_extensions.txt
+    name: MobileFilter/sections/general_extensions.txt
+    id: 1750050432
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/general_url.txt
+    name: MobileFilter/sections/general_url.txt
+    id: 1750050433
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/replace.txt
+    name: MobileFilter/sections/replace.txt
+    id: 1750050434
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/specific_app.txt
+    name: MobileFilter/sections/specific_app.txt
+    id: 1750050435
+  - enabled: true
+    url: https://github.com/AdguardTeam/AdguardFilters/raw/refs/heads/master/MobileFilter/sections/specific_web.txt
+    name: MobileFilter/sections/specific_web.txt
+    id: 1750050436
+  - enabled: true
+    url: https://raw.githubusercontent.com/nmisha/adguardhome-filters/master/yandexad.txt
+    name: nmisha yandexad.txt
+    id: 1750050444
 whitelist_filters:
   - enabled: true
     url: https://raw.githubusercontent.com/anudeepND/whitelist/master/domains/whitelist.txt
     name: anudeepND whitelist
     id: 1726822499
-  - enabled: true
+  - enabled: false
     url: https://raw.githubusercontent.com/jumpsmm7/GeneratedAdblock/master/Allowed.list
     name: umpsmm7
     id: 1726834745
 user_rules:
+  - '@@||canyoublockit.com^'
   - '#||*^$dnstype=HTTPS'
   - '#@@||api.passport.yandex.com^'
   - '#@@||oauth.yandex.com^'
@@ -301,7 +452,161 @@ filtering:
   blocking_mode: default
   parental_block_host: family-block.dns.adguard.com
   safebrowsing_block_host: standard-block.dns.adguard.com
-  rewrites: []
+  rewrites:
+    - domain: radius.mi
+      answer: 10.1.0.1
+    - domain: printer.mi
+      answer: 10.1.0.216
+    - domain: router.mi
+      answer: 10.1.0.1
+    - domain: vps1.mi
+      answer: 83.217.210.252
+    - domain: router-ekb-2.mi
+      answer: 10.4.0.1
+    - domain: router.di
+      answer: 10.2.0.1
+    - domain: sls.mi
+      answer: 10.1.0.210
+    - domain: plex.mi
+      answer: 10.1.0.95
+    - domain: plex.di
+      answer: 10.2.0.248
+    - domain: nas.mi
+      answer: 10.1.0.105
+    - domain: nas.di
+      answer: 10.2.0.246
+    - domain: trans.mi
+      answer: 10.1.0.102
+    - domain: trans.di
+      answer: 10.2.0.249
+    - domain: pve.mi
+      answer: 10.1.0.124
+    - domain: pve.milan
+      answer: 10.1.0.124
+    - domain: micomp.mi
+      answer: 10.1.0.125
+    - domain: pp.mi
+      answer: 10.1.0.94
+    - domain: vpn.mi
+      answer: 10.1.0.91
+    - domain: nginx.mi
+      answer: 10.1.0.51
+    - domain: nginxdebian.mi
+      answer: 10.1.0.34
+    - domain: nginx.di
+      answer: 10.2.0.237
+    - domain: p.mi
+      answer: 10.1.0.77
+    - domain: mama.p.mi
+      answer: 10.1.0.67
+    - domain: ir1.mi
+      answer: 10.1.0.185
+    - domain: camera_kitchen.mi
+      answer: 10.1.0.186
+    - domain: ha.mi
+      answer: 10.1.0.206
+    - domain: homeassistant.local
+      answer: 10.1.0.206
+    - domain: psql.mi
+      answer: 10.1.0.57
+    - domain: nc.mi
+      answer: 10.1.0.71
+    - domain: nc2.mi
+      answer: 10.1.0.55
+    - domain: nc.di
+      answer: 10.2.0.196
+    - domain: oo.mi
+      answer: 10.1.0.72
+    - domain: speed.mi
+      answer: 10.1.0.49
+    - domain: kms.mi
+      answer: 10.1.0.37
+    - domain: kms.di
+      answer: 10.2.0.251
+    - domain: openspeed.mi
+      answer: 10.1.0.25
+    - domain: 3xui.mi
+      answer: 10.1.0.40
+    - domain: tv.mi
+      answer: 10.1.0.146
+    - domain: cups.mi
+      answer: 10.1.0.18
+    - domain: ansible.mi
+      answer: 10.1.0.10
+    - domain: mtsrouter.mi
+      answer: 192.168.20.1
+    - domain: frigate.mi
+      answer: 10.1.0.29
+    - domain: cbr.mi
+      answer: 10.1.0.35
+    - domain: owa.cbr.mi
+      answer: 10.1.0.35
+    - domain: jira.cbr.mi
+      answer: 10.1.0.35
+    - domain: confluence.cbr.mi
+      answer: 10.1.0.35
+    - domain: op.mi
+      answer: 10.1.0.54
+    - domain: mirouter.mi
+      answer: 10.1.0.70
+    - domain: ispy.mi
+      answer: 10.1.0.36
+    - domain: ztc.mi
+      answer: 10.1.0.73
+    - domain: npm.di
+      answer: 10.2.0.216
+    - domain: ai.mi
+      answer: 10.1.0.39
+    - domain: browservice.mi
+      answer: 10.1.0.75
+    - domain: p.di
+      answer: 10.2.0.217
+    - domain: semaphore.mi
+      answer: 10.1.0.20
+    - domain: crowdsec.mi
+      answer: 10.1.0.14
+    - domain: crowdsec2.mi
+      answer: 10.1.0.17
+    - domain: adguard.mi
+      answer: 10.1.0.11
+    - domain: sql.mi
+      answer: 10.1.0.56
+    - domain: dns.20x40.ru
+      answer: 10.1.0.11
+    - domain: pve.di
+      answer: 10.2.0.253
+    - domain: speed.di
+      answer: 10.2.0.218
+    - domain: trtest.di
+      answer: 10.2.0.221
+    - domain: vpn.di
+      answer: 10.2.0.252
+    - domain: ir2.mi
+      answer: 10.1.0.38
+    - domain: swagger.mi
+      answer: 10.1.0.60
+    - domain: npm.mi
+      answer: 10.1.0.59
+    - domain: ir3.mi
+      answer: 10.1.0.31
+    - domain: entrance_camera_1.mi
+      answer: 10.1.0.33
+    - domain: plex-ext.di
+      answer: 78.153.7.99
+    - domain: doorbell.mi
+      answer: 10.1.0.74
+    - domain: ca.di
+      answer: 10.2.0.1
+    - domain: radius.di
+      answer: 10.2.0.1
+    - domain: win.di
+      answer: 10.2.0.247
+    - domain: cups.di
+      answer: 10.2.0.229
+    - domain: cupsvm.di
+      answer: 10.2.0.227
+    - domain: printer.di
+      answer: 10.2.0.225
   safe_fs_patterns:
     - /opt/adguardhome/work/userfilters/*
   safebrowsing_cache_size: 1048576

@@ -1,6 +1,18 @@
 # find duplicates:  ^(.+)\n(?=(?:.*\n)*?\1$)
 # with empty lines: ^(.*)\n(?=(?:.*\n)*?\1$)
 
+
+
+# added
+dns.comss.one
+comss.dns.controld.com
+aistudio.google.com
+anthropic.com
+claude.com
+faceulv.com
+snapchat.com
+
+
 # root domains
 com.ua
 ua
