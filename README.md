@@ -266,6 +266,13 @@ wget http://archive.ubuntu.com/ubuntu/pool/universe/o/openvpn-dco-dkms/$deb
 sudo dpkg -i $deb
 ```
 
+### Legacy clients support
+If your clients do not have GCM ciphers support you can use legacy CBC ciphers.
+DCO is incompatible with legacy ciphers and will be disabled. This is also increase CPU load.
+
+
+## Amnezia Wireguard
+
 ### Enable Amnezia Wireguard Kernel Extension
 
 https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#ubuntu
@@ -276,15 +283,47 @@ https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#
 4. install source for kernel `sudo apt-get source linux-image-$(uname -r)`
 5. `sudo add-apt-repository ppa:amnezia/ppa`
 6. `sudo apt-get install -y amneziawg`
-7. restart server or `docker compose restart wireguard-amnezia`
+7. `sudo dkms install -m amneziawg -v 1.0.0`
+8. restart server or `docker compose restart wireguard-amnezia`
+9. check the list of kernel modules `dkms status`, 
+   and check that bunch of `[kworker/X:X-wg-crypt-wg0]` processes are now running.
 
-### Legacy clients support
-If your clients do not have GCM ciphers support you can use legacy CBC ciphers.
-DCO is incompatible with legacy ciphers and will be disabled. This is also increase CPU load.
+### Amnezia Wireguard Block
+Some providers can block AWG with default junk packets size. Large junk packets without response can be judged as DDOS attack.
+Use env variables to change their size:
 
-### OpenVPN block
-Most providers now block openvpn to foreign IPs. Obfuscation not always fix the issue.
-For stable openvpn operation you can buy VPS inside of your country and then proxy all traffic to foreign server.
+```
+Jc=3
+Jmin=20
+Jmax=100
+```
+or
+```
+Jc=2
+Jmin=10
+Jmax=20
+```
+Example part of docker-compose.override.yml with JMIN and JMAX:
+```yml
+  wireguard-amnezia:
+    environment:
+      - WIREGUARD_PASSWORD=xxxxx
+      - JC=3
+      - JMIN=20
+      - JMAX=100
+    extends:
+      file: services/wireguard/docker-compose.yml
+      service: wireguard-amnezia
+```
+Settings/env variables are saved in ./config/wireguard_amnezia/ folder. To update them remove folder and run container again.
+This will also remove all existing clients/certificates.
+```shell
+docker compose down && rm -rf ./config/wireguard_amnezia/ && docker compose up -d
+```
+
+### VPN / Hosting block
+Most providers now block vpn to foreign IPs. Obfuscation in amnezia or openvpn not always fix the issue.
+For stable vpn operation you can buy VPS inside of your country and then proxy all traffic to foreign server.
 Here is example of startup script.
 Replace X.X.X.X with IP address of your server and run it on fresh VPS (ubuntu 24.04 is recommended):
 
