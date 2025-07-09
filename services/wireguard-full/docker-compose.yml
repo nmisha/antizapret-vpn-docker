@@ -13,7 +13,7 @@ services:
     image: ghcr.io/wg-easy/wg-easy:latest
     container_name: wg-easy-full
     networks:
-      wg:
+      wg-full:
 #        ipv4_address: 10.1.162.1 # 10.1.162.0/24
         ipv4_address: 10.42.42.42
 #        ipv6_address: fdcc:ad94:bacf:61a3::2a
@@ -38,7 +38,7 @@ services:
 #      - net.ipv6.conf.default.forwarding=1
 
 networks:
- wg:
+ wg-full:
    driver: bridge
 #   enable_ipv6: true
    ipam:
