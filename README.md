@@ -174,7 +174,7 @@ Antizapret:
 - `ADGUARDHOME_PORT=3000`
 - `ADGUARDHOME_USERNAME=admin`
 - `ADGUARDHOME_PASSWORD=`
-- `ADGUARDHOME_PASSWORD_HASH=` - hashed password, taken from the AdGuardHome.yaml file after the first run using `ADGUARDHOME_PASSWORD`
+- `ADGUARDHOME_PASSWORD_HASH=` - hashed password, taken from the AdGuardHome.yaml file after the first run using `ADGUARDHOME_PASSWORD`. Dollar sign `$` in hash must be escaped with another dollar sign: `$$` 
 - `DNS=8.8.8.8` - Upstream DNS for resolving blocked sites
 - `ROUTES` - list of VPN containers and their virtual addresses. Needed for uniq client addresses in adguard logs 
 - `LISTS` - list of urls to get blocked domains lists
@@ -201,7 +201,7 @@ Openvpn-ui
 
 Wireguard/Wireguard Amnezia
 - `WIREGUARD_PASSWORD=` - password for admin panel
-- `WIREGUARD_PASSWORD_HASH=` - [hashed password](https://github.com/wg-easy/wg-easy/blob/master/How_to_generate_an_bcrypt_hash.md) for admin panel
+- `WIREGUARD_PASSWORD_HASH=` - [hashed password](https://github.com/wg-easy/wg-easy/blob/v14.0.0/How_to_generate_an_bcrypt_hash.md) for admin panel
 - `ANTIZAPRET_SUBNET=10.224.0.0/15` - subnet for virtual blocked ips
 - `WG_DEFAULT_DNS=10.224.0.1` - DNS address for clients. Must be in `ANTIZAPRET_SUBNET`
 - `WG_PERSISTENT_KEEPALIVE=25`
