@@ -9,6 +9,7 @@ CONFIG_FILE="/etc/caddy/Caddyfile"
 REACHABLE_SERVICES=""
 IS_SELF_SIGNED=0
 
+
 is_host_resolved() {
     sleep 1s
     host=$1
@@ -85,32 +86,30 @@ EOF
     echo "[INFO] Global configuration block created."
 }
 
+
 AUTHELIA_SERVICE_NAME="auth"
 
-# Вернёт server label для блока Authelia.
-# Если задан PROXY_DOMAIN — используем auth.$PROXY_DOMAIN (порт 443 по умолчанию).
-# Если домен не задан (офлайн/локально) — слушаем просто :443.
-get_authelia_server_label() {
-    if [ -n "${PROXY_DOMAIN:-}" ]; then
-        printf "auth.%s" "$PROXY_DOMAIN"
-    else
-        printf ":443"
-    fi
-}
-
 generate_authelia_proxy() {
-    server_label="$(get_authelia_server_label)"
-
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
         cat <<EOF >>"$CONFIG_FILE"
 
-# === Authelia (self-signed) ===
-$server_label {
+#Authelia#
+:9091 {
   tls $CERT_CRT $CERT_KEY
 
-  reverse_proxy {
-    to http://authelia:9091
-  }
+ reverse_proxy {
+   to http://authelia:9091
+ }
+
+  # Все запросы к /auth/* идут в контейнер authelia:9091 (без /auth)
+  # handle_path /auth/* {
+  #   reverse_proxy http://authelia:9091
+  # }
+
+  # # Всё остальное: редирект на /auth (если хочешь)
+  # handle {
+  #   redir /auth 302
+  # }
 
   log {
     output file /var/log/caddy/authelia-access.log {
@@ -119,15 +118,47 @@ $server_label {
     }
   }
 }
+
 EOF
     else
         cat <<EOF >>"$CONFIG_FILE"
 
-# === Authelia (Let's Encrypt) ===
-https://$server_label {
-  reverse_proxy {
-    to http://authelia:9091
-  }
+
+
+# #Authelia /auth#
+# https://$PROXY_DOMAIN:443 {
+
+# #  reverse_proxy {
+# #    to http://authelia:9091
+# #  }
+
+
+#      redir /$AUTHELIA_SERVICE_NAME /$AUTHELIA_SERVICE_NAME/ # Just to redirect users that are missing the closing slash to the correct page
+#      handle_path /$AUTHELIA_SERVICE_NAME/* { # Actually configures the used subfolder (also internally strips the path prefix)
+#          reverse_proxy http://authelia:9091 { # Enables the reverse proxy for the configured program:port
+#              header_up X-Forwarded-Prefix "/$AUTHELIA_SERVICE_NAME" # Sets the correct header for the login cookies
+#          }
+#      }
+
+
+
+#   log {
+#     output file /var/log/caddy/authelia-access.log {
+#       roll_size 10MB
+#       roll_keep 5
+#     }
+#   }
+# }
+
+# #reverse_proxy /app2/*
+
+#Authelia#
+https://$PROXY_DOMAIN:9091 {
+
+ reverse_proxy {
+   to http://authelia:9091
+ }
+
 
   log {
     output file /var/log/caddy/authelia-access.log {
@@ -136,54 +167,167 @@ https://$server_label {
     }
   }
 }
+
 EOF
     fi
+      echo "[INFO] Authelia proxy block added."
 
-    echo "[INFO] Authelia proxy block added: https://$server_label → authelia:9091"
+#echo "$CONFIG_FILE"
+#echo cat "$CONFIG_FILE"
+
 }
 
-add_services_to_config() {
+add_services_to_config_subnames_test() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        echo ":443 {" >>"$CONFIG_FILE"
+        echo "  tls $CERT_CRT $CERT_KEY" >>"$CONFIG_FILE"
+    else
+        echo "https://$PROXY_DOMAIN {" >>"$CONFIG_FILE"
+    fi
+    echo "" >>"$CONFIG_FILE"
+
+    # Authelia (доступ по /auth и /auth/*)
+    cat <<EOF >>"$CONFIG_FILE"
+  # Authelia web
+# #  handle_path /auth/* {
+#   handle_path /auth* {
+#     reverse_proxy http://authelia:9091
+# #    header_up Host {host}
+# #    header_up X-Forwarded-Prefix /auth
+#   }
+
+#redir /old.html /new.html
+
+  # 1. Проксируем всё, связанное с Authelia
+  @authelia {
+    path /auth* /api/* /static/* /assets/*
+  }
+  reverse_proxy @authelia http://authelia:9091 {
+    header_up Host {host}
+    # необязательно, но полезно
+    header_up X-Forwarded-Prefix /auth
+  }
+
+
+  handle_path /srv1* {
+    forward_auth authelia:9091 {
+#      uri /auth/api/authz/forward-auth
+      uri /api/authz/forward-auth
+     header_up Host {host}
+     header_up X-Forwarded-Prefix /auth
+      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+    reverse_proxy http://dashboard.antizapret:80
+  }
+
+  # Всё остальное
+  # handle /* {
+  #   reverse_proxy http://dashboard.antizapret:80
+  # }
+
+
+EOF
+
+}
+
+
+
+
+
+add_services_to_config_subnames() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        echo ":443 {" >>"$CONFIG_FILE"
+        echo "  tls $CERT_CRT $CERT_KEY" >>"$CONFIG_FILE"
+    else
+        echo "https://$PROXY_DOMAIN {" >>"$CONFIG_FILE"
+    fi
+    echo "" >>"$CONFIG_FILE"
+
+    # Authelia (доступ по /auth и /auth/*)
+    cat <<EOF >>"$CONFIG_FILE"
+#   # Authelia web
+#   handle_path /auth/* {
+# #  handle_path /auth* {
+#     reverse_proxy http://authelia:9091
+#   }
+
+  # 1. Проксируем всё, связанное с Authelia
+  @authelia {
+    path /auth* /api/* /static/* /assets/*
+  }
+  reverse_proxy @authelia http://authelia:9091 {
+    header_up Host {host}
+    # необязательно, но полезно
+    header_up X-Forwarded-Prefix /auth
+  }
+
+EOF
+
+    # Счётчик subpath
+    idx=1
+    default_subpath="srv1"
 
     echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
-        if [ -z "$service_value" ]; then
-            continue
-        fi
+        [ -z "$service_value" ] && continue
 
         name=$(echo "$service_value" | cut -d':' -f1)
-        external_port=$(echo "$service_value" | cut -d':' -f2)
         internal_host=$(echo "$service_value" | cut -d':' -f3)
         internal_port=$(echo "$service_value" | cut -d':' -f4)
+        subpath="srv$idx"
 
-        if [ "$IS_SELF_SIGNED" -eq 1 ]; then
-            cat <<EOF >>"$CONFIG_FILE"
+        cat <<EOF >>"$CONFIG_FILE"
+  # $name → /$subpath/
+#   handle_path /$subpath/* {
+#     forward_auth authelia:9091 {
+#       uri /api/authz/forward-auth
+# #      auth/uri /api/authz/forward-auth
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
 
-#$name#
-:$external_port {
-  tls $CERT_CRT $CERT_KEY
+#========================================
 
-  forward_auth authelia:9091 {
-    uri /api/authz/forward-auth
-    copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#   handle_path /$subpath* {
+#     forward_auth authelia:9091 {
+# #      uri /auth/api/authz/forward-auth
+#       uri /api/authz/forward-auth
+#      header_up Host {host}
+#      header_up X-Forwarded-Prefix /auth
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
+
+#========================================
+
+  # 1. Ловим все запросы к /app и автоматически отрезаем этот префикс
+  handle_path /$subpath/* {
+    # Если нужно, прокидываем оригинальный Host и X-Forwarded-Prefix,
+    # чтобы upstream-приложение знало, где оно “сидит”
+    reverse_proxy http://$internal_host:$internal_port {
+      header_up Host {host}
+      header_up X-Forwarded-Prefix /$subpath
+    }
   }
 
-  reverse_proxy {
-    to http://$internal_host:$internal_port
+  # 2. (Опционально) редирект с /app на /app/ — чтобы нормально работали относительные пути
+  @bareApp {
+    path /$subpath
   }
-}
+  redir @bareApp /$subpath/ 301
+
+
+
+
 EOF
-        else
-            cat <<EOF >>"$CONFIG_FILE"
+        idx=$((idx+1))
+    done
 
-#$name#
-https://$PROXY_DOMAIN:$external_port {
-
-  forward_auth authelia:9091 {
-    uri /api/authz/forward-auth
-    copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-  }
-
-  reverse_proxy {
-    to http://$internal_host:$internal_port
+    # Дефолтный редирект на /srv1/
+    cat <<EOF >>"$CONFIG_FILE"
+  handle {
+    redir /$default_subpath/ 302
   }
 
   log {
@@ -194,29 +338,247 @@ https://$PROXY_DOMAIN:$external_port {
   }
 }
 EOF
-        fi
-        echo "[INFO] Service added: $external_port -> $internal_host:$internal_port"
-    done
+
+    echo "[INFO] Caddyfile with numbered subpaths and Authelia created."
 }
+
+
+add_services_to_config_subnames_2() { 
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        echo ":443 {" >>"$CONFIG_FILE"
+        echo "  tls $CERT_CRT $CERT_KEY" >>"$CONFIG_FILE"
+    else
+        echo "https://$PROXY_DOMAIN {" >>"$CONFIG_FILE"
+    fi
+    echo "" >>"$CONFIG_FILE"
+
+    # Authelia (доступ по /auth и /auth/*)
+    cat <<EOF >>"$CONFIG_FILE"
+  @authelia {
+    path /auth* /api/* /static/* /assets/*
+  }
+  reverse_proxy @authelia http://authelia:9091 {
+    header_up Host {host}
+    header_up X-Forwarded-Prefix /auth
+  }
+
+EOF
+
+    idx=1
+    default_subpath="srv1"
+
+    echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
+        [ -z "$service_value" ] && continue
+
+        name=$(echo "$service_value" | cut -d':' -f1)
+        internal_host=$(echo "$service_value" | cut -d':' -f3)
+        internal_port=$(echo "$service_value" | cut -d':' -f4)
+        subpath="srv$idx"
+        bare_marker="@bareApp_$subpath"
+
+        cat <<EOF >>"$CONFIG_FILE"
+  # $name → /$subpath/
+  handle_path /$subpath/* {
+      forward_auth authelia:9091 {
+      uri /auth/api/authz/forward-auth
+#      uri /api/authz/forward-auth
+        copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+      #   request_headers X-Original-URL
+
+    }
+    reverse_proxy http://$internal_host:$internal_port {
+      header_up Host {host}
+      header_up X-Forwarded-Prefix /$subpath
+      header_up X-Real-IP {remote}
+      #   set_headers {
+      #       X-Forwarded-Method {method}
+      #       X-Forwarded-Proto {scheme}
+      # }
+    }
+#     subfilter /static/ /$subpath/static/
+# #    subfilter /assets/ /$subpath/assets/
+# #    subfilter /api/ /$subpath/api/
+
+  }
+
+
+
+  $bare_marker {
+    path /$subpath
+  }
+  redir $bare_marker /$subpath/ 301
+
+EOF
+        idx=$((idx+1))
+    done
+
+    cat <<EOF >>"$CONFIG_FILE"
+  handle {
+    redir /$default_subpath/ 302
+  }
+
+  log {
+    output file /var/log/caddy/access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+EOF
+
+    echo "[INFO] Caddyfile with numbered subpaths and Authelia created."
+}
+
+
+
+
+add_services_to_config() {
+
+    echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
+
+    if [ -z "$service_value" ]; then
+        continue
+    fi
+
+    name=$(echo "$service_value" | cut -d':' -f1)
+    external_port=$(echo "$service_value" | cut -d':' -f2)
+    internal_host=$(echo "$service_value" | cut -d':' -f3)
+    internal_port=$(echo "$service_value" | cut -d':' -f4)
+
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        cat <<EOF >>"$CONFIG_FILE"
+
+#$name#
+:$external_port {
+  tls $CERT_CRT $CERT_KEY
+#  reverse_proxy {
+#    to http://$internal_host:$internal_port
+#  }
+
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#    trusted_proxies private_ranges
+	}
+
+  reverse_proxy {
+    to http://$internal_host:$internal_port
+  }
+
+
+
+
+
+
+#   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
+
+#   @protected {
+#     not path /auth* /favicon.ico /api/verify /locales/*
+#   }
+
+#   route @protected {
+#     forward_auth authelia:9091 {
+# #    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+# #    forward_auth az.vps-nl-1.20x40.ru:9091 {
+#       uri /api/verify?rd=https://{host}{uri}
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#       trusted_proxies private_ranges
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
+
+#   reverse_proxy @auth_exempt authelia:9091
+# #  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
+
+}
+EOF
+    else
+        cat <<EOF >>"$CONFIG_FILE"
+
+#$name#
+https://$PROXY_DOMAIN:$external_port {
+#  reverse_proxy {
+#    to http://$internal_host:$internal_port
+#  }
+# #  basicauth {
+# #    $PROXY_USERNAME $PROXY_PASSWORD
+# #  }
+
+
+
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#    trusted_proxies private_ranges
+	}
+
+  reverse_proxy {
+    to http://$internal_host:$internal_port
+  }
+
+
+
+#   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
+
+#   @protected {
+#     not path /auth* /favicon.ico /api/verify /locales/*
+#   }
+
+#   route @protected {
+#     forward_auth authelia:9091 {
+# #    forward_auth auth.vps-nl-1.20x40.ru:9091 {
+# #    forward_auth az.vps-nl-1.20x40.ru:9091 {
+#       uri /api/verify?rd=https://{host}{uri}
+#       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#       trusted_proxies private_ranges
+#     }
+#     reverse_proxy http://$internal_host:$internal_port
+#   }
+
+#   reverse_proxy @auth_exempt authelia:9091
+# #  reverse_proxy /auth* auth.vps-nl-1.20x40.ru:9091
+
+  log {
+    output file /var/log/caddy/access.log {
+      roll_size 10MB # Create new file when size exceeds 10MB
+      roll_keep 5 # Keep at most 5 rolled files
+#      roll_keep_days 14 # Delete files older than 14 days
+    }
+  }
+}
+EOF
+    fi
+      echo "[INFO] Service added: $external_port -> $internal_host:$internal_port"
+    done
+
+
+#echo "$CONFIG_FILE"
+#echo cat "$CONFIG_FILE"
+
+}
+
 
 main() {
     : >"$CONFIG_FILE"
     get_services
 
-    if [ -z "${PROXY_EMAIL:-}" ]; then
+    if [ -z "${PROXY_DOMAIN:-}" ] || [ -z "${PROXY_EMAIL:-}" ]; then
         IS_SELF_SIGNED=1
         generate_certificate
         generate_global_config
+#        generate_authelia_proxy
+
     else
         IS_SELF_SIGNED=0
         generate_global_config
+#        generate_authelia_proxy
     fi
 
-    # ВАЖНО: блок Authelia теперь всегда на auth.$PROXY_DOMAIN:443 (или :443 без домена)
-    generate_authelia_proxy
-
-    # Остальные сервисы остаются как были (по портам/домену): защищаются forward_auth → authelia:9091
+    generate_authelia_proxy   # add authelia proxy
     add_services_to_config
+#    add_services_to_config_subnames_2
+#    add_services_to_config_subnames_2
+#    add_services_to_config_subnames_test
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
