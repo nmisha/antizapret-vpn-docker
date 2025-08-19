@@ -4,8 +4,8 @@ services:
     restart: unless-stopped
     # networks:
     #   - iperf3
-    ports:
-      - '5201:5201'
+    # ports:
+    #   - '5201:5201'
     image: loganmarchione/docker-iperf3:latest
     volumes:
       - /etc/timezone:/etc/timezone:ro
