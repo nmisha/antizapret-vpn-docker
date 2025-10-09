@@ -36,11 +36,15 @@ services:
 # https://github.com/zet4/alpine-tor?ysclid=mgji3r52fk54325906
 
   tor_proxy:
-    image: rdsubhas/tor-privoxy-alpine
+#    image: rdsubhas/tor-privoxy-alpine
+    image: marcelmaatkamp/alpine-tor:latest
     container_name: tor_proxy
     ports:
-      - "8118:8118"   # HTTP proxy (Privoxy)
-      - "9050:9050"   # SOCKS5 proxy (Tor)
+      # - "8118:8118"   # HTTP proxy (Privoxy)
+      # - "9050:9050"   # SOCKS5 proxy (Tor)
+      - "9001:9001"
+      - "9050:9050"
+      - "9053:9053"
     volumes:
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
