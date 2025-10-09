@@ -9,7 +9,7 @@ services:
 #      - ./tinyproxy.conf:/etc/tinyproxy.conf:ro
 
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config/i2p/tinyproxy.conf:/etc/tinyproxy.conf:ro
+      - $PWD/config/i2p/tinyproxy.conf:/etc/tinyproxy/tinyproxy.conf:ro
 
     restart: unless-stopped
 
