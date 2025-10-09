@@ -32,13 +32,18 @@ services:
 
 
   tor_proxy:
-    image: peterdavehello/tor-socks-proxy:latest
+#    image: peterdavehello/tor-socks-proxy:latest
+    image: dockage/tor-privoxy:latest
     container_name: tor_proxy
     ports:
       # - "8118:8118"   # HTTP proxy (Privoxy)
       # - "9050:9050"   # SOCKS5 proxy (Tor)
-      - "8853:53"
-      - "9150:9150"
+#      - "8853:53"
+#      - "9150:9150"
+
+      - "9050:9050" # Tor proxy
+      - "9051:9051" # Tor control port
+      - "8118:8118" # Privoxy
     volumes:
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
