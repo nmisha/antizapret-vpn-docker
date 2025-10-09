@@ -16,7 +16,7 @@ services:
 
   i2pd_proxy:
     image: purplei2p/i2pd:latest
-    container_name: i2pd
+    container_name: i2pd_proxy
     ports:
       - "4444:4444"   # HTTP Proxy (по умолчанию)
       - "4447:4447"   # SOCKS Proxy
@@ -32,26 +32,26 @@ services:
 
 
 
+
   tor_proxy:
-    image: dperson/torproxy
-    container_name: tor-proxy
-    command: -p     # включает Privoxy и Tor
+    image: alpine/tor:latest
+    container_name: tor_proxy
     ports:
-      - "9050:9050"   # SOCKS5 proxy
-      - "8118:8118"   # (опционально) HTTP proxy через Privoxy
-    # environment:
-    #   - TZ=UTC
+      - "9050:9050"
+      - "9051:9051"
     volumes:
+      - $PWD/config/i2p/torproxy/torrc:/etc/tor/torrc:ro
+      - $PWD/config/i2p/torproxy/data:/var/lib/tor
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
 
-
-  # tor:
-  #   image: goldy/tor-hidden-service
-  #   container_name: tor
+  # privoxy:
+  #   image: privoxy:latest
   #   ports:
-  #     - "9050:9050"
+  #     - "8118:8118"
+  #   depends_on:
+  #     - tor
   #   volumes:
-  #     - ./tor-data:/var/lib/tor
-  #   restart: unless-stopped
+  #     - ./privoxy.conf:/etc/privoxy/config:ro
+
 
