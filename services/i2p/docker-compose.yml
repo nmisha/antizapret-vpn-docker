@@ -34,14 +34,12 @@ services:
 
 
   tor_proxy:
-    image: alpine/tor:latest
+    image: rdsubhas/tor-privoxy-alpine
     container_name: tor_proxy
     ports:
-      - "9050:9050"
-      - "9051:9051"
+      - "8118:8118"   # HTTP proxy (Privoxy)
+      - "9050:9050"   # SOCKS5 proxy (Tor)
     volumes:
-      - $PWD/config/i2p/torproxy/torrc:/etc/tor/torrc:ro
-      - $PWD/config/i2p/torproxy/data:/var/lib/tor
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
 
