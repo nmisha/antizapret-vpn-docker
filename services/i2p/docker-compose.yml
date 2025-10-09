@@ -35,6 +35,7 @@ services:
   tor_proxy:
     image: dperson/torproxy
     container_name: tor-proxy
+    command: -p     # включает Privoxy и Tor
     ports:
       - "9050:9050"   # SOCKS5 proxy
       - "8118:8118"   # (опционально) HTTP proxy через Privoxy
@@ -43,6 +44,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
     restart: unless-stopped
+
 
   # tor:
   #   image: goldy/tor-hidden-service
