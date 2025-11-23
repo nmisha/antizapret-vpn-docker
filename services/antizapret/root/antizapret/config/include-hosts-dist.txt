@@ -141,6 +141,10 @@ oaistatic.com
 oaiusercontent.com
 openai.com
 
+# grok
+x.ai
+grok.com
+
 # Grok
 grok.com
 
@@ -188,6 +192,9 @@ qualcomm.com
 usablenet.com
 recraft.ai
 hetzner.com
+pokerplanning.org
+thanosjs.org
+smartsheet.com
 jaspersoft.com
 glif.app
 klingai.com
