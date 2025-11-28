@@ -101,6 +101,9 @@ EOF
 
 #$name#
 https://$PROXY_DOMAIN:$external_port {
+  header {
+    -X-Frame-Options
+  }
   reverse_proxy {
     to http://$internal_host:$internal_port
   }
