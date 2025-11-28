@@ -97,7 +97,7 @@ Some of the sites, which use geoip to block users, will be proxied through **for
     ```
 1. [Primary] Add labels for nodes `docker node update --label-add location=local az-local && docker node update --label-add location=world az-world`
 1. [Primary, Secondary]: create config folders on **both nodes**: ```docker compose pull; docker compose up -d; sleep 10; docker compose down;```
-1. [Primary]: start swarm `docker compose config | docker run --rm -i xtrime/antizapret-vpn:5 compose2swarm | docker stack deploy -c - antizapret`
+1. [Primary]: start swarm `docker compose config | docker run --rm -i xtrime/antizapret-vpn:5 compose2swarm | docker stack deploy --prune -c - antizapret `
 
 
 ## Access admin panels:
@@ -159,7 +159,7 @@ Some containers have same ports. So you need to choose uniq external port in doc
     ```shell
   git pull
   docker pull xtrime/antizapret-vpn:5
-  docker compose config | docker run --rm -i xtrime/antizapret-vpn:5 compose2swarm | docker stack deploy -c - antizapret
+  docker compose config | docker run --rm -i xtrime/antizapret-vpn:5 compose2swarm | docker stack deploy --prune -c - antizapret
   ```
 
 ### Upgrade from v4
