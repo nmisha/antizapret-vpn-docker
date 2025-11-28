@@ -5,7 +5,6 @@ if [ -z "$WG_HOST" ]; then
 fi
 
 export WG_DEFAULT_ADDRESS=${WG_DEFAULT_ADDRESS:-"10.1.166.x"}
-export WG_DEVICE=${WG_DEVICE:-"eth0"}
 export WG_PORT=${WG_PORT:-51820}
 export AZ_LOCAL_SUBNET=${AZ_LOCAL_SUBNET:-"10.224.0.0/15"}
 export AZ_WORLD_SUBNET=${AZ_WORLD_SUBNET:-"10.226.0.0/15"}
@@ -28,7 +27,7 @@ fi
 
 export WG_POST_UP=$(tr '\n' ' ' << EOF
 iptables -t nat -N masq_not_local;
-iptables -t nat -A POSTROUTING -s ${WG_DEFAULT_ADDRESS/"x"/"0"}/24 -o ${WG_DEVICE} -j masq_not_local;
+iptables -t nat -A POSTROUTING -s ${WG_DEFAULT_ADDRESS/"x"/"0"}/24 -j masq_not_local;
 iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -d ${AZ_LOCAL_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -d ${AZ_WORLD_SUBNET} -j RETURN;
@@ -39,7 +38,7 @@ EOF
 )
 
 export WG_POST_DOWN=$(tr '\n' ' ' << EOF
-iptables -t nat -D POSTROUTING -s ${WG_DEFAULT_ADDRESS/"x"/"0"}/24 -o ${WG_DEVICE} -j masq_not_local;
+iptables -t nat -D POSTROUTING -s ${WG_DEFAULT_ADDRESS/"x"/"0"}/24 -j masq_not_local;
 iptables -t nat -F masq_not_local;
 iptables -t nat -X masq_not_local;
 iptables -D FORWARD -i wg0 -j ACCEPT;
