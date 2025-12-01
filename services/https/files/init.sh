@@ -92,7 +92,11 @@ add_services_to_config() {
     -X-Frame-Options
   }
   reverse_proxy {
-    to http://$internal_host:$internal_port
+    dynamic a {
+      name $internal_host
+      port $internal_port
+      refresh 1s
+    }
   }
 }
 EOF
@@ -105,7 +109,11 @@ https://$PROXY_DOMAIN:$external_port {
     -X-Frame-Options
   }
   reverse_proxy {
-    to http://$internal_host:$internal_port
+    dynamic a {
+      name $internal_host
+      port $internal_port
+      refresh 1s
+    }
   }
 }
 EOF
