@@ -177,3 +177,8 @@ discord.media
 discord-attachments-uploads-prd.storage.googleapis.com
 
 netflix.com
+
+# Hdrezka - video domains must be proxied thought same ip as main domain
+hdrezka.me
+voidboost.cc
+voidboost.in
