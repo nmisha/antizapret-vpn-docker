@@ -40,8 +40,8 @@ yq -i '
     .http.address="0.0.0.0:'$ADGUARDHOME_PORT'" |
     .users[0].name="'$ADGUARDHOME_USERNAME'" |
     .users[0].password="'$ADGUARDHOME_PASSWORD_HASH'" |
-    .clients.persistent[0].ids=["'$AZ_LOCAL_HOST'"] |
-    .clients.persistent[1].ids=["'$AZ_WORLD_HOST'"] |
+    .clients.persistent[0].ids=["'$AZ_WORLD_HOST'"] |
+    .clients.persistent[1].ids=["'$AZ_LOCAL_HOST'"] |
     .clients.persistent[2].ids=["'$COREDNS_HOST'"]
     ' /opt/adguardhome/conf/AdGuardHome.yaml
 
