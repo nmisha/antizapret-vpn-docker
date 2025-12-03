@@ -395,9 +395,12 @@ https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#
 9. check the list of kernel modules `dkms status`, 
    and check that bunch of `[kworker/X:X-wg-crypt-wg0]` processes are now running.
 
-### Amnezia Wireguard Block
-Some providers can block AWG with default junk packets size. Large junk packets without response can be judged as DDOS attack.
-Use env variables to change their size:
+### Amnezia Wireguard Block Size
+Amnezia adds random packets to change signature of wireguard protocol and bypass DPI. 
+By default we use `JMIN=20; JMAX=100` for junk packet size in bytes.
+
+Large junk packets can help to bypass DPI, but some firewalls can block them as DDOS attack.
+Use env variables to change their size if you have issues with amnezia connection:
 
 ```
 Jc=3
@@ -415,9 +418,9 @@ Example part of docker-compose.override.yml with JMIN and JMAX:
   wireguard-amnezia:
     environment:
       - WIREGUARD_PASSWORD=xxxxx
-      - JC=3
-      - JMIN=20
-      - JMAX=100
+      - JC=2
+      - JMIN=10
+      - JMAX=20
     extends:
       file: services/wireguard/docker-compose.yml
       service: wireguard-amnezia
