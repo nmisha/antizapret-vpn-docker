@@ -39,6 +39,8 @@ services:
     environment:
       - WG_CONFIG_PORT=51830
       - WG_DEFAULT_ADDRESS=10.1.167.x
+      - JMIN=20
+      - JMAX=100
       - |
         ROUTES=
         openvpn:10.1.165.0/24;
