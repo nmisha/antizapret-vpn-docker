@@ -323,3 +323,29 @@
 /^opal\.google$/
 /^ip\.comss\.net$/
 /^player-auth\.services\.api\.unity\.com$/
+
+#misc
+viber.com
+vb.me
+spotify.com
+
+#instagram
+instagram.com
+cdninstagram.com
+
+# microsoft
+bing.com
+bing.net
+microsoft.com
+msn.com
+live.com
+microsoftonline.com
+bingapis.com
+cloud.microsoft
+office.com
+
+# ai
+openrouter.ai
+
+#video
+netflix.com

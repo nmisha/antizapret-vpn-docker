@@ -91,6 +91,7 @@ func (rm *RegexMatcher) MatchString(s string) bool {
 func NewRegexMatcher(files []string) *RegexMatcher {
 	var compiled []*regexp.Regexp
 	var substrs []string
+	var patterns []string
 
 	for _, file := range files {
 		f, err := os.Open(file)
@@ -112,12 +113,11 @@ func NewRegexMatcher(files []string) *RegexMatcher {
 				continue
 			}
 
-			re, err := regexp.Compile("(?i)" + line)
-			if err != nil {
+			if _, err := regexp.Compile("(?i)" + line); err != nil {
 				log.Printf("Invalid regex '%s' in file %s: %v", line, file, err)
 				continue
 			}
-			compiled = append(compiled, re)
+			patterns = append(patterns, line)
 		}
 
 		if err := scanner.Err(); err != nil {
@@ -125,6 +125,21 @@ func NewRegexMatcher(files []string) *RegexMatcher {
 		}
 
 		f.Close()
+	}
+
+	if len(patterns) > 0 {
+		bigPattern := "(?i)(" + strings.Join(patterns, "|") + ")"
+		bigRe, err := regexp.Compile(bigPattern)
+		if err != nil {
+			log.Printf("Failed to compile merged regex: %v", err)
+			// fall back to individual
+			for _, p := range patterns {
+				re, _ := regexp.Compile("(?i)" + p)
+				compiled = append(compiled, re)
+			}
+		} else {
+			compiled = []*regexp.Regexp{bigRe}
+		}
 	}
 
 	return &RegexMatcher{regexes: compiled, substrs: substrs}
