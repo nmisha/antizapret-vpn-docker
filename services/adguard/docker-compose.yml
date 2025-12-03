@@ -17,8 +17,8 @@ services:
     healthcheck:
       test: /root/healthcheck.sh
       interval: 5s
-      timeout: 1m
-      start_period: 1m
+      timeout: 5m
+      start_period: 5m
     logging:
       driver: json-file
       options:

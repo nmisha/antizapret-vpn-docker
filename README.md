@@ -471,8 +471,13 @@ iperf3 server is included in antizapret-vpn container.
 2. Use iperf3 client on your phone or computer to check upload/download speed.
     Example 10 threads for 10 seconds and report result every second:
     ```shell
-    iperf3 -c core.antizapret -i1 -t10 -P10
-    iperf3 -c core.antizapret -i1 -t10 -P10 -R
+    # local node
+    iperf3 -c az-local.antizapret -i1 -t10 -P10
+    iperf3 -c az-local.antizapret -i1 -t10 -P10 -R
+   
+   # world node
+    iperf3 -c az-world.antizapret -i1 -t10 -P10
+    iperf3 -c az-world.antizapret -i1 -t10 -P10 -R
     ```
 
 # Credits

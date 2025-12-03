@@ -9,7 +9,6 @@ adguard.com
 amazfitwatchfaces.com
 bbci.co.uk
 buymeacoffee.com
-cdninstagram.com
 cloudflare.com
 cloudfront.net
 deezer.com
@@ -27,13 +26,11 @@ rebrand.ly
 redgifs.com
 seekvectorlogo.net
 simsync.io
-spotify.com
 strava.com
 swagger.io
 theins.ru
 wixmp.com
 reverb.com
-viber.com
 
 
 # youtube
@@ -75,18 +72,6 @@ play-fe.googleapis.com
 play-games.googleusercontent.com
 play-lh.googleusercontent.com
 play.googleapis.com
-
-
-# microsoft
-bing.com
-bing.net
-microsoft.com
-msn.com
-live.com
-microsoftonline.com
-bingapis.com
-cloud.microsoft
-office.com
 
 
 # facebook
@@ -177,4 +162,7 @@ discordapp.com
 discord.media
 discord-attachments-uploads-prd.storage.googleapis.com
 
-netflix.com
+# video
+hdrezka.me
+voidboost.cc
+voidboost.in

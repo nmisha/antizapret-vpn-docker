@@ -112,32 +112,42 @@ filters:
     id: 2
   - enabled: true
     url: http://az-local.antizapret/list/?file=/root/antizapret/config/custom/include-hosts-custom.txt
-    name: Custom User Rules
+    name: Custom Local Rules
     id: 3
   - enabled: true
-    url: http://az-local.antizapret/list/?file=/root/antizapret/config/include-hosts-dist.txt
-    name: Antizapret Dist Rules
+    url: http://az-world.antizapret/list/?file=/root/antizapret/config/custom/include-hosts-custom.txt
+    name: Custom World Rules
     id: 4
   - enabled: true
-    url: http://az-local.antizapret/list/?filter_dist=1&url=https://antifilter.download/list/domains.lst
-    name: Antifilter Rules
+    url: http://az-local.antizapret/list/?url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v5/lists/local.txt
+    name: Dist Local Rules
     id: 5
   - enabled: true
     url: http://az-world.antizapret/list/?url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v5/lists/world.txt
-    name: Comss VPN List
+    name: Dist World Rules
     id: 6
+  - enabled: true
+    url: http://az-local.antizapret/list/?url=https://community.antifilter.download/list/domains.lst
+    name: Antifilter Community Rules
+    id: 7
+  - enabled: true
+    url: http://az-local.antizapret/list/?filter_dist=1&url=https://antifilter.download/list/domains.lst
+    name: Antifilter Rules
+    id: 8
   - enabled: false
     url: http://az-local.antizapret/list/?url=https://raw.githubusercontent.com/GubernievS/AntiZapret-VPN/refs/heads/main/setup/root/antizapret/download/include-hosts.txt
     name: GubernievS AntiZapret List
-    id: 7
+    id: 9
   - enabled: false
     url: http://az-local.antizapret/list/?filter_dist=1&url=https://blockedin.org/api/v3/domains/
     name: Blockedin.org List
-    id: 8
+    id: 10
 whitelist_filters: []
 user_rules:
   - '||*^$dnsrewrite=SERVFAIL,client=az-local'
   - '||*^$dnsrewrite=SERVFAIL,client=az-world'
+  - '@@||2ip.ru^$dnsrewrite,client=az-local'
+  - '@@||2ip.io^$dnsrewrite,client=az-world'
   - '#||*^$dnstype=HTTPS'
 dhcp:
   enabled: false
