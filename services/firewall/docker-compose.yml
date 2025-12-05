@@ -1,0 +1,25 @@
+services:
+  firewall:
+    restart: unless-stopped
+    image: xtrime/antizapret-vpn-firewall:5
+    build:
+      context: .
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+    network_mode: host
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    working_dir: /root
+    entrypoint: /root/entrypoint.sh
+    environment:
+      - INTERVAL=1d
+      - V4_URL=https://raw.githubusercontent.com/C24Be/AS_Network_List/refs/heads/main/blacklists/blacklist-v4.txt
+      - V4_FILE=blacklist-v4.txt
+      - V6_URL=https://raw.githubusercontent.com/C24Be/AS_Network_List/refs/heads/main/blacklists/blacklist-v6.txt
+      - V6_FILE=blacklist-v6.txt

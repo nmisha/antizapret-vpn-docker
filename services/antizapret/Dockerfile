@@ -1,13 +1,15 @@
 FROM golang:1.25 AS builder-api
 WORKDIR /app
-COPY ./api .
+COPY ./api/go.* .
 RUN go mod download
+COPY ./api .
 RUN go build -o app
 
 FROM golang:1.25 AS builder-compose2swarm
 WORKDIR /app
-COPY ./compose2swarm .
+COPY ./compose2swarm/go.* .
 RUN go mod download
+COPY ./compose2swarm .
 RUN go build -o compose2swarm
 
 FROM ubuntu:24.04
