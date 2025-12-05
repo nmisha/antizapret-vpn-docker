@@ -47,4 +47,9 @@ services:
     extends:
       file: services/https/docker-compose.yml
       service: https
+  firewall:
+    extends:
+      file: services/firewall/docker-compose.yml
+      service: firewall
+
 

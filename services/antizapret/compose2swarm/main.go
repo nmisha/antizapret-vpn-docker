@@ -56,29 +56,22 @@ func main() {
 		}
 	}
 
-	// Marshal back to YAML
-	preprocessed, err := yaml.Marshal(compose)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error marshaling preprocessed YAML: %v\n", err)
-		os.Exit(1)
-	}
-
 	// Parse Compose YAML
 	project, err := loader.Load(types.ConfigDetails{
 		WorkingDir:  ".",
-		ConfigFiles: []types.ConfigFile{{Content: preprocessed}},
+		ConfigFiles: []types.ConfigFile{{Config: compose}},
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error parsing Compose YAML: %v\n", err)
 		os.Exit(1)
 	}
 
-	for name, network := range project.Networks {
-		if network.Driver != "overlay" {
+	for _, network := range project.Networks {
+		if network.Driver == "bridge" {
 			network.Driver = "overlay"
-			project.Networks[name] = network
 		}
 	}
+	project.Networks["host"] = types.NetworkConfig{Name: "host", External: types.External{External: true}}
 
 	// Remove unsupported fields for Swarm
 	for name, service := range project.Services {
@@ -113,6 +106,15 @@ func main() {
 				Delay:       &delay,
 				Window:      &window,
 			}
+		}
+
+		if service.NetworkMode == "host" {
+			service.NetworkMode = ""
+			service.Networks = make(map[string]*types.ServiceNetworkConfig)
+			service.Networks["host"] = nil
+
+		} else if service.NetworkMode != "" {
+			panic(fmt.Sprintf("Unsupported network_mode: %s in service %s", service.NetworkMode, service.Name))
 		}
 
 		project.Services[name] = service
