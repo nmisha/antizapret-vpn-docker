@@ -166,3 +166,11 @@ discord-attachments-uploads-prd.storage.googleapis.com
 hdrezka.me
 voidboost.cc
 voidboost.in
+
+# roblox
+roblox.com
+rbxcdn.com
+
+# apple facetime
+facetime.apple.com
+facetime-apple-com.we.apple-dns.net
