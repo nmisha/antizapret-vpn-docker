@@ -1071,3 +1071,8 @@ yeggi.com
 yithemes.com
 yourdictionary.com
 zoosk.com
+
+# Hdrezka - video domains must be proxied thought same ip as main domain
+hdrezka.me
+voidboost.cc
+voidboost.in
