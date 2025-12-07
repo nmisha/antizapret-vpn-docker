@@ -39,7 +39,7 @@
 149.154.164.0/23
 149.154.166.0/23
 
-
+#Telegram - https://treeone.ru/diapazon-ip-adresov-telegram/#page-content
 91.108.56.0/23
 91.108.58.0/23
 149.154.160.0/21
