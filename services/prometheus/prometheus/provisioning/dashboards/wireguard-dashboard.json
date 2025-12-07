@@ -1,0 +1,65 @@
+{
+  "id": null,
+  "title": "WireGuard Overview",
+  "timezone": "browser",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Peers (by iface)",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 8,
+        "h": 6
+      },
+      "targets": [
+        {
+          "expr": "count(count by (peer, iface) (wireguard_peer_transfer_received_bytes)) by (iface)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Traffic RX/TX per peer (bytes)",
+      "gridPos": {
+        "x": 8,
+        "y": 0,
+        "w": 16,
+        "h": 10
+      },
+      "targets": [
+        {
+          "expr": "rate(wireguard_peer_transfer_received_bytes[5m])",
+          "refId": "A"
+        },
+        {
+          "expr": "rate(wireguard_peer_transfer_sent_bytes[5m])",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Top peers by total bytes (last 24h)",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "expr": "sum(increase(wireguard_peer_transfer_received_bytes[24h]) + increase(wireguard_peer_transfer_sent_bytes[24h])) by (peer, iface)",
+          "refId": "A"
+        }
+      ],
+      "options": {
+        "showHeader": true
+      }
+    }
+  ]
+}
