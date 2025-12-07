@@ -23,6 +23,7 @@ adguard.com
 amazfitwatchfaces.com
 bbci.co.uk
 buymeacoffee.com
+cdninstagram.com
 cloudflare.com
 cloudflare.net
 cloudfront.net
@@ -145,8 +146,6 @@ openai.com
 x.ai
 grok.com
 
-# Grok
-grok.com
 
 # rutracker
 t-ru.org
