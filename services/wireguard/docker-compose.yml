@@ -30,7 +30,7 @@ services:
     build:
       context: .
       args:
-        - IMAGE=xtrime/amnezia-wg-easy:0.2.15
+        - IMAGE=xtrime/amnezia-wg-easy:0.2.16
       x-bake:
         platforms:
           - linux/amd64
