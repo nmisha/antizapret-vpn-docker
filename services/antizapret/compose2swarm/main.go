@@ -66,9 +66,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	for _, network := range project.Networks {
+	for key, network := range project.Networks {
 		if network.Driver == "bridge" {
 			network.Driver = "overlay"
+			project.Networks[key] = network
 		}
 	}
 	project.Networks["host"] = types.NetworkConfig{Name: "host", External: types.External{External: true}}
