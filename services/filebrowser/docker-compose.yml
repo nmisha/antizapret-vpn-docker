@@ -2,7 +2,7 @@ services:
   filebrowser:
     hostname: filebrowser.antizapret
     restart: unless-stopped
-    image: xtrime/antizapret-vpn-filebrowser:5
+    image: xtrime/antizapret-vpn-filebrowser:5.0.0
     build: 
       context: .
       x-bake:
