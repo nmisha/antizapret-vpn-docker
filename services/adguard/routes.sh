@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 set +x
 
@@ -35,10 +35,10 @@ fi
 function resolve () {
     # $1 domain/ip address, $2 fallback ip address
     res="$(dig +short $1 | head -n1)"
-    if [ -z "$res" ]; then
-        echo "$2"
-    else
+    if [[ "$res" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         echo "$res"
+    else
+        echo "$2"
     fi
 }
 

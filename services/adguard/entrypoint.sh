@@ -17,23 +17,16 @@ fi
 
 function resolve () {
     # $1 domain/ip address, $2 fallback ip address
-    res="$(dig +short "$1" | head -n1)"
-    if [ -z "$res" ]; then
-        echo "$2"
-    else
+    res="$(dig +short $1 | head -n1)"
+    if [[ "$res" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         echo "$res"
+    else
+        echo "$2"
     fi
 }
 
-AZ_LOCAL_HOST=$(resolve az-local '')
-AZ_WORLD_HOST=$(resolve az-world '')
-while [ -z "${AZ_LOCAL_HOST}" ] || [ -z "${AZ_WORLD_HOST}" ]; do
-    echo "No route to antizapret container. Retrying..."
-    AZ_LOCAL_HOST=$(resolve az-local '')
-    AZ_WORLD_HOST=$(resolve az-world '')
-    sleep 1;
-done;
-
+AZ_LOCAL_HOST=$(resolve az-local '169.0.0.1')
+AZ_WORLD_HOST=$(resolve az-world '169.0.0.2')
 COREDNS_HOST=$(resolve coredns '169.0.0.3')
 
 yq -i '
