@@ -349,3 +349,15 @@ openrouter.ai
 
 #video
 netflix.com
+
+# games
+playstation
+playstation.com
+playstation.net
+sonyentertainmentnetwork.com
+beth.games
+bethesda.net
+bethesdagamestudios.com
+bethsoft.com
+doom.com
+elderscrolls.com
