@@ -30,10 +30,6 @@ cd /opt/openvpn-ui
 # Create the database directory if it does not exist
 mkdir -p db
 
-DOCKER_SUBNET="$(ipcalc "$(ip -4 addr show dev eth0 | awk '$1=="inet" {print $2; exit}')" | awk '/Network:/ {print $2}')"
-MASK="$(ipcalc "$DOCKER_SUBNET" | awk '/Netmask:/ {print $2}')"
-NETWORK="$(echo "$DOCKER_SUBNET" | cut -d/ -f1)"
-
 cat << EOF | sponge /etc/environment
 OPENVPN_EXTERNAL_IP='${OPENVPN_EXTERNAL_IP:-$(curl -4 icanhazip.com)}'
 OPENVPN_LOCAL_IP_RANGE='${OPENVPN_LOCAL_IP_RANGE:-"10.1.165.0"}'
@@ -54,7 +50,7 @@ if [ ! -f /opt/openvpn-ui/db/data.db ]; then
         update o_v_client_config set server_address = '${OPENVPN_EXTERNAL_IP}' where profile = 'default';
         update o_v_config set
             server = 'server ${OPENVPN_LOCAL_IP_RANGE} 255.255.255.0',
-            route = 'route ${NETWORK} ${MASK}',
+            route = '#route ${OPENVPN_LOCAL_IP_RANGE} 255.255.255.0',
             d_n_s_server1 = 'push "dhcp-option DNS ${OPENVPN_DNS}"',
             push_route = 'push "route ${AZ_SUBNET} 255.252.0.0"'
         where profile = 'default';
