@@ -33,10 +33,7 @@ dns:
     - 149.112.112.10
     - 2620:fe::10
     - 2620:fe::fe:10
-  fallback_dns:
-    - tcp://77.88.8.8
-    - tcp://8.8.8.8
-    - tcp://1.1.1.1
+  fallback_dns: []
   upstream_mode: load_balance
   fastest_timeout: 1s
   allowed_clients: []
