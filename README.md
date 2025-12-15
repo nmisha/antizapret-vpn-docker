@@ -6,7 +6,7 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
 # Support and discussions group:
 https://t.me/antizapret_support
 
-# How  works?
+# How it works?
 
 1) List of blocked domains downloaded from open registry.
 2) List parsed and rules for dns resolver (adguardhome) created.
@@ -20,12 +20,11 @@ https://t.me/antizapret_support
 
 # Features
 
-- [openvpn-dco](https://openvpn.net/as-docs/tutorials/tutorial--turn-on-openvpn-dco.html) - a kernel extension for improving performance of OpenVPN
-- Multiple VPN transports: Wireguard, OpenVPN, IPsec/XAuth ("Cisco IPsec")
-- Adguard as main DNS resolver
-- filebrowser as web viewer & editor for `*-custom.txt` files
-- Unified dashboard
-- Optional built-in reverse proxy based on caddy
+- Multiple VPN transports: Wireguard, Amnezia Wireguard, OpenVPN
+- Adguard as main DNS resolver and blocked domains manager
+- Multi-Server Architecture to bypass services geo restrictions. Different domains use different servers as exit nodes.
+- Firewall to protect from port scanning
+- Support for kernel modules for OpenVPN and Amnezia Wireguard to decrease CPU usage.
 
 
 # Installation
@@ -62,7 +61,6 @@ Find full example in [docker-compose.override.sample.yml](./docker-compose.overr
 
 3. Start services:
 ```shell
-   docker compose pull
    docker compose up -d
    docker system prune -f
 ```
@@ -148,23 +146,23 @@ Some containers have same ports. So you need to choose unique external port in d
 ## Update
 
 - Single instance
-    ```shell
-    git pull
-    docker compose pull
-    docker compose build
-    docker compose down --remove-orphans && docker compose up -d --remove-orphans
-    ```
+   ```shell
+   git pull
+   docker compose down --remove-orphans
+   docker compose up -d --remove-orphans
+   ```
 - Swarm mode: 
-    ```shell
-  git pull
-  docker pull xtrime/antizapret-vpn:5
-  docker compose config | docker run --rm -i xtrime/antizapret-vpn:5 compose2swarm | docker stack deploy --prune -c - antizapret
-  ```
+   ```shell
+   git pull
+   docker pull xtrime/antizapret-vpn:5
+   docker compose config | docker run --rm -i xtrime/antizapret-vpn:5 compose2swarm | docker stack deploy --prune -c - antizapret
+   ```
 
 ### Upgrade from v4
 
  - Wireguard/Amnezia - added new subnet for az-world exit node. Need to download new configs
- - OpenVPN - no actions needed
+ - OpenVPN - fixed bug with duplicate routes.  
+   Need to comment `route 10.200.0.0 255.255.255.0` (add `#` at the beginning ) in field Route (Guest VPN subnet) on page http://openvpn-ui.antizapret:8080/ov/config and save changes. If openvpn-ui admin panel dont open: `rm -rf ./config/openvpn/*`
  - Adguard - Need to remove old config `rm -rf ./config/adguard`
  - Antizapret - adguard moved to separate container, all corresponding env variables must be moved to adguard container. 
     docker-compose.override.yml update needed
