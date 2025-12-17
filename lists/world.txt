@@ -330,6 +330,7 @@ vb.me
 spotify.com
 
 # facebook
+facebook.com
 fbcdn.net
 messenger.com
 fb.com
