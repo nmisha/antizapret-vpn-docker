@@ -329,6 +329,11 @@ viber.com
 vb.me
 spotify.com
 
+# facebook
+fbcdn.net
+messenger.com
+fb.com
+
 #instagram
 instagram.com
 cdninstagram.com

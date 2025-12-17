@@ -74,12 +74,6 @@ play-lh.googleusercontent.com
 play.googleapis.com
 
 
-# facebook
-fbcdn.net
-messenger.com
-fb.com
-
-
 # twitter
 t.co
 twimg.com
