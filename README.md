@@ -160,21 +160,34 @@ Some containers have same ports. So you need to choose unique external port in d
 
 ### Upgrade from v4
 
- - Wireguard/Amnezia - added new subnet for az-world exit node. Need to download new configs
- - OpenVPN - fixed bug with duplicate routes.  
-   Need to comment `route 10.200.0.0 255.255.255.0` (add `#` at the beginning ) in field Route (Guest VPN subnet) on page http://openvpn-ui.antizapret:8080/ov/config and save changes. If openvpn-ui admin panel dont open: `rm -rf ./config/openvpn/*`
- - Adguard - Need to remove old config `rm -rf ./config/adguard`
- - Antizapret - adguard moved to separate container, all corresponding env variables must be moved to adguard container. 
-    docker-compose.override.yml update needed
- - https/proxy - proxy container renamed to https. docker-compose.override.yml update needed. And rename old config folder: `mv ./config/caddy ./config/https`
+There are two options: Easy or Manual.
 
-```shell
-docker compose down --remove-orphans
-docker system prune -af
-rm -rf ./config/adguard
-```
+ - Easy upgrade [**will remove all cofigs, including vpn configs!**]
+    ```shell
+    git fetch && git checkout v5
+    `rm -rf ./config/*`
+    docker compose down --remove-orphans
+    sed -i  's/proxy\:/https\:/' docker-compose.override.yml
+    sed -i  's/antizapret\:/adguard\:/' docker-compose.override.yml
+    docker compose pull && docker compose up -d
+    docker system prune -af
+    ```
 
-Then follow installation steps.
+- Manual upgrade:
+  - Wireguard/Amnezia - added new subnet for az-world exit node. Need to download new configs
+  - OpenVPN - fixed bug with duplicate routes.  
+    Need to comment `route 10.200.0.0 255.255.255.0` (add `#` at the beginning ) in field Route (Guest VPN subnet) on page http://openvpn-ui.antizapret:8080/ov/config and save changes. If openvpn-ui admin panel dont open: `rm -rf ./config/openvpn/*`
+  - Adguard - Need to remove old config `rm -rf ./config/adguard`
+  - Antizapret - adguard moved to separate container, all corresponding env variables must be moved to adguard container. 
+     docker-compose.override.yml update needed
+  - https/proxy - proxy container renamed to https. docker-compose.override.yml update needed. And rename old config folder: `mv ./config/caddy ./config/https`
+    ```shell
+    docker compose down --remove-orphans
+    docker system prune -af
+    rm -rf ./config/adguard
+    ```
+    
+    Then follow installation steps.
 
 ## Reset:
 Remove all settings, vpn configs and return initial state of service:
