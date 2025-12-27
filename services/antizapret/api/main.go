@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
-	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -63,86 +62,93 @@ type ListRequest struct {
 	Allow        bool   `schema:"allow"`         //add @@ at the start of rule
 }
 
-// RegexMatcher holds compiled regex rules
-type RegexMatcher struct {
-	substrs []string
-	regexes []*regexp.Regexp
+type RegexFilter struct {
+	cmd     *exec.Cmd
+	stdin   io.WriteCloser
+	scanner *bufio.Scanner
 }
 
-var excludeMatcherDist *RegexMatcher
-var excludeMatcherCustom *RegexMatcher
+var excludeMatcherDist *RegexFilter
+var excludeMatcherCustom *RegexFilter
 
-// MatchString returns true if the input matches any of the compiled regex rules
-func (rm *RegexMatcher) MatchString(s string) bool {
-	for _, sub := range rm.substrs {
-		if strings.Contains(strings.ToLower(s), sub) {
-			return true
+const delim = "__DELIM__"
+
+func (rf *RegexFilter) Filter(lines []string) ([]string, error) {
+	var result []string
+	for _, line := range lines {
+		if _, err := fmt.Fprintln(rf.stdin, line); err != nil {
+			return result, err
 		}
 	}
-	for _, re := range rm.regexes {
-		if re.MatchString(s) {
-			return true
-		}
+
+	if _, err := fmt.Fprintln(rf.stdin, delim); err != nil {
+		return result, err
 	}
-	return false
+
+	for {
+		if !rf.scanner.Scan() {
+			return result, rf.scanner.Err()
+		}
+		text := rf.scanner.Text()
+		if text == delim {
+			break
+		}
+		result = append(result, text)
+	}
+
+	return result, nil
 }
 
-// NewRegexMatcher creates a new RegexMatcher from a list of file paths
-func NewRegexMatcher(files []string) *RegexMatcher {
-	var compiled []*regexp.Regexp
-	var substrs []string
-	var patterns []string
+// Close terminates the subprocess cleanly
+func (rf *RegexFilter) Close() error {
+	if rf.stdin != nil {
+		_ = rf.stdin.Close()
+		rf.stdin = nil
+	}
+	if rf.cmd != nil {
+		err := rf.cmd.Wait()
+		rf.cmd = nil
+		return err
+	}
+	return nil
+}
 
-	for _, file := range files {
-		f, err := os.Open(file)
-		if err != nil {
-			log.Printf("Failed to open file %s: %v", file, err)
-			continue
-		}
+func NewRegexFilter(file string) (*RegexFilter, error) {
+	cmd := exec.Command(
+		"grep",
+		"--line-buffered",
+		"-v",
+		"-E",
+		"-f",
+		file,
+	)
 
-		scanner := bufio.NewScanner(f)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			// Skip empty lines and comment lines
-			if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "!") {
-				continue
-			}
-
-			if !strings.ContainsAny(line, ".^$[]*+(){}|\\") {
-				substrs = append(substrs, strings.ToLower(line))
-				continue
-			}
-
-			if _, err := regexp.Compile("(?i)" + line); err != nil {
-				log.Printf("Invalid regex '%s' in file %s: %v", line, file, err)
-				continue
-			}
-			patterns = append(patterns, line)
-		}
-
-		if err := scanner.Err(); err != nil {
-			log.Printf("Error reading file %s: %v", file, err)
-		}
-
-		f.Close()
+	stdin, err := cmd.StdinPipe()
+	if err != nil {
+		return nil, err
 	}
 
-	if len(patterns) > 0 {
-		bigPattern := "(?i)(" + strings.Join(patterns, "|") + ")"
-		bigRe, err := regexp.Compile(bigPattern)
-		if err != nil {
-			log.Printf("Failed to compile merged regex: %v", err)
-			// fall back to individual
-			for _, p := range patterns {
-				re, _ := regexp.Compile("(?i)" + p)
-				compiled = append(compiled, re)
-			}
-		} else {
-			compiled = []*regexp.Regexp{bigRe}
-		}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
 	}
 
-	return &RegexMatcher{regexes: compiled, substrs: substrs}
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Start(); err != nil {
+		return nil, err
+	}
+
+	go cmd.Wait()
+
+	scanner := bufio.NewScanner(stdout)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // allow long lines
+
+	return &RegexFilter{
+		cmd:     cmd,
+		stdin:   stdin,
+		scanner: scanner,
+	}, nil
 }
 
 var DefaultClient string
@@ -228,34 +234,43 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
+	var buffer []string
 	// Helper to process and write each line
+	processBuffer := func() {
+		filtered := buffer
+		buffer = nil
+		if req.FilterDist {
+			filtered, _ = excludeMatcherDist.Filter(filtered)
+		}
+		if req.FilterCustom {
+			filtered, _ = excludeMatcherCustom.Filter(filtered)
+		}
+
+		for _, line := range filtered {
+			out := strings.TrimSpace(line)
+			if out == "" || strings.HasPrefix(out, "!") || strings.HasPrefix(out, "#") {
+				//
+			} else {
+				if strings.HasPrefix(line, "/") {
+					out = fmt.Sprintf("%s$dnsrewrite,client=%s", out, req.Client)
+				} else {
+					out = fmt.Sprintf("||%s^$dnsrewrite,client=%s", out, req.Client)
+				}
+				if req.Allow {
+					out = "@@" + out
+				}
+			}
+
+			fmt.Fprintln(w, out)
+		}
+
+	}
+
 	processLine := func(line string) {
-		line = strings.TrimSpace(line)
-		// Skip empty lines or comments
-		if line == "" || strings.HasPrefix(line, "!") || strings.HasPrefix(line, "#") {
-			return
+		buffer = append(buffer, line)
+		if len(buffer) > 1000 {
+			processBuffer()
 		}
-
-		// Skip if line matches exclude regex
-		if req.FilterDist && excludeMatcherDist.MatchString(line) {
-			return
-		}
-		if req.FilterCustom && excludeMatcherCustom.MatchString(line) {
-			return
-		}
-
-		var out string
-		if strings.HasPrefix(line, "/") {
-			out = fmt.Sprintf("%s$dnsrewrite,client=%s", line, req.Client)
-		} else {
-			out = fmt.Sprintf("||%s^$dnsrewrite,client=%s", line, req.Client)
-		}
-		if req.Allow {
-			out = "@@" + out
-		}
-
-		fmt.Fprintln(w, out)
-		flusher.Flush()
 	}
 
 	if req.Format == "" {
@@ -291,7 +306,7 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		for dec.More() {
 			var item string
 			if err := dec.Decode(&item); err != nil {
-				fmt.Fprintf(w, "# Error decoding JSON item: %v\n", err)
+				http.Error(w, fmt.Sprintf("# Error decoding JSON item: %v\n", err), http.StatusBadRequest)
 				break
 			}
 			processLine(item)
@@ -303,15 +318,46 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unsupported format (use 'json' or 'list')", http.StatusBadRequest)
 		return
 	}
+	processBuffer()
+	flusher.Flush()
+}
+
+func updateRegexFilter() error {
+	var error error
+	if excludeMatcherDist != nil {
+		error = excludeMatcherDist.Close()
+	}
+	if error != nil {
+		return error
+	}
+
+	excludeMatcherDist, error = NewRegexFilter(
+		"/root/antizapret/config/exclude-hosts-dist.txt",
+	)
+	if error != nil {
+		return error
+	}
+
+	if excludeMatcherCustom != nil {
+		error = excludeMatcherCustom.Close()
+	}
+	if error != nil {
+		return error
+	}
+
+	excludeMatcherCustom, error = NewRegexFilter(
+		"/root/antizapret/config/custom/exclude-hosts-custom.txt",
+	)
+	return error
 }
 
 func update(w http.ResponseWriter, r *http.Request) {
-	excludeMatcherDist = NewRegexMatcher([]string{
-		"/root/antizapret/config/exclude-hosts-dist.txt",
-	})
-	excludeMatcherCustom = NewRegexMatcher([]string{
-		"/root/antizapret/config/custom/exclude-hosts-custom.txt",
-	})
+	error := updateRegexFilter()
+	if error != nil {
+		log.Panicf("Failed to update exclude lists: %v", error)
+		http.Error(w, fmt.Sprintf("Failed to update exclude lists: %v", error), http.StatusInternalServerError)
+		return
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte("ok"))
 }
@@ -376,12 +422,18 @@ func main() {
 	DefaultClient = os.Getenv("CLIENT")
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	excludeMatcherDist = NewRegexMatcher([]string{
-		"/root/antizapret/config/exclude-hosts-dist.txt",
-	})
-	excludeMatcherCustom = NewRegexMatcher([]string{
-		"/root/antizapret/config/custom/exclude-hosts-custom.txt",
-	})
+	err := updateRegexFilter()
+	if err != nil {
+		log.Fatalf("Failed to initialize regex filters: %v", err)
+	}
+	defer func() {
+		if excludeMatcherDist != nil {
+			excludeMatcherDist.Close()
+		}
+		if excludeMatcherCustom != nil {
+			excludeMatcherCustom.Close()
+		}
+	}()
 	// Create a mux so we can wrap all handlers with logging
 	r := http.NewServeMux()
 
