@@ -335,6 +335,10 @@ fbcdn.net
 messenger.com
 fb.com
 
+# wa
+whatsapp.com
+whatsapp.net
+
 #instagram
 instagram.com
 cdninstagram.com
