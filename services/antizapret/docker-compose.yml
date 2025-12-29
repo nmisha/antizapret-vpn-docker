@@ -22,7 +22,7 @@ services:
         max-file: 2
     healthcheck:
       test: /healthcheck.sh
-      interval: 30s
+      interval: 5s
       timeout: 10s
       retries: 1
     volumes:
