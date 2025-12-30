@@ -104,37 +104,41 @@ filters:
     name: AdAway Default Blocklist
     id: 2
   - enabled: true
+    url: http://az-local.antizapret/list/?allow=0&suffix=0&url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v5/lists/dns.txt
+    name: Block DOH DNS
+    id: 3
+  - enabled: true
     url: http://az-local.antizapret/list/?file=/root/antizapret/config/custom/include-hosts-custom.txt
     name: Custom Local Rules
-    id: 3
+    id: 4
   - enabled: true
     url: http://az-world.antizapret/list/?file=/root/antizapret/config/custom/include-hosts-custom.txt
     name: Custom World Rules
-    id: 4
+    id: 5
   - enabled: true
     url: http://az-local.antizapret/list/?url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v5/lists/local.txt
     name: Dist Local Rules
-    id: 5
+    id: 6
   - enabled: true
     url: http://az-world.antizapret/list/?url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v5/lists/world.txt
     name: Dist World Rules
-    id: 6
+    id: 7
   - enabled: true
     url: http://az-local.antizapret/list/?url=https://community.antifilter.download/list/domains.lst
     name: Antifilter Community Rules
-    id: 7
+    id: 8
   - enabled: true
     url: http://az-local.antizapret/list/?filter_dist=1&url=https://antifilter.download/list/domains.lst
     name: Antifilter Rules
-    id: 8
+    id: 9
   - enabled: false
     url: http://az-local.antizapret/list/?url=https://raw.githubusercontent.com/GubernievS/AntiZapret-VPN/refs/heads/main/setup/root/antizapret/download/include-hosts.txt
     name: GubernievS AntiZapret List
-    id: 9
+    id: 10
   - enabled: false
     url: http://az-local.antizapret/list/?filter_dist=1&url=https://blockedin.org/api/v3/domains/
     name: Blockedin.org List
-    id: 10
+    id: 11
 whitelist_filters: []
 user_rules:
   - '||*^$dnsrewrite=SERVFAIL,client=az-local'
