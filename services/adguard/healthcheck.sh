@@ -17,6 +17,8 @@ if [ "$NEW_MD5" != "$OLD_MD5" ]; then
     curl -s "http://127.0.0.1:$ADGUARDHOME_PORT/control/filtering/refresh" -X 'POST' -H 'Content-Type: application/json' -H "Authorization: Basic $AUTH"  --data-raw '{"whitelist":true}' &
     echo "$NEW_MD5" > /.config_md5
     wait
+
+    curl -s "http://127.0.0.1:$ADGUARDHOME_PORT/control/cache_clear" -X 'POST' -H "Authorization: Basic $AUTH"
 fi
 
 CLIENTS=$(curl -s -X GET "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients" -H "Authorization: Basic $AUTH")
