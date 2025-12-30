@@ -60,6 +60,8 @@ type ListRequest struct {
 	FilterCustom bool   `schema:"filter_custom"` //skip lines with rules from exclude-hosts-custom.txt
 	FilterDist   bool   `schema:"filter_dist"`   //skip lines with rules from exclude-hosts-dist.txt
 	Allow        bool   `schema:"allow"`         //add @@ at the start of rule
+	Raw          bool   `schema:"raw"`           //dont modify rules
+	Suffix       bool   `schema:"suffix"`        //add $dnsrewrite,client=xxx to rules
 }
 
 type RegexFilter struct {
@@ -159,6 +161,8 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		FilterCustom: true, //
 		FilterDist:   false,
 		Allow:        true, // default (adds @@)
+		Suffix:       true,
+		Raw:          false,
 	}
 
 	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
@@ -248,14 +252,16 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 
 		for _, line := range filtered {
 			out := strings.TrimSpace(line)
-			if out == "" || strings.HasPrefix(out, "!") || strings.HasPrefix(out, "#") {
+			if req.Raw || out == "" || strings.HasPrefix(out, "!") || strings.HasPrefix(out, "#") {
 				//
 			} else {
-				if strings.HasPrefix(line, "/") {
-					out = fmt.Sprintf("%s$dnsrewrite,client=%s", out, req.Client)
-				} else {
-					out = fmt.Sprintf("||%s^$dnsrewrite,client=%s", out, req.Client)
+				if !strings.HasPrefix(line, "/") {
+					out = "||" + out + "^"
 				}
+				if req.Suffix {
+					out = fmt.Sprintf("%s$dnsrewrite,client=%s", out, req.Client)
+				}
+
 				if req.Allow {
 					out = "@@" + out
 				}
