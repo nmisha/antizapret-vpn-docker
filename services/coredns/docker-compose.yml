@@ -17,7 +17,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
     healthcheck:
-      test: /root/healthcheck.sh
+      test: /root/healthcheck.sh || kill -TERM 1
       interval: 5s
       timeout: 1m
     deploy:

@@ -15,10 +15,9 @@ services:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
     healthcheck:
-      test: /root/healthcheck.sh
+      test: timeout 2m /root/healthcheck.sh || kill -TERM 1
       interval: 5s
-      timeout: 5m
-      start_period: 5m
+      timeout: 3m
     logging:
       driver: json-file
       options:
