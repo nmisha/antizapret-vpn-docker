@@ -13,7 +13,7 @@ if [[ -n $ADGUARDHOME_PASSWORD ]]; then
 fi
 
 
-/root/routes.sh
+/root/routes.sh &
 
 function resolve () {
     # $1 domain/ip address, $2 fallback ip address

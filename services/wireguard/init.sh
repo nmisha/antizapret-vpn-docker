@@ -23,7 +23,7 @@ if [ -z "$WG_ALLOWED_IPS" ]; then
     fi
 fi
 
-/routes.sh --vpn
+/routes.sh --vpn &
 
 export WG_POST_UP=$(tr '\n' ' ' << EOF
 iptables -t nat -N masq_not_local;

@@ -1,6 +1,6 @@
 services:
   adguard:
-    image: xtrime/antizapret-vpn-adguard:5.2.0
+    image: xtrime/antizapret-vpn-adguard:5.2.1
     build: 
       context: .
       x-bake:
@@ -9,6 +9,7 @@ services:
           - linux/arm64
     hostname: adguard.antizapret
     restart: unless-stopped
+    init: true
     cap_add:
       - NET_ADMIN
     sysctls:
