@@ -54,14 +54,11 @@ function update_addresses() {
     for route in ${ROUTES//;/ }; do
 
         host=${route%:*}
-        gateway=$(resolve $host '')
-        #echo "Checking route: $route;  gateway: $gateway"
+        if [ "$host" = "$self" ]; then continue; fi
 
+        gateway=$(resolve $host '')
         if [ -z "$gateway" ]; then continue; fi
-        if [ "$host" = "$self" ]; then
-            # Skipping route to self
-            continue
-        fi
+
         subnet=${route#*:}
         current_gateway=$(ip route show "$subnet" | awk '/via/ {print $3; exit}')
         if [ "$current_gateway" = "$gateway" ]; then
