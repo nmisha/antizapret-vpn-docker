@@ -5,7 +5,7 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 cd "$HERE"
 export LC_ALL=C.UTF-8
 
-(cat "config/custom/include-ips-custom.txt"; echo ""; cat "config/include-ips-dist.txt") | awk -f scripts/sanitize-lists.awk > temp/ips.txt
+(cat "config/custom/include-ips-custom.txt"; echo ""; cat "config/include-ips-dist.txt") | awk -f scripts/sanitize-lists.awk | grep -v -E -f config/custom/exclude-ips-custom.txt > temp/ips.txt
 
 if [ -n "$DOCKER_SUBNET" ]; then
     echo "$DOCKER_SUBNET" >> temp/ips.txt

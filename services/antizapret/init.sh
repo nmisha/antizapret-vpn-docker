@@ -29,7 +29,6 @@ ln -sf /etc/default/antizapret /etc/profile.d/antizapret.sh
 # creating custom hosts files if they have not yet been initialized
 for file in $(echo {exclude,include}-{hosts,ips}-custom.txt); do
     path=/root/antizapret/config/custom/$file
-    [[ "$file" == "exclude-ips-custom.txt" ]] && continue
     [ ! -f $path ] && touch $path
 done
 
