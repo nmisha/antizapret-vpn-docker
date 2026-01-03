@@ -43,7 +43,7 @@ for eth in $(ip link | grep -oE "eth[0-9]"); do
     iptables -t nat -A POSTROUTING -o "$eth" -j MASQUERADE
 done
 
-/routes.sh
+/routes.sh &
 
 # output systemd logs to docker logs since container boot
 

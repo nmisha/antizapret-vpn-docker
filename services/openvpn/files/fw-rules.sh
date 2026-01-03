@@ -29,4 +29,4 @@ if [ -f "/opt/antizapret/result/openvpn-blocked-ranges.txt" ]; then
     cp -f /opt/antizapret/result/openvpn-blocked-ranges.txt $OVDIR/openvpn-blocked-ranges.txt
 fi
 
-./routes.sh --vpn
+./routes.sh --vpn &

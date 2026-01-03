@@ -1,5 +1,6 @@
 services:
   base:
+    init: true
     restart: unless-stopped
     logging:
       driver: json-file

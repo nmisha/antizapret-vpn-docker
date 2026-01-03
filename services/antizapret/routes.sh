@@ -4,6 +4,7 @@ set +x
 
 VPN=false
 self=$(hostname -s)
+interval=1s
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -18,6 +19,10 @@ while [[ $# -gt 0 ]]; do
         --vpn)
             VPN=true
             shift
+            ;;
+        --interval)
+            interval="$2"
+            shift 2
             ;;
         *)
             echo "Unknown option: $1"
@@ -85,5 +90,5 @@ function update_addresses() {
 
 while [ "$running" = true ]; do
     update_addresses
-    sleep 1
-done &
+    sleep "$interval"
+done
