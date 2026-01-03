@@ -1,4 +1,4 @@
-#!/usr/bin/env sh
+#!/usr/bin/env bash
 set -e
 
 ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
@@ -40,9 +40,20 @@ update_client() {
     fi
 }
 
-NEW_LOCAL=$(dig +short az-local | head -n1)
-NEW_WORLD=$(dig +short az-world | head -n1)
-NEW_COREDNS=$(dig +short coredns | head -n1)
+# resolve domain address to ip address
+function resolve () {
+    # $1 domain/ip address, $2 fallback ip address
+    res="$(dig +short $1 | head -n1)"
+    if [[ "$res" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
+        echo "$res"
+    else
+        echo "$2"
+    fi
+}
+
+NEW_LOCAL=$(resolve 'az-local' '')
+NEW_WORLD=$(resolve 'az-world' '')
+NEW_COREDNS=$(resolve 'coredns' '')
 
 update_client "az-local" "$NEW_LOCAL"
 update_client "az-world" "$NEW_WORLD"
