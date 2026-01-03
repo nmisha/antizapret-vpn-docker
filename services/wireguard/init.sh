@@ -28,6 +28,7 @@ fi
 export WG_POST_UP=$(tr '\n' ' ' << EOF
 iptables -t nat -N masq_not_local;
 iptables -t nat -A POSTROUTING -s ${WG_DEFAULT_ADDRESS/"x"/"0"}/24 -j masq_not_local;
+iptables -t nat -A masq_not_local -p icmp -d ${DOCKER_SUBNET} -j MASQUERADE;
 iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -d ${AZ_LOCAL_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -d ${AZ_WORLD_SUBNET} -j RETURN;
