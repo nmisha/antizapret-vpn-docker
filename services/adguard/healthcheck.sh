@@ -26,6 +26,7 @@ CLIENTS=$(curl -s -X GET "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients" -H
 update_client() {
     client_name=$1
     new_ip=$2
+    client_updated=0
     if [ -n "$new_ip" ]; then
         FULL_CLIENT=$(echo "$CLIENTS" | jq ".clients[] | select(.name==\"$client_name\")")
         if [ "$FULL_CLIENT" != "null" ]; then
@@ -35,8 +36,14 @@ update_client() {
                 UPDATE_BODY=$(printf '{"name":"%s","data":%s}' "$client_name" "$(echo "$UPDATED_CLIENT" | jq -c .)")
                 echo "Updating $client_name to $new_ip"
                 curl -s -X POST "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients/update" -H 'Content-Type: application/json' -H "Authorization: Basic $AUTH" --data "$UPDATE_BODY"
+                client_updated=1
             fi
         fi
+    fi
+
+    if [ "$client_updated" = "1" ]; then
+        echo "Reset adguard DNS cache"
+        curl -s "http://127.0.0.1:$ADGUARDHOME_PORT/control/cache_clear" -X 'POST' -H "Authorization: Basic $AUTH"
     fi
 }
 
