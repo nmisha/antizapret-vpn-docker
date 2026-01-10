@@ -20,6 +20,8 @@ services:
       test: /root/healthcheck.sh || kill -TERM 1
       interval: 5s
       timeout: 1m
+      start_period: 5s
+      start_interval: 1s
     deploy:
       mode: replicated
       replicas: 1

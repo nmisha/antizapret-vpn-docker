@@ -20,7 +20,6 @@ services:
       test: cmp /etc/openvpn/openvpn-blocked-ranges.txt /opt/antizapret/result/openvpn-blocked-ranges.txt || sh -c 'killall -INT -r openvpn && (sleep 5; killall -s 9 -r openvpn)'
       interval: 30s
       timeout: 10s
-      retries: 1
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - $PWD/config/openvpn:/etc/openvpn
