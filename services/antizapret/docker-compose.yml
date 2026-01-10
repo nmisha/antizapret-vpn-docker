@@ -24,7 +24,8 @@ services:
       test: /healthcheck.sh || kill -TERM 1
       interval: 5s
       timeout: 10s
-      retries: 1
+      start_period: 5s
+      start_interval: 1s
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - $PWD/config/antizapret/custom:/root/antizapret/config/custom

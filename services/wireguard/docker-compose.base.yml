@@ -11,7 +11,8 @@ services:
       test: cmp /app/ips.txt /opt/antizapret/result/ips.txt || sh -c 'kill -TERM 1 && (sleep 5; kill -s 9 1)'
       interval: 30s
       timeout: 30s
-      retries: 1
+      start_period: 5s
+      start_interval: 1s
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
