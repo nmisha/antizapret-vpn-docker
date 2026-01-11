@@ -143,8 +143,6 @@ func NewRegexFilter(file string) (*RegexFilter, error) {
 		return nil, err
 	}
 
-	go cmd.Wait()
-
 	scanner := bufio.NewScanner(stdout)
 	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // allow long lines
 
@@ -362,7 +360,6 @@ func updateRegexFilter() error {
 func update(w http.ResponseWriter, r *http.Request) {
 	error := updateRegexFilter()
 	if error != nil {
-		log.Panicf("Failed to update exclude lists: %v", error)
 		http.Error(w, fmt.Sprintf("Failed to update exclude lists: %v", error), http.StatusInternalServerError)
 		return
 	}
