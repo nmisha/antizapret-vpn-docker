@@ -9,15 +9,14 @@ export WG_PORT=${WG_PORT:-51820}
 export AZ_LOCAL_SUBNET=${AZ_LOCAL_SUBNET:-"10.224.0.0/15"}
 export AZ_WORLD_SUBNET=${AZ_WORLD_SUBNET:-"10.226.0.0/15"}
 
-if [ -f "/opt/antizapret/result/ips.txt" ]; then
-    cp -f /opt/antizapret/result/ips.txt /app/ips.txt
-fi
+CONFIG_FILES="/root/antizapret/result/ips*"
+cat $CONFIG_FILES 2>/dev/null | md5sum | cut -d' ' -f1 > /.config_md5
 
 DOCKER_SUBNET="$(ipcalc "$(ip -4 addr show dev eth0 | awk '$1=="inet" {print $2; exit}')" | awk '/Network:/ {print $2}')"
 
 if [ -z "$WG_ALLOWED_IPS" ]; then
     export WG_ALLOWED_IPS="${WG_DEFAULT_ADDRESS/"x"/"0"}/24,$AZ_LOCAL_SUBNET,$AZ_WORLD_SUBNET,$DOCKER_SUBNET"
-    blocked_ranges=$(tr '\n' ',' < /app/ips.txt | sed 's/,$//g')
+    blocked_ranges=$( cat /root/antizapret/result/ips* | grep -v '^[[:space:]]*$' | tr '\n' ',' | sed 's/,$//g')
     if [ -n "${blocked_ranges}" ]; then
         export WG_ALLOWED_IPS="${WG_ALLOWED_IPS},${blocked_ranges}"
     fi

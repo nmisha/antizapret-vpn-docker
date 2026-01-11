@@ -1,6 +1,6 @@
 services:
   antizapret:
-    image: xtrime/antizapret-vpn:5.2.1
+    image: xtrime/antizapret-vpn:5.3.0
     restart: unless-stopped
     stop_signal: SIGRTMIN+4
     init: true
@@ -32,8 +32,6 @@ services:
       - $PWD/config/antizapret/result:/root/antizapret/result
       - $PWD/config/adguard/conf:/opt/adguardhome/conf
       - $PWD/config/adguard/work:/opt/adguardhome/work
-#    dns:
-#      - 8.8.8.8
     environment:
       - |
         ROUTES=
