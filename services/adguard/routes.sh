@@ -72,6 +72,20 @@ function update_addresses() {
                 iptables -t nat -A PREROUTING -p tcp --dport 53 -j DNAT --to-destination $gateway
                 iptables -t nat -A PREROUTING -p udp --dport 53 -j DNAT --to-destination $gateway
             fi
+
+            if [ "$VPN" = true ] && [ "$host" = "az-local" ]; then
+                while read -r line; do
+                    [ -z $line ] && continue
+                    ip route add "$line" via "$gateway" || ip route change "$line" via "$gateway"
+                done < /opt/antizapret/result/ips.txt
+            fi
+
+            if [ "$VPN" = true ] && [ "$host" = "az-world" ]; then
+                while read -r line; do
+                    [ -z $line ] && continue
+                    ip route add "$line" via "$gateway" || ip route change "$line" via "$gateway"
+                done < /opt/antizapret/result/ips-world.txt
+            fi
         else
             if [ "$VPN" = true ] && [ "$host" = "adguard" ]; then
                 iptables -t nat -D PREROUTING -p tcp --dport 53 -j DNAT --to-destination $current_gateway || true
@@ -81,6 +95,20 @@ function update_addresses() {
             fi
             ip route change "$subnet" via "$gateway"
             echo "Route changed: $subnet via $gateway"
+
+            if [ "$VPN" = true ] && [ "$host" = "az-local" ]; then
+                while read -r line; do
+                    [ -z "$line" ] && continue
+                    ip route change "$line" via "$gateway"
+                done < /opt/antizapret/result/ips.txt
+            fi
+
+            if [ "$VPN" = true ] && [ "$host" = "az-world" ]; then
+                while read -r line; do
+                    [ -z "$line" ] && continue
+                    ip route change "$line" via "$gateway"
+                done < /opt/antizapret/result/ips-world.txt
+            fi
         fi
     done
 }

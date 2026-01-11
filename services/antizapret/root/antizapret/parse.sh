@@ -5,7 +5,8 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 cd "$HERE"
 export LC_ALL=C.UTF-8
 
-(cat "config/custom/include-ips-custom.txt"; echo ""; cat "config/include-ips-dist.txt") | awk -f scripts/sanitize-lists.awk | grep -v -E -f config/custom/exclude-ips-custom.txt > temp/ips.txt
+(cat "config/custom/include-ips-custom.txt"; echo ""; cat "config/include-ips-dist.txt") | awk -f scripts/sanitize-lists.awk | (grep -v -E -f config/custom/exclude-ips-custom.txt || echo "") > temp/ips.txt
+(cat "config/custom/include-ips-world-custom.txt"; echo ""; cat "config/include-ips-world-dist.txt") | awk -f scripts/sanitize-lists.awk | (grep -v -E -f config/custom/exclude-ips-world-custom.txt || echo "") > temp/ips-world.txt
 
 if [ -n "$DOCKER_SUBNET" ]; then
     echo "$DOCKER_SUBNET" >> temp/ips.txt
@@ -18,7 +19,7 @@ do
     C_NET="$(echo $line | awk -F '/' '{print $1}')"
     C_NETMASK="$(sipcalc -- "$line" | awk '/Network mask/ {print $4; exit;}')"
     echo $"push \"route ${C_NET} ${C_NETMASK}\"" >> temp/openvpn-blocked-ranges.txt
-done < temp/ips.txt
+done < <( cat temp/ips* | grep -v '^[[:space:]]*$' )
 
 
 (GLOBIGNORE="temp/.*"; mv -f temp/* result)

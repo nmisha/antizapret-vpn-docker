@@ -6,6 +6,14 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
 # Support and discussions group:
 https://t.me/antizapret_support
 
+# Features
+
+- Multiple VPN transports: Wireguard, Amnezia Wireguard, OpenVPN
+- AdguardHome as main DNS resolver and blocked domains manager
+- Multi-Server Architecture to bypass services geo restrictions. Different domains use different servers as exit nodes.
+- Firewall to protect from port scanning
+- Support for kernel modules for OpenVPN and Amnezia Wireguard to decrease CPU usage.
+
 # How it works?
 
 1) List of blocked domains downloaded from open registry.
@@ -17,14 +25,6 @@ https://t.me/antizapret_support
    c) create iptables rule to forward all packets from fake ip to real ip.
 5) Fake IP is sent in DNS response to client
 6) All vpn tunnels configured with split tunneling. Only traffic to 10.244.0.0/15 subnet is routed through VPN.
-
-# Features
-
-- Multiple VPN transports: Wireguard, Amnezia Wireguard, OpenVPN
-- Adguard as main DNS resolver and blocked domains manager
-- Multi-Server Architecture to bypass services geo restrictions. Different domains use different servers as exit nodes.
-- Firewall to protect from port scanning
-- Support for kernel modules for OpenVPN and Amnezia Wireguard to decrease CPU usage.
 
 
 # Installation
@@ -263,7 +263,9 @@ Options for adapter:
  - `filter_dist=0` - filter lists with rules from exclude-hosts-dist.txt
  - `format=list` - 'list' or 'json'. Detected automatically.
  - `client=az-local` - name of client to add to rules. Detected automatically.
- - `allow=true` - disable this option, to block domains from list for this exit node.
+ - `allow=1` - disable this option, to block domains from list for this exit node.
+ - `raw=0` - dont modify rules
+ - `suffix=1` - add "$dnsrewrite,client=xxx" to rules
 
 ## Adding IPs/Subnets
 Add ips and subnets to `./config/antizapret/custom/include-ips-custom.txt` and run `docker compose exec antizapret doall`
@@ -323,11 +325,6 @@ Wireguard/Wireguard Amnezia
 - `PORT=51821` - admin panel port
 - `WG_PORT=51820` - wireguard server port
 - `WG_DEVICE=eth0`
-
-Wireguard, Wireguard Amnezia, Openvpn:
-- `FORCE_FORWARD_DNS=true` - Redirects UDP traffic on port 53 to AntiZapret DNS (default: false)
-- `FORCE_FORWARD_DNS_PORTS="53 5353"` - Parameter can be used to change port 53 for FORCE_FORWARD_DNS to one or more, separated by a space (default: 53)
-- For other environment variables, see the original manual [Wireguard Amnezia](https://github.com/w0rng/amnezia-wg-easy) or [Wireguard](https://github.com/wg-easy/wg-easy).
 
 ## DNS
 ### Adguard Upstream DNS

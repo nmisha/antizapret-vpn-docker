@@ -89,10 +89,6 @@ No special steps are required, follow [instructions](https://github.com/xtrime-r
           # Allow routing of all IP addresses, routes are manually added to the router anyway
           # This way you can use the connection for a full VPN
           - WG_ALLOWED_IPS=0.0.0.0.0/0
-          # Forced redirection of all DNS (udp 53) to antizapret
-          # In keenetic, route 77.88.8.8.8 (or any other DNS) to WG gateway (Add automatically)
-          # When WG goes down, DNS works directly.
-          - FORCE_FORWARD_DNS=true
           # Language
           - LANG=en
           # Port for WireGuard control panel

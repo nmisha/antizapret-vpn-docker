@@ -104,6 +104,8 @@ func (rf *RegexFilter) Filter(lines []string) ([]string, error) {
 // Close terminates the subprocess cleanly
 func (rf *RegexFilter) Close() error {
 	if rf.stdin != nil {
+		//Ensure at least one line is processed by grep to avoid exit code 1
+		rf.Filter([]string{"example.com"})
 		_ = rf.stdin.Close()
 		rf.stdin = nil
 	}
