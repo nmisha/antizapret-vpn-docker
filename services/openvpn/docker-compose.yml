@@ -17,7 +17,7 @@ services:
           - linux/arm64
     init: true
     healthcheck:
-      test: cmp /etc/openvpn/openvpn-blocked-ranges.txt /opt/antizapret/result/openvpn-blocked-ranges.txt || kill -TERM 1
+      test: (cmp /etc/openvpn/openvpn-blocked-ranges.txt /opt/antizapret/result/openvpn-blocked-ranges.txt || kill -TERM 1) &> /proc/1/fd/1
       interval: 5s
       timeout: 1s
       start_period: 5s
