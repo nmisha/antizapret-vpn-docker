@@ -28,7 +28,7 @@ update_client() {
     new_ip=$2
     client_updated=0
     if [ -n "$new_ip" ]; then
-        FULL_CLIENT=$(echo "$CLIENTS" | jq ".clients[] | select(.name==\"$client_name\")")
+        FULL_CLIENT=$(echo "$CLIENTS" | jq ".clients[] | select(.name==\"$client_name\")" || echo "error response: $CLIENTS")
         if [ "$FULL_CLIENT" != "null" ]; then
             CURRENT_IP=$(echo "$FULL_CLIENT" | jq -r '.ids[0] // empty')
             if [ "$CURRENT_IP" != "$new_ip" ]; then
