@@ -22,6 +22,7 @@ if [ "$NEW_MD5" != "$OLD_MD5" ]; then
 fi
 
 CLIENTS=$(curl -s -X GET "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients" -H "Authorization: Basic $AUTH")
+[[ "$CLIENTS" == 404* ]] && echo 'Adguard not ready' && exit 0;
 
 update_client() {
     client_name=$1
