@@ -8,7 +8,7 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
-    image: xtrime/antizapret-vpn-openvpn:5.3.0
+    image: xtrime/antizapret-vpn-openvpn:5.3.1
     build:
       context: .
       x-bake:
@@ -17,7 +17,7 @@ services:
           - linux/arm64
     init: true
     healthcheck:
-      test: (cmp /etc/openvpn/openvpn-blocked-ranges.txt /opt/antizapret/result/openvpn-blocked-ranges.txt || kill -TERM 1) &> /proc/1/fd/1
+      test: (/opt/app/healthcheck.sh || kill -TERM 1) &> /proc/1/fd/1
       interval: 5s
       timeout: 1s
       start_period: 5s

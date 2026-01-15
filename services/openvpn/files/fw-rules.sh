@@ -25,9 +25,4 @@ iptables -t nat -A masq_not_local -d ${AZ_LOCAL_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -d ${AZ_WORLD_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -j MASQUERADE;
 
-touch $OVDIR/openvpn-blocked-ranges.txt
-if [ -f "/opt/antizapret/result/openvpn-blocked-ranges.txt" ]; then
-    cp -f /opt/antizapret/result/openvpn-blocked-ranges.txt $OVDIR/openvpn-blocked-ranges.txt
-fi
-
 ./routes.sh --vpn &
