@@ -268,7 +268,10 @@ Options for adapter:
  - `suffix=1` - add "$dnsrewrite,client=xxx" to rules
 
 ## Adding IPs/Subnets
-Add ips and subnets to `./config/antizapret/custom/include-ips-custom.txt` and run `docker compose exec antizapret doall`
+Add ips and subnets to `./config/antizapret/custom/include-ips-custom.txt`. 
+Containers periodically check changes in config folder (every 5-10 seconds) and restart/update after any change.
+
+Trigger update manually: `docker exec $(docker ps -q --filter=name=az | head -n1) doall`
 
 
 ## Environment Variables
