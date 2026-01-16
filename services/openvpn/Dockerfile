@@ -1,8 +1,8 @@
 FROM d3vilh/openvpn-server:0.5.5
 
-RUN apk add -U --no-cache grep moreutils && apk del openvpn
+RUN apk add -U --no-cache ipcalc grep moreutils && apk del openvpn
 
-ARG OPENVPN_VER=2.6.14
+ARG OPENVPN_VER=2.6.17
 ADD files/socket.patch /socket.patch
 # OpenVPN
 RUN <<-"EOT" bash -ex
@@ -29,3 +29,5 @@ COPY easy-rsa.vars /opt/app
 COPY files/fw-rules.sh /opt/app
 COPY files/checkpsw.sh /opt/app
 COPY files/server-start.sh /opt/app/docker-entrypoint.sh
+COPY files/healthcheck.sh /opt/app/healthcheck.sh
+COPY routes.sh /opt/app

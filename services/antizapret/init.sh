@@ -3,43 +3,22 @@
 set -e
 set -x
 
-# run commands after systemd initialization
+# run commands after start
 function postrun () {
-    local waiter="until ps -p 1 | grep -q systemd; do sleep 0.1; done"
-    nohup bash -c "$waiter; $@" &
+    nohup bash -c "$@" &
 }
 
-
-# resolve domain address to ip address
-function resolve () {
-    # $1 domain/ip address, $2 fallback ip address
-    ipcalc () { ipcalc-ng --no-decorate -o $1 2> /dev/null; }
-    echo "$(ipcalc $1 || echo $2)"
-}
-
-
-ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
-if [[ -n $ADGUARDHOME_PASSWORD ]]; then
-    ADGUARDHOME_PASSWORD_HASH=$(htpasswd -B -C 10 -n -b "$ADGUARDHOME_USERNAME" "$ADGUARDHOME_PASSWORD")
-    ADGUARDHOME_PASSWORD_HASH=${ADGUARDHOME_PASSWORD_HASH#*:}
-fi
-
+DOCKER_SUBNET="$(ipcalc "$(ip -4 addr show dev eth0 | awk '$1=="inet" {print $2; exit}')" | awk '/Network:/ {print $2}')"
 
 # save DNS variables to /etc/default/antizapret
 # in order to systemd services can access them
 cat << EOF | sponge /etc/default/antizapret
 PYTHONUNBUFFERED=1
-SELF_IP=$(hostname -i)
-DOCKER_SUBNET=$(ip r | awk '/default/ {dev=$5} !/default/ && $0 ~ dev {print $1}')
-SKIP_UPDATE_FROM_ZAPRET=${SKIP_UPDATE_FROM_ZAPRET:-false}
-UPDATE_TIMER=${UPDATE_TIMER:-"6h"}
-ROUTES='${ROUTES:-""}'
-IP_LIST='${IP_LIST:-""}'
-LISTS='${LISTS:-""}'
-ADGUARDHOME_PORT=${ADGUARDHOME_PORT:-"3000"}
-ADGUARDHOME_USERNAME='${ADGUARDHOME_USERNAME}'
-ADGUARDHOME_PASSWORD_HASH='${ADGUARDHOME_PASSWORD_HASH}'
-DNS=${DNS:-"8.8.8.8"}
+DOCKER_SUBNET=${DOCKER_SUBNET}
+DNS=${DNS:-"127.0.0.1"}
+CLIENT=${CLIENT:-"az-local"}
+DOALL_DISABLED=${DOALL_DISABLED:-""}
+AZ_SUBNET=${AZ_SUBNET:-"10.224.0.0/15"}
 LC_ALL=C.UTF-8
 EOF
 source /etc/default/antizapret
@@ -48,30 +27,28 @@ ln -sf /etc/default/antizapret /etc/profile.d/antizapret.sh
 
 
 # creating custom hosts files if they have not yet been initialized
-for file in $(echo {exclude,include}-{hosts,ips,regexp}-custom.txt); do
+for file in $(echo {exclude,include}-{hosts,ips,ips-world}-custom.txt); do
     path=/root/antizapret/config/custom/$file
     [ ! -f $path ] && touch $path
 done
 
-rm /root/antizapret/config/custom/include-regexp-custom.txt
+( cat /root/antizapret/result/* /root/antizapret/config/custom/* | md5sum ) > /.config_md5
 
-# add routes from env ROUTES
-postrun 'while true; do /routes.sh; sleep 10; done'
+# Prepare iptables for dnsmap.py
+iptables -t nat -N dnsmap
+iptables -t nat -A PREROUTING -d "${AZ_SUBNET}" -j dnsmap
+iptables -t nat -A OUTPUT -d "${AZ_SUBNET}" -j dnsmap
+for eth in $(ip link | grep -oE "eth[0-9]"); do
+    iptables -t nat -A POSTROUTING -o "$eth" -j MASQUERADE
+done
+
+/routes.sh &
 
 # output systemd logs to docker logs since container boot
-postrun 'until [[ "$(systemctl is-active systemd-journald)" == "active" ]]; do sleep 1; done; journalctl --boot --follow --lines=all --no-hostname'
 
-# AdGuard initialization
-/bin/cp --update=none /root/adguardhome/* /opt/adguardhome/conf/
-[ -d /root/antizapret/result_dist ] && /bin/cp --update=none /root/antizapret/result_dist/* /root/antizapret/result/
-[ -f /root/antizapret/result/adguard_upstream_dns_file ] && /bin/cp --update=none /root/antizapret/result/adguard_upstream_dns_file /opt/adguardhome/conf/upstream_dns_file
-
-yq -i '
-    .http.address="0.0.0.0:'$ADGUARDHOME_PORT'" |
-    .users[0].name="'$ADGUARDHOME_USERNAME'" |
-    .users[0].password="'$ADGUARDHOME_PASSWORD_HASH'" |
-    .dns.bind_hosts=["127.0.0.1","'$SELF_IP'"]
-    ' /opt/adguardhome/conf/AdGuardHome.yaml
+postrun 'while true; do /opt/api/app; done'
+postrun 'while true; do /usr/bin/doall; sleep 6h; done'
+postrun 'while true; do /usr/bin/iperf3 -s -1; done'
 
 # systemd init
-exec /usr/sbin/init
+exec /usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET"
