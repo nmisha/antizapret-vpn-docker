@@ -35,14 +35,23 @@ EOL
     echo "[INFO] The file $AUTH_CONF_FILE has been successfully created."
 }
 
-is_host_resolved() {
-    sleep 1s
-    host=$1
-    if getent hosts "$host" >/dev/null; then
-        return 0
-    else
-        return 1
-    fi
+create_modules() {
+    MOD_CONF_FILE="/etc/lighttpd/conf.d/000-modules.conf"
+    cat <<EOL > "$MOD_CONF_FILE"
+server.modules += ( "mod_setenv" )
+EOL
+    echo "[INFO] Modules config created: $MOD_CONF_FILE"
+}
+
+create_cors() {
+    CORS_CONF_FILE="/etc/lighttpd/conf.d/020-cors.conf"
+    cat <<EOL > "$CORS_CONF_FILE"
+setenv.add-response-header = (
+    "Access-Control-Allow-Origin" => "*",
+    "Access-Control-Allow-Credentials" => "true"
+)
+EOL
+    echo "[INFO] CORS config created: $CORS_CONF_FILE"
 }
 
 create_services_json() {
@@ -62,24 +71,20 @@ create_services_json() {
         internal_hostname=$(echo "$service_value" | cut -d':' -f3)
         internal_port=$(echo "$service_value" | cut -d':' -f4)
 
-        if is_host_resolved "$internal_hostname"; then
-            service_json=$(jq -n \
-                    --arg name "$name" \
-                    --arg externalPort "$external_port" \
-                    --arg internalHostname "$internal_hostname" \
-                    --arg internalPort "$internal_port" \
-                    '$ARGS.named')
+        service_json=$(jq -n \
+                --arg name "$name" \
+                --arg externalPort "$external_port" \
+                --arg internalHostname "$internal_hostname" \
+                --arg internalPort "$internal_port" \
+                '$ARGS.named')
 
-            if [ -n "$services" ]; then
-                services="$services,$service_json"
-            else
-                services="$service_json"
-            fi
-
-            echo "[INFO] Added service '$name' to JSON."
+        if [ -n "$services" ]; then
+            services="$services,$service_json"
         else
-            echo "[WARNING] Host '$internal_hostname' is not resolved and will be skipped."
+            services="$service_json"
         fi
+
+        echo "[INFO] Added service '$name' to JSON."
 
         COUNTER=$((COUNTER + 1))
     done
@@ -94,4 +99,6 @@ create_services_json() {
 }
 
 create_auth
+create_modules
+create_cors
 create_services_json

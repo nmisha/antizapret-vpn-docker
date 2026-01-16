@@ -1,8 +1,16 @@
-FROM golang:1.23 AS builder-api
+FROM golang:1.25 AS builder-api
 WORKDIR /app
+COPY ./api/go.* .
+RUN go mod download
 COPY ./api .
-RUN go build -o app main.go
+RUN go build -o app
 
+FROM golang:1.25 AS builder-compose2swarm
+WORKDIR /app
+COPY ./compose2swarm/go.* .
+RUN go mod download
+COPY ./compose2swarm .
+RUN go build -o compose2swarm
 
 FROM ubuntu:24.04
 
@@ -13,57 +21,33 @@ RUN <<-"EOT" bash -ex
     DEBIAN_FRONTEND=noninteractive
 
     apt-get update -q
-    apt-get dist-upgrade -qy
     apt-get install -qqy --no-install-suggests --no-install-recommends \
         bsdmainutils \
-        ca-certificates \
         iperf3 \
         curl \
+        ca-certificates \
         dnsutils \
-        ferm \
         gawk \
         host \
         idn \
         inetutils-ping \
-        ipcalc \
-        ipcalc-ng \
         iptables \
         iproute2 \
+        ipcalc \
         moreutils \
-        nano \
-        openssl \
-        patch \
         procps \
         python3-dnslib \
         sipcalc \
-        systemd-sysv \
-        vim-tiny \
-        apache2-utils \
-        wget
+        vim-tiny
     apt-get clean
     rm -frv /var/lib/apt/lists/*
 EOT
 
+COPY --from=builder-api /app/app /opt/api/app
+COPY --from=builder-compose2swarm /app/compose2swarm /usr/bin/compose2swarm
 COPY . /
 
-COPY --from=mikefarah/yq:4.45.1 /usr/bin/yq /usr/bin/yq
-COPY --from=adguard/adguardhome:v0.107.69 /opt/adguardhome /opt/adguardhome
-COPY --from=builder-api /app/app /opt/api/app
-
 RUN <<-"EOF" bash -ex
-    cp /root/adguardhome/* /opt/adguardhome/conf
-EOF
-
-RUN <<-"EOF" bash -ex
-    systemctl enable \
-        antizapret-update.service \
-        antizapret-update.timer \
-        dnsmap \
-        systemd-networkd \
-        iperf3-server@1 \
-        adguardhome \
-        antizapret-api
-
     for list in antizapret/config/*-dist.txt; do
         sed -E '/^(#.*)?[[:space:]]*$/d' $list | sort | uniq | sponge $list
     done
@@ -76,19 +60,4 @@ RUN <<-"EOF" bash -ex
     rm -frv /tmp/*
 EOF
 
-ARG DIST=false
-RUN <<-"EOF" bash -ex
-    [ "$DIST" == false ] && exit 0
-    export SKIP_UPDATE_FROM_ZAPRET=false
-    export IP_LIST=https://raw.githubusercontent.com/zapret-info/z-i/master/dump.csv.gz
-    export LISTS='
-        https://raw.githubusercontent.com/zapret-info/z-i/master/nxdomain.txt;
-        https://antifilter.download/list/domains.lst;
-    ';
-
-    (STAGE_1=true STAGE_2=true STAGE_3=false /root/antizapret/doall.sh)
-    mkdir /root/antizapret/result_dist/
-    mv /root/antizapret/result/* /root/antizapret/result_dist/
-EOF
-
-ENTRYPOINT ["/init.sh"]
+CMD ["/init.sh"]

@@ -46,7 +46,7 @@ class ProxyResolver(BaseResolver):
         self.tablename = tablename
 
         # Load existing mappings
-        get_mappings = "iptables-legacy -w -t nat -nL dnsmap | awk '{if (NR<3) {next}; sub(/to:/, \"\", $6); print $5,$6}'"
+        get_mappings = "iptables -w -t nat -nL dnsmap | awk '{if (NR<3) {next}; sub(/to:/, \"\", $6); print $5,$6}'"
         output = subprocess.check_output(get_mappings, shell=True, encoding='utf-8')
         for mapped in output.split("\n"):
             if mapped:
@@ -79,7 +79,7 @@ class ProxyResolver(BaseResolver):
                 return False
             print('Mapping {} to {}'.format(fake_addr, real_addr))
             self.ipmap[real_addr]=fake_addr
-            set_mappings = f"iptables-legacy -w -t nat -A dnsmap -d '{fake_addr}' -j DNAT --to '{real_addr}'"
+            set_mappings = f"iptables -w -t nat -A dnsmap -d '{fake_addr}' -j DNAT --to '{real_addr}'"
             subprocess.call(set_mappings, shell=True, encoding='utf-8')
             return fake_addr
         return True
@@ -197,7 +197,7 @@ if __name__ == '__main__':
 
     import argparse, time, os, sys
 
-    dns = os.getenv('DNS', '8.8.8.8') + ':53'
+    dns = os.getenv('DNS', '127.0.0.1') + ':53'
 
     p = argparse.ArgumentParser(description="DNS Proxy")
 

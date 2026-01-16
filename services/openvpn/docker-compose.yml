@@ -2,13 +2,26 @@ services:
   openvpn:
     hostname: openvpn.antizapret
     restart: unless-stopped
-    privileged: true
-    build: .
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    sysctls:
+      - net.ipv4.ip_forward=1
+      - net.ipv4.conf.all.src_valid_mark=1
+    image: xtrime/antizapret-vpn-openvpn:5.3.1
+    build:
+      context: .
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    init: true
     healthcheck:
-      test: cmp /etc/openvpn/openvpn-blocked-ranges.txt /opt/antizapret/result/openvpn-blocked-ranges.txt || sh -c 'killall -INT -r openvpn && (sleep 5; killall -s 9 -r openvpn)'
-      interval: 30s
-      timeout: 10s
-      retries: 1
+      test: (/opt/app/healthcheck.sh || kill -TERM 1) &> /proc/1/fd/1
+      interval: 5s
+      timeout: 1s
+      start_period: 5s
+      start_interval: 1s
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - $PWD/config/openvpn:/etc/openvpn
@@ -18,27 +31,52 @@ services:
       - "1194:1194/udp"
     depends_on:
       - openvpn-ui
-      - antizapret
+      - az-local
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
     environment:
       - OBFUSCATE_TYPE=0
+      - |
+        ROUTES=
+        openvpn:10.1.165.0/24;
+        wireguard:10.1.166.0/24;
+        wireguard-amnezia:10.1.167.0/24;
+        adguard:10.224.0.1;
+        az-local:10.224.0.0/15;
+        az-world:10.226.0.0/15;
 
   openvpn-ui:
     hostname: openvpn-ui.antizapret
     restart: unless-stopped
-    privileged: true
+    cap_add:
+      - NET_ADMIN
+      - SYS_MODULE
+    image: xtrime/antizapret-vpn-openvpn-ui:5.0.0
     build:
       context: .
       dockerfile: Dockerfile-ui
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - $PWD/config/openvpn/db:/opt/openvpn-ui/db
       - $PWD/config/openvpn/pki:/usr/share/easy-rsa/pki
       - $PWD/config/openvpn:/etc/openvpn
-    ports:
-      - 8080:8080
     environment:
       - OPENVPN_ADMIN_USERNAME=admin
       - OPENVPN_ADMIN_PASSWORD=gagaZush
     depends_on:
-      - antizapret
+      - az-local
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]

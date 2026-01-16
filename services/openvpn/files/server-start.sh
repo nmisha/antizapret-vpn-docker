@@ -1,5 +1,4 @@
 #!/bin/bash
-#VERSION 0.2.3 by @d3vilh@github.com aka Mr. Philipp
 set -e
 
 #Variables
@@ -7,8 +6,17 @@ EASY_RSA=/usr/share/easy-rsa
 OPENVPN_DIR=/etc/openvpn
 echo "EasyRSA path: $EASY_RSA OVPN path: $OPENVPN_DIR"
 
-mkdir -pv /etc/openvpn/config
-cp -vf /opt/app/easy-rsa.vars /etc/openvpn/config/easy-rsa.vars
+INIT_FILE="/.inited"
+rm -f "$INIT_FILE"
+CONFIG_FILE="/opt/antizapret/result/openvpn-blocked-ranges.txt"
+cat $CONFIG_FILE 2>/dev/null | md5sum | cut -d' ' -f1 > /.config_md5
+touch $OPENVPN_DIR/openvpn-blocked-ranges.txt
+if [ -f $CONFIG_FILE ]; then
+    cp -f $CONFIG_FILE $OPENVPN_DIR/openvpn-blocked-ranges.txt
+fi
+
+mkdir -pv $OPENVPN_DIR/config
+cp -vf /opt/app/easy-rsa.vars $OPENVPN_DIR/config/easy-rsa.vars
 
 if [[ ! -f $OPENVPN_DIR/pki/ca.crt ]]; then
     export EASYRSA_BATCH=1 # see https://superuser.com/questions/1331293/easy-rsa-v3-execute-build-ca-and-gen-req-silently
@@ -62,15 +70,6 @@ if [ ! -c /dev/net/tun ]; then
     mknod /dev/net/tun c 10 200
 fi
 
-echo 'Configuring networking rules...'
-if ! grep -q 'net.ipv4.ip_forward=1' /etc/sysctl.conf; then
-  echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf;
-  echo 'IP forwarding configuration now applied:'
-else
-  echo 'IP forwarding configuration already applied:'
-fi
-sysctl -p /etc/sysctl.conf
-
 if [[ ! -s fw-rules.sh ]]; then
     echo "No additional firewall rules to apply."
 else
@@ -84,4 +83,6 @@ mkdir -p $OPENVPN_DIR/staticclients
 
 echo 'Start openvpn process...'
 tail -f $OPENVPN_DIR/log/*.log &
+
+touch "$INIT_FILE"
 exec /usr/local/sbin/openvpn --cd $OPENVPN_DIR --script-security 2 --config $OPENVPN_DIR/server.conf
