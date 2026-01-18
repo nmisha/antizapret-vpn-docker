@@ -447,15 +447,22 @@ add_services_to_config() {
   header {
     -X-Frame-Options
   }
+
+  # reverse_proxy {
+    # dynamic a {
+      # name $internal_host
+      # port $internal_port
+      # refresh 1s
+    # }
+  # }
+
   reverse_proxy {
-    dynamic a {
-      name $internal_host
-      port $internal_port
-      refresh 1s
-    }
+			   
+    to http://$internal_host:$internal_port
+						 
+				
+	 
   }
-
-
 
 
 
@@ -505,14 +512,23 @@ https://$PROXY_DOMAIN:$external_port {
   header {
     -X-Frame-Options
   }
-  reverse_proxy {
-    dynamic a {
-      name $internal_host
-      port $internal_port
-      refresh 1s
-    }
-  }
 
+
+  # reverse_proxy {
+    # dynamic a {
+      # name $internal_host
+      # port $internal_port
+      # refresh 1s
+    # }
+  # }
+
+  reverse_proxy {
+			   
+    to http://$internal_host:$internal_port
+						 
+				
+	 
+  }
 
 
 #   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
