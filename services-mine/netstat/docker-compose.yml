@@ -12,7 +12,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
 #      - vnstatdb:/var/lib/vnstat
-      - $PWD/config/vnstatdb:/var/lib/vnstat
+      - $PWD/config-mine/vnstatdb:/var/lib/vnstat
     environment:
       - HTTP_PORT=0
       - TZ=Europe/Moscow
@@ -29,7 +29,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - /etc/timezone:/etc/timezone:ro
 #      - vnstatdb:/var/lib/vnstat
-      - $PWD/config/vnstatdb:/var/lib/vnstat
+      - $PWD/config-mine/vnstatdb:/var/lib/vnstat
     environment:
 #      - SERVER_NAME=vnstat
       - TZ=Europe/Moscow
@@ -91,7 +91,7 @@ services:
 #     volumes:
 #       # - vnstatdb:/var/lib/vnstat
 #       - /etc/localtime:/etc/localtime:ro
-#       - $PWD/config/vnstatdb:/var/lib/vnstat
+#       - $PWD/config-mine/vnstatdb:/var/lib/vnstat
 #       - /var/run/docker.sock:/var/run/docker.sock
 #     environment:
 #       - TZ=Europe/Moscow

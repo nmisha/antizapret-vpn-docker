@@ -13,7 +13,7 @@ services:
     volumes:
       # - ./data:/data
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config/portainer:/data
+      - $PWD/config-mine/portainer:/data
       - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
 #     networks:

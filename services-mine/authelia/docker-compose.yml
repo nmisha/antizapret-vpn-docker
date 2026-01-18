@@ -22,11 +22,11 @@ services:
       # - './data/authelia/secrets/SESSION_SECRET:/run/secrets/SESSION_SECRET:rw'
       # - './data/authelia/secrets/STORAGE_PASSWORD:/run/secrets/STORAGE_PASSWORD:rw'
       # - './data/authelia/secrets/STORAGE_ENCRYPTION_KEY:/run/secrets/STORAGE_ENCRYPTION_KEY:rw'
-      - '$PWD/config/authelia/config:/config'
-      - '$PWD/config/authelia/secrets/JWT_SECRET:/run/secrets/JWT_SECRET:rw'
-      - '$PWD/config/authelia/secrets/SESSION_SECRET:/run/secrets/SESSION_SECRET:rw'
-      - '$PWD/config/authelia/secrets/STORAGE_PASSWORD:/run/secrets/STORAGE_PASSWORD:rw'
-      - '$PWD/config/authelia/secrets/STORAGE_ENCRYPTION_KEY:/run/secrets/STORAGE_ENCRYPTION_KEY:rw'
+      - '$PWD/config-mine/authelia/config:/config'
+      - '$PWD/config-mine/authelia/secrets/JWT_SECRET:/run/secrets/JWT_SECRET:rw'
+      - '$PWD/config-mine/authelia/secrets/SESSION_SECRET:/run/secrets/SESSION_SECRET:rw'
+      - '$PWD/config-mine/authelia/secrets/STORAGE_PASSWORD:/run/secrets/STORAGE_PASSWORD:rw'
+      - '$PWD/config-mine/authelia/secrets/STORAGE_ENCRYPTION_KEY:/run/secrets/STORAGE_ENCRYPTION_KEY:rw'
       - /etc/timezone:/etc/timezone:ro
 
 

@@ -22,7 +22,7 @@ services:
 #      - etc_wireguard:/etc/wireguard
       - /lib/modules:/lib/modules:ro
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config/wg-easy-full:/etc/wireguard
+      - $PWD/config-mine/wg-easy-full:/etc/wireguard
     ports:
       - "51822:51820/udp"
 #      - "51823:51821/tcp"

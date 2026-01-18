@@ -9,7 +9,7 @@ services:
 #      - ./tinyproxy.conf:/etc/tinyproxy.conf:ro
 
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config/i2p/tinyproxy.conf:/etc/tinyproxy/tinyproxy.conf:ro
+      - $PWD/config-mine/i2p/tinyproxy.conf:/etc/tinyproxy/tinyproxy.conf:ro
 
     restart: unless-stopped
 
@@ -26,8 +26,8 @@ services:
       - /etc/localtime:/etc/localtime:ro
 #      - ./i2pd/data:/var/lib/i2pd
 #      - ./i2pd/conf:/etc/i2pd
-      - $PWD/config/i2p/i2pd/data:/var/lib/i2pd
-      - $PWD/config/i2p/i2pd/conf:/etc/i2pd
+      - $PWD/config-mine/i2p/i2pd/data:/var/lib/i2pd
+      - $PWD/config-mine/i2p/i2pd/conf:/etc/i2pd
     restart: unless-stopped
 
 

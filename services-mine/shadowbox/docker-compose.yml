@@ -10,7 +10,7 @@ services:
       # - shadowbox-state:/shadowbox/state
       # - ./shadowbox:/shadowbox/state
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config/shadowbox:/shadowbox/state
+      - $PWD/config-mine/shadowbox:/shadowbox/state
     environment:
       - SB_STATE_DIR=/shadowbox/state
       - SB_API_PREFIX=api

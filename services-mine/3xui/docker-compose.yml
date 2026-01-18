@@ -11,8 +11,8 @@ services:
       # - ./db/:/etc/x-ui/
       # - ./cert/:/root/cert/
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config/3x-ui/db:/etc/x-ui/
-      - $PWD/config/3x-ui/cert:/root/cert/
+      - $PWD/config-mine/3x-ui/db:/etc/x-ui/
+      - $PWD/config-mine/3x-ui/cert:/root/cert/
     environment:
       XRAY_VMESS_AEAD_FORCED: "false"
       X_UI_ENABLE_FAIL2BAN: "true"

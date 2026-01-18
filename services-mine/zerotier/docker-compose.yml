@@ -7,7 +7,7 @@ services:
     volumes:
       # - ./config:/var/lib/zerotier-one
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config/zerotier:/var/lib/zerotier-one
+      - $PWD/config-mine/zerotier:/var/lib/zerotier-one
     cap_add:
       - NET_ADMIN
       - SYS_ADMIN
