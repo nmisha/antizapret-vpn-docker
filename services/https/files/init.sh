@@ -70,6 +70,65 @@ EOF
     echo "[INFO] Global configuration block created."
 }
 
+
+AUTHELIA_SERVICE_NAME="auth"
+
+generate_authelia_proxy() {
+    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
+        cat <<EOF >>"$CONFIG_FILE"
+
+#Authelia#
+:9091 {
+  tls $CERT_CRT $CERT_KEY
+
+ reverse_proxy {
+   to http://authelia:9091
+ }
+
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
+EOF
+    else
+        cat <<EOF >>"$CONFIG_FILE"
+
+
+
+
+
+#Authelia#
+https://$PROXY_DOMAIN:9091 {
+
+ reverse_proxy {
+   to http://authelia:9091
+ }
+
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
+EOF
+    fi
+      echo "[INFO] Authelia proxy block added."
+
+#echo "$CONFIG_FILE"
+#echo cat "$CONFIG_FILE"
+
+}
+
+
+
 add_services_to_config() {
     echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
 
@@ -91,6 +150,13 @@ add_services_to_config() {
   header {
     -X-Frame-Options
   }
+
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#    trusted_proxies private_ranges
+	}
+
   reverse_proxy {
     dynamic a {
       name $internal_host
@@ -122,6 +188,9 @@ https://$PROXY_DOMAIN:$external_port {
       refresh 1s
     }
   }
+
+
+
 
   log {
     output file /var/log/caddy/access.log {
