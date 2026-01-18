@@ -71,7 +71,6 @@ EOF
 }
 
 
-
 AUTHELIA_SERVICE_NAME="auth"
 
 generate_authelia_proxy() {
