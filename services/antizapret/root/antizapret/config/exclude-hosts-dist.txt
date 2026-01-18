@@ -1,3 +1,5 @@
+20x40.ru
+
 duckdns
 linode\.com
 upcloud\.com
