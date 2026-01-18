@@ -60,22 +60,22 @@ function tryActivateTabFromHash() {
 }
 
 fetch(servicesUrl)
-//    .then(response => response.json())
-    .then(response => {
-        if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-        const contentType = response.headers.get('content-type');
-        if (!contentType || !contentType.includes('application/json')) {
-        throw new Error('Ответ не в формате JSON');
-        }
-        return response.text().then(text => {
-        if (!text) {
-            throw new Error('Пустой ответ от сервера');
-        }
-        return JSON.parse(text);
-        });
-    })
+    .then(response => response.json())
+    // .then(response => {
+    //     if (!response.ok) {
+    //     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    //     }
+    //     const contentType = response.headers.get('content-type');
+    //     if (!contentType || !contentType.includes('application/json')) {
+    //     throw new Error('Ответ не в формате JSON');
+    //     }
+    //     return response.text().then(text => {
+    //     if (!text) {
+    //         throw new Error('Пустой ответ от сервера');
+    //     }
+    //     return JSON.parse(text);
+    //     });
+    // })
     .then(config => {
         let internalHostname = config.internalHostname;
         let services = config.services;
