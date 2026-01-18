@@ -24,7 +24,11 @@
       </div>
     </div>
     <div id="contentWrapper"></div>
-
+    <script>
+      // Устанавливаем ссылку на текущий домен с портом 9091
+      document.getElementById("logout-link").href =
+        window.location.protocol + "//" + window.location.hostname + ":9091";
+    </script>
     <script src="index.js"></script>
   </div>
   </body>
