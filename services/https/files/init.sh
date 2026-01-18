@@ -444,9 +444,9 @@ add_services_to_config() {
 #    trusted_proxies private_ranges
 	}
 
-  header {
-    -X-Frame-Options
-  }
+  # header {
+    # -X-Frame-Options
+  # }
 
   # reverse_proxy {
     # dynamic a {
@@ -509,9 +509,9 @@ https://$PROXY_DOMAIN:$external_port {
 #    trusted_proxies private_ranges
 	}
 
-  header {
-    -X-Frame-Options
-  }
+  # header {
+    # -X-Frame-Options
+  # }
 
 
   # reverse_proxy {
