@@ -417,6 +417,7 @@ EOF
 
 
 add_services_to_config() {
+
     echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
 
     if [ -z "$service_value" ]; then
@@ -455,14 +456,11 @@ add_services_to_config() {
       # refresh 1s
     # }
   # }
-
   reverse_proxy {
-			   
     to http://$internal_host:$internal_port
-						 
-				
-	 
   }
+
+
 
 
 
@@ -523,12 +521,9 @@ https://$PROXY_DOMAIN:$external_port {
   # }
 
   reverse_proxy {
-			   
     to http://$internal_host:$internal_port
-						 
-				
-	 
   }
+
 
 
 #   @auth_exempt path /auth* /favicon.ico /api/verify /locales/*
