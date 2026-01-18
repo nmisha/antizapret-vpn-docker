@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" href="icon.svg" type="image/svg+xml">
-    <title>ANTIZAPRET</title>
+    <title>AZ</title>
     <link rel="stylesheet" href="index.css">
   </head>
   <body>
@@ -12,16 +12,22 @@
       <div class="tab-container" id="tabContainer"></div>
       <div id="pageTitle">
         <a
+                id="logout-link"
                 href="https://github.com/xtrime-ru/antizapret-vpn-docker"
                 target="_blank"
                 class="page-title-link"
         >
-          <span id="titleText">ANTIZAPRET</span>
+          <span id="titleText">AZ</span>
           <img src="github.svg" alt="GitHub Icon" class="github-icon">
         </a>
       </div>
     </div>
     <div id="contentWrapper"></div>
+    <script>
+      // Устанавливаем ссылку на текущий домен с портом 9091
+      document.getElementById("logout-link").href =
+        window.location.protocol + "//" + window.location.hostname + ":9091";
+    </script>
     <script src="index.js"></script>
   </div>
   </body>

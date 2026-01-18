@@ -1,0 +1,23 @@
+services:
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+#      - ./textfile:/textfile:ro
+
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config/prometheus/node-exporter/textfile:/textfile:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.textfile"
+      - "--collector.textfile.directory=/textfile"
+    ports:
+      - "9100:9100"
+    # networks: [monitoring]

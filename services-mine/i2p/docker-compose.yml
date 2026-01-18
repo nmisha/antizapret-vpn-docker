@@ -1,0 +1,60 @@
+
+services:
+  tinyproxy:
+    image: ajoergensen/tinyproxy
+    container_name: tinyproxy
+    ports:
+      - "8888:8888"
+    volumes:
+#      - ./tinyproxy.conf:/etc/tinyproxy.conf:ro
+
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config/i2p/tinyproxy.conf:/etc/tinyproxy/tinyproxy.conf:ro
+
+    restart: unless-stopped
+
+
+  i2pd_proxy:
+    image: purplei2p/i2pd:latest
+    container_name: i2pd_proxy
+    ports:
+      - "4444:4444"   # HTTP Proxy (по умолчанию)
+      - "4447:4447"   # SOCKS Proxy
+      - "7656:7656"   # SAM API
+      - "7070:7070"   # Web консоль
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+#      - ./i2pd/data:/var/lib/i2pd
+#      - ./i2pd/conf:/etc/i2pd
+      - $PWD/config/i2p/i2pd/data:/var/lib/i2pd
+      - $PWD/config/i2p/i2pd/conf:/etc/i2pd
+    restart: unless-stopped
+
+
+  tor_proxy:
+#    image: peterdavehello/tor-socks-proxy:latest
+    image: dockage/tor-privoxy:latest
+    container_name: tor_proxy
+    ports:
+      # - "8118:8118"   # HTTP proxy (Privoxy)
+      # - "9050:9050"   # SOCKS5 proxy (Tor)
+#      - "8853:53"
+#      - "9150:9150"
+
+      - "9050:9050" # Tor proxy
+      - "9051:9051" # Tor control port
+      - "8118:8118" # Privoxy
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    restart: unless-stopped
+
+  # privoxy:
+  #   image: privoxy:latest
+  #   ports:
+  #     - "8118:8118"
+  #   depends_on:
+  #     - tor
+  #   volumes:
+  #     - ./privoxy.conf:/etc/privoxy/config:ro
+
+
