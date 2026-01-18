@@ -46,9 +46,9 @@ dns:
   cache_optimistic: true
   bogus_nxdomain: []
   aaaa_disabled: true
-  enable_dnssec: false
   edns_client_subnet:
-    custom_ip: "77.88.8.8"
+#    custom_ip: "77.88.8.8"
+    custom_ip: 92.69.84.57
     enabled: true
     use_custom: true
   max_goroutines: 300
