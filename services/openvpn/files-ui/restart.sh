@@ -12,10 +12,12 @@ fi
 
 if [ "$ACTION" = "openvpn-server" ]; then  # Restartnig openvpn server
       # Get the container ID for ^openvpn$
-      CONTAINER_ID=$(curl --unix-socket /var/run/docker.sock "http://v1.40/containers/json?filters=%7B%22name%22%3A%5B%22%5Eantizapret-openvpn-%5B0-9%5D%2B%24%22%5D%7D" | grep '"Id":' | cut -d '"' -f 4)
+      QUERY=$(echo -n '{"name":["^antizapret.*[-_]openvpn[\\.-][0-9]"]}' | jq -sRr @uri)
+      CONTAINER_ID=$(curl --unix-socket /var/run/docker.sock "http://v1.40/containers/json?filters=$QUERY" | grep '"Id":' | cut -d '"' -f 4)
  elif [ "$ACTION" = "openvpn-ui" ]; then  # Restartnig openvpn-ui
       # Get the container ID for ^openvpn-ui$
-      CONTAINER_ID=$(curl --unix-socket /var/run/docker.sock "http://v1.40/containers/json?filters=%7B%22name%22%3A%5B%22%5Eantizapret-openvpn-ui-%5B0-9%5D%2B%24%22%5D%7D" | grep '"Id":' | cut -d '"' -f 4)
+      QUERY=$(echo -n '{"name":["^antizapret.*[-_]openvpn-ui[\\.-][0-9]"]}' | jq -sRr @uri)
+      CONTAINER_ID=$(curl --unix-socket /var/run/docker.sock "http://v1.40/containers/json?filters=$QUERY" | grep '"Id":' | cut -d '"' -f 4)
  else
       echo "Invalid input argument: $ACTION Exiting..."
       exit 1
