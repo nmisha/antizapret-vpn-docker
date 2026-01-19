@@ -49,7 +49,7 @@ dns:
   enable_dnssec: false
   edns_client_subnet:
     custom_ip: "77.88.8.8"
-    enabled: true
+    enabled: false
     use_custom: true
   max_goroutines: 300
   handle_ddr: true

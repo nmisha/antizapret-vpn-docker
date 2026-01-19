@@ -224,25 +224,6 @@ anthropic.com
 sora.com
 recraft.ai
 
-# viber
-viber.com
-vb.me
-
-# facebook
-facebook.com
-fbcdn.net
-messenger.com
-fb.com
-
-# wa
-whatsapp.com
-whatsapp.net
-wa.me
-
-# instagram
-instagram.com
-cdninstagram.com
-
 # video
 netflix.com
 

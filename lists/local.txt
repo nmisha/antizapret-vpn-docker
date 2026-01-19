@@ -131,6 +131,25 @@ discordapp.com
 discord.media
 discord-attachments-uploads-prd.storage.googleapis.com
 
+# viber
+viber.com
+vb.me
+
+# facebook
+facebook.com
+fbcdn.net
+messenger.com
+fb.com
+
+# wa
+whatsapp.com
+whatsapp.net
+wa.me
+
+# instagram
+instagram.com
+cdninstagram.com
+
 # video
 hdrezka.me
 voidboost.cc

@@ -38,6 +38,9 @@ yq -i '
     (.clients.persistent[] | select(.name == "coredns") | .ids) = ["'$COREDNS_HOST'"]
     ' /opt/adguardhome/conf/AdGuardHome.yaml
 
+yq -i '
+    .dns.edns_client_subnet.enabled=false
+    ' /opt/adguardhome/conf/AdGuardHome.yaml
 
 
 exec /opt/adguardhome/AdGuardHome "$@"
