@@ -5,7 +5,7 @@ set -euo pipefail
 # Configuration
 EASY_RSA="/usr/share/easy-rsa"
 CRL_PATH="/etc/openvpn/pki/crl.pem"       # Where OpenVPN looks for the CRL
-THRESHOLD=86400                           # Update if less than 24 hours (86400 sec) remain
+THRESHOLD=604800                          # Update if less than 1 week hours (604800 sec) remain
 
 # Function to parse OpenSSL date string (e.g. "Jul 16 10:58:42 2026 GMT") to epoch seconds (UTC)
 parse_date_to_epoch() {
@@ -43,28 +43,31 @@ update_crl() {
 need_update=false
 
 if [[ ! -f "$CRL_PATH" ]]; then
-    echo "$(date '+%Y-%m-%d %H:%M:%S') CRL file missing → updating"
-    need_update=true
-else
-    nextupdate_str=$(openssl crl -in "$CRL_PATH" -noout -nextupdate 2>/dev/null | cut -d= -f2-)
-    if [[ -z "$nextupdate_str" ]]; then
-        echo "$(date '+%Y-%m-%d %H:%M:%S') Cannot read nextupdate → updating"
-        need_update=true
-    else
-        nextupdate_epoch=$(parse_date_to_epoch "$nextupdate_str")
-        current_epoch=$(date -u +%s)
-        remaining=$((nextupdate_epoch - current_epoch))
+    echo "$(date '+%Y-%m-%d %H:%M:%S') CRL file missing. This should not happened. Restarting container."
+    exit 1
+fi
 
-        if [[ $remaining -le 0 ]]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') CRL expired (remaining: $remaining sec) → updating"
-            need_update=true
-        elif [[ $remaining -le $THRESHOLD ]]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S') Less than $THRESHOLD sec remaining ($remaining sec) → updating"
-            need_update=true
-        fi
-    fi
+nextupdate_str=$(openssl crl -in "$CRL_PATH" -noout -nextupdate 2>/dev/null | cut -d= -f2-)
+if [[ -z "$nextupdate_str" ]]; then
+    echo "$(date '+%Y-%m-%d %H:%M:%S') Cannot read nextupdate. Restarting container."
+    exit 2
+fi
+
+nextupdate_epoch=$(parse_date_to_epoch "$nextupdate_str")
+current_epoch=$(date -u +%s)
+remaining=$((nextupdate_epoch - current_epoch))
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] CRL expiration date: $nextupdate_str; remaining: $remaining sec;"
+
+if [[ $remaining -le 0 ]]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] CRL expired (remaining: $remaining sec) → updating"
+    need_update=true
+elif [[ $remaining -le $THRESHOLD ]]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] CRL expiration date less than $THRESHOLD sec remaining ($remaining sec) → updating"
+    need_update=true
 fi
 
 if [[ $need_update == true ]]; then
     update_crl
+    echo "CRL updated. Restarting openvpn server."
+    exit 1
 fi

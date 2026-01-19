@@ -30,4 +30,5 @@ COPY files/fw-rules.sh /opt/app
 COPY files/checkpsw.sh /opt/app
 COPY files/server-start.sh /opt/app/docker-entrypoint.sh
 COPY files/healthcheck.sh /opt/app/healthcheck.sh
+COPY files/update-crl.sh /opt/app/update-crl.sh
 COPY routes.sh /opt/app

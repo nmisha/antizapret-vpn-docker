@@ -18,7 +18,7 @@ fi
 mkdir -pv $OPENVPN_DIR/config
 cp -vf /opt/app/easy-rsa.vars $OPENVPN_DIR/config/easy-rsa.vars
 
-if [[ ! -f $OPENVPN_DIR/pki/ca.crt ]]; then
+if [[ ! -f $OPENVPN_DIR/pki/ca.crt ]] || [[ ! -f $OPENVPN_DIR/pki/crl.pem ]]; then
     export EASYRSA_BATCH=1 # see https://superuser.com/questions/1331293/easy-rsa-v3-execute-build-ca-and-gen-req-silently
     cd $EASY_RSA
 
@@ -56,7 +56,6 @@ if [[ ! -f $OPENVPN_DIR/pki/ca.crt ]]; then
     # Copy to mounted volume
     cp -r $EASY_RSA/pki/. $OPENVPN_DIR/pki
 else
-
     echo 'PKI already set up.'
 fi
 
@@ -85,4 +84,12 @@ echo 'Start openvpn process...'
 tail -f $OPENVPN_DIR/log/*.log &
 
 touch "$INIT_FILE"
+
+/opt/app/update-crl.sh || kill -TERM 1
+while true; do
+    sleep 86400;
+    echo "Update crl";
+    /opt/app/update-crl.sh || kill -TERM 1
+done &
+
 exec /usr/local/sbin/openvpn --cd $OPENVPN_DIR --script-security 2 --config $OPENVPN_DIR/server.conf
