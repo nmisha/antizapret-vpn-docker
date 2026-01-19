@@ -32,7 +32,6 @@ theins.ru
 wixmp.com
 reverb.com
 
-
 # youtube
 youtube.com
 youtu.be
@@ -89,17 +88,6 @@ smartbear.co
 smartbear.com
 
 
-# openai
-chatgpt.com
-oaistatic.com
-oaiusercontent.com
-openai.com
-
-# grok
-x.ai
-grok.com
-
-
 # rutracker
 t-ru.org
 rutracker.org
@@ -111,18 +99,10 @@ rutrk.org
 nnm-club.ws
 nnmclub.ch
 
-# developer tools
-docker.com
-mongodb.com
-mongodb-cdn.com
-mongodb.net
-jetbrains.com
+# IT
 code.org
 veeam.com
 digitalocean.com
-hashicorp.com
-terraform.io
-githubcopilot.com
 mbed.com
 analog.com
 microchip.com
@@ -136,14 +116,9 @@ zencdn.net
 octopart-clicks.com
 octopart.com
 octostatic.com
-dell.com
-dellcdn.com
 ti.com
 mouser.com
-qualcomm.com
 usablenet.com
-recraft.ai
-hetzner.com
 pokerplanning.org
 thanosjs.org
 smartsheet.com
