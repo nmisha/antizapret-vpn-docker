@@ -1,0 +1,53 @@
+{
+  "id": null,
+  "title": "AdGuard QueryLog (Loki)",
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "panels": [
+    {
+      "type": "logs",
+      "title": "Recent DNS queries",
+      "gridPos": {
+        "x": 0,
+        "y": 0,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{job=\"adguard_querylog\"}"
+        }
+      ],
+      "options": {
+        "showLabels": true,
+        "showTime": true
+      }
+    },
+    {
+      "type": "table",
+      "title": "Top 10 domains per client (last 24h)",
+      "gridPos": {
+        "x": 0,
+        "y": 10,
+        "w": 24,
+        "h": 10
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "expr": "{job=\"adguard_querylog\"} | json | stats count() by (IP, QH) | sort desc | limit 10"
+        }
+      ]
+    }
+  ]
+}

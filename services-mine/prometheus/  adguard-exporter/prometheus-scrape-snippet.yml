@@ -1,0 +1,4 @@
+# Add to your existing prometheus.yml under scrape_configs:
+  - job_name: 'adguard'
+    static_configs:
+      - targets: ['adguard-exporter:9618']
