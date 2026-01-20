@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  # AdGuard Home itself (optional example). If you already run it elsewhere, skip this service.
+  # adguard:
+  #   image: adguard/adguardhome:latest
+  #   container_name: adguard
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./adguard/data:/opt/adguardhome/work
+  #     - ./adguard/conf:/opt/adguardhome/conf
+  #   ports:
+  #     - "53:53/tcp"
+  #     - "53:53/udp"
+  #     - "3000:3000"  # web UI
+  #   networks: [monitoring]
+
+  adguard-exporter:
+    image: ghcr.io/henrywhitaker3/adguard-exporter:latest
+    container_name: adguard-exporter
+    restart: unless-stopped
+    environment:
+      ADGUARD_SERVERS: "http://adguard:3000"   # change to your AdGuard Home UI URL
+      ADGUARD_USERNAMES: "admin"
+      ADGUARD_PASSWORDS: "change_me"
+      INTERVAL: "15s"
+    ports:
+      - "9618:9618"
+    networks: [monitoring]
+
+  loki:
+    image: grafana/loki:2.9.6
+    container_name: loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/local-config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki_data:/loki
+    networks: [monitoring]
+
+  promtail:
+    image: grafana/promtail:2.9.6
+    container_name: promtail
+    restart: unless-stopped
+    volumes:
+      - ./promtail-config.yaml:/etc/promtail/config.yml:ro
+      # Mount the AdGuard querylog file path from the host or the adguard container volume
+      - /opt/adguardhome/data/querylog.json:/opt/adguardhome/data/querylog.json:ro
+    command: ["--config.file=/etc/promtail/config.yml"]
+    networks: [monitoring]
+
+networks:
+  monitoring:
+    external: true  # reuse the same 'monitoring' network from the main stack
+
+volumes:
+  loki_data:

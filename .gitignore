@@ -4,3 +4,4 @@
 !.dockerignore
 /docker-compose.override.yml
 /config/
+/config-mine/

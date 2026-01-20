@@ -1,0 +1,13 @@
+[Unit]
+Description=WireGuard metrics exporter (textfile collector)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/wg-metrics/wg_metrics.sh /opt/wg-metrics/textfile/wireguard.prom
+User=root
+Group=root
+
+[Install]
+WantedBy=multi-user.target
