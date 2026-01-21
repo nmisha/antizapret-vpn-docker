@@ -38,9 +38,11 @@ yq -i '
     (.clients.persistent[] | select(.name == "coredns") | .ids) = ["'$COREDNS_HOST'"]
     ' /opt/adguardhome/conf/AdGuardHome.yaml
 
-yq -i '
-    .dns.edns_client_subnet.enabled=false
-    ' /opt/adguardhome/conf/AdGuardHome.yaml
-
+SERVER_COUNTRY=$( (curl -s https://ipinfo.io | jq -r '.country') || echo 'RU' )
+if [ "$SERVER_COUNTRY" = "RU" ]; then
+  yq -i '
+      .dns.edns_client_subnet.enabled=false
+      ' /opt/adguardhome/conf/AdGuardHome.yaml
+fi
 
 exec /opt/adguardhome/AdGuardHome "$@"

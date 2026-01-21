@@ -145,6 +145,7 @@ user_rules:
   - '||*^$dnsrewrite=SERVFAIL,client=az-world'
   - '@@||2ip.ru^$dnsrewrite,client=az-local'
   - '@@||2ip.io^$dnsrewrite,client=az-world'
+  - '||ntc.party^$dnsrewrite=130.255.77.28,client=az-local,important'
   - '#||*^$dnstype=HTTPS'
 dhcp:
   enabled: false
@@ -214,6 +215,7 @@ clients:
         - 149.112.112.11
         - '[/akamai.net/akamaiedge.net/akadns.net/microsoft.com/ru/su/xn--p1ai/]77.88.8.8'
         - '[/themoviedb.org/tmdb.org/tmdb-image-prod.b-cdn.net/]9.9.9.10'
+        - '[/warthunder.com/gaijin.net/]77.88.8.8'
       use_global_settings: true
       use_global_blocked_services: true
     - name: az-local
@@ -226,6 +228,7 @@ clients:
         - 149.112.112.11
         - '[/akamai.net/akamaiedge.net/akadns.net/microsoft.com/ru/su/xn--p1ai/]77.88.8.8'
         - '[/themoviedb.org/tmdb.org/tmdb-image-prod.b-cdn.net/]9.9.9.10'
+        - '[/warthunder.com/gaijin.net/]77.88.8.8'
       use_global_settings: true
       use_global_blocked_services: true
     - name: coredns
@@ -238,6 +241,7 @@ clients:
         - 149.112.112.11
         - '[/akamai.net/akamaiedge.net/akadns.net/microsoft.com/ru/su/xn--p1ai/]77.88.8.8'
         - '[/themoviedb.org/tmdb.org/tmdb-image-prod.b-cdn.net/]9.9.9.10'
+        - '[/warthunder.com/gaijin.net/]77.88.8.8'
       use_global_settings: true
       use_global_blocked_services: true
 log:
