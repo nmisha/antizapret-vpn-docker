@@ -145,6 +145,7 @@ user_rules:
   - '||*^$dnsrewrite=SERVFAIL,client=az-world'
   - '@@||2ip.ru^$dnsrewrite,client=az-local'
   - '@@||2ip.io^$dnsrewrite,client=az-world'
+  - '||ntc.party^$dnsrewrite=130.255.77.28,client=az-local,important'
   - '#||*^$dnstype=HTTPS'
 dhcp:
   enabled: false
