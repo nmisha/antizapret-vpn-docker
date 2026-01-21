@@ -141,6 +141,16 @@ filters:
     url: http://az-local.antizapret/list/?filter_dist=1&url=https://blockedin.org/api/v3/domains/
     name: Blockedin.org List
     id: 11
+
+  - enabled: true
+    url: http://az-local.antizapret/list/?url=https://raw.githubusercontent.com/nmisha/antizapret-vpn-docker/refs/heads/v5-mine/lists-mine/local.txt
+    name: Dist Local Rules MINE
+    id: 10001
+  - enabled: true
+    url: http://az-world.antizapret/list/?url=https://raw.githubusercontent.com/nmisha/antizapret-vpn-docker/refs/heads/v5-mine/lists-mine/world.txt
+    name: Dist World Rules MINE
+    id: 10002
+
 whitelist_filters: []
 user_rules:
   - '||*^$dnsrewrite=SERVFAIL,client=az-local'
