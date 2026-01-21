@@ -298,6 +298,11 @@ oculus.com
 oculuscdn.com
 oculusvr.com
 viewpointsfromfacebook.com
+viber.com
+vb.me
+whatsapp.com
+whatsapp.net
+wa.me
 
 # Hardware / Consumer Tech
 asus.com
