@@ -68,6 +68,7 @@ type RegexFilter struct {
 	cmd     *exec.Cmd
 	stdin   io.WriteCloser
 	scanner *bufio.Scanner
+	lock    sync.Mutex
 }
 
 var excludeMatcherDist *RegexFilter
@@ -76,6 +77,8 @@ var excludeMatcherCustom *RegexFilter
 const delim = "__DELIM__"
 
 func (rf *RegexFilter) Filter(lines []string) ([]string, error) {
+	rf.lock.Lock()
+	defer rf.lock.Unlock()
 	var result []string
 	for _, line := range lines {
 		if _, err := fmt.Fprintln(rf.stdin, line); err != nil {
@@ -150,6 +153,7 @@ func NewRegexFilter(file string) (*RegexFilter, error) {
 		cmd:     cmd,
 		stdin:   stdin,
 		scanner: scanner,
+		lock:    sync.Mutex{},
 	}, nil
 }
 
