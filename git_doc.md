@@ -1,3 +1,12 @@
+git remote add upstream https://github.com/original-owner/repo.git  # Добавить upstream (если нет)
+git fetch upstream
+git checkout -b my-develop upstream/develop  # Создать локальную my-develop от upstream/develop
+
+
+git remote add upstream https://github.com/xtrime-ru/antizapret-vpn-docker.git
+git fetch upstream
+
+
 git как посмотреть статус родительского и апстрим
 
 В Git термины «родительская ветка» и «upstream» обычно означают разные вещи. Ниже — как посмотреть статус и связи для обоих случаев.
