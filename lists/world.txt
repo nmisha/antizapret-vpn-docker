@@ -375,3 +375,7 @@ discordsays.com
 discordstatus.com
 mee6.xyz
 rythm.fm
+
+# CDN
+fastly.net
+fastly.com
