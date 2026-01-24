@@ -1,3 +1,19 @@
+FROM golang:1.25 AS builder
+
+ENV GOFLAGS="-buildvcs=false"
+ARG COREDNS_VERSION="v1.14.0"
+WORKDIR /root
+RUN git clone --branch "$COREDNS_VERSION" --single-branch --depth 1 https://github.com/coredns/coredns \
+    && cd coredns \
+    && go mod download
+
+RUN cd /root/coredns \
+    && sed -i '/cache:cache/a\
+finalize:github.com/tmeckel/coredns-finalizer' plugin.cfg \
+    && go get github.com/tmeckel/coredns-finalizer \
+    && go generate \
+    && go build
+
 FROM ubuntu:24.04
 
 RUN apt update -y \
@@ -6,8 +22,8 @@ RUN apt update -y \
     && rm -frv /var/lib/apt/lists/*
 
 WORKDIR /
-COPY --from=coredns/coredns:1.13.1 /etc/ssl/certs/ /etc/ssl/certs/
-COPY --from=coredns/coredns:1.13.1 /coredns /coredns
+COPY --from=coredns/coredns:latest /etc/ssl/certs/ /etc/ssl/certs/
+COPY --from=builder /root/coredns/coredns /coredns
 
 COPY . /root/
 
