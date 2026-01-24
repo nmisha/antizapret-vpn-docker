@@ -35,6 +35,33 @@ EOL
     echo "[INFO] The file $AUTH_CONF_FILE has been successfully created."
 }
 
+create_empty_auth() {
+    echo "[INFO] Authentication is disabled. Skipping htpasswd creation."
+
+    # Создаём пустой auth-конфиг или перезаписываем существующий
+    cat <<EOL > "$AUTH_CONF_FILE"
+# Authentication disabled
+EOL
+
+    echo "[INFO] Authentication config $AUTH_CONF_FILE created (no auth)."
+}
+
+disable_auth() {
+    echo "[INFO] Disabling authentication."
+
+    # 1) Гарантированно убрать правила auth (если раньше генерились)
+    cat > "$AUTH_CONF_FILE" <<'EOL'
+# Authentication disabled (no auth.require here)
+EOL
+
+    # 2) (опционально, но надёжно) выпилить mod_auth из дефолтного конфига
+    if [ -f /etc/lighttpd/conf.d/000-default.conf ]; then
+        sed -i 's/, *"mod_auth"//; s/"mod_auth", *//; s/"mod_auth"//g' /etc/lighttpd/conf.d/000-default.conf
+        echo "[INFO] mod_auth removed from /etc/lighttpd/conf.d/000-default.conf"
+    fi
+}
+
+
 create_modules() {
     MOD_CONF_FILE="/etc/lighttpd/conf.d/000-modules.conf"
     cat <<EOL > "$MOD_CONF_FILE"
@@ -100,6 +127,7 @@ create_services_json() {
 
 # Отключаем basic auth на дашборде
 # create_auth
+create_empty_auth
 create_modules
 create_cors
 create_services_json
