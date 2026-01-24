@@ -16,6 +16,17 @@ services:
     environment:
       - HTTP_PORT=0
       - TZ=Europe/Moscow
+#     deploy:
+#       mode: global
+#       endpoint_mode: dnsrr
+    depends_on:
+      - az-local
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
 
   vnstati:
 #    cpus: "0.3"
@@ -51,6 +62,24 @@ services:
       - VNSTAT_QueryMode=0
       - EXCLUDE_PATTERN=^docker|^veth|^br-|^lxc
       - RUN_VNSTATD=0 #no collect statistics
+#     deploy:
+#       # mode: global
+#       # endpoint_mode: dnsrr
+#       mode: replicated
+#       # replicas: 1
+#       endpoint_mode: dnsrr
+    depends_on:
+      - az-local
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
+
+
+
+
 #     networks:
 # #      dmz_network:
 # #        ipv4_address: 10.219.0.10
