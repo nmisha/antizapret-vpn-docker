@@ -5,3 +5,4 @@
 /docker-compose.override.yml
 /config/
 /config-mine/
+/docker-compose.override.yml*
