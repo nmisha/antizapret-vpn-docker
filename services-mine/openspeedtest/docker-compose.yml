@@ -25,7 +25,15 @@ services:
     #   dmz_network:
     #     # ipv4_address: 10.219.0.5
 
-
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
+    depends_on:
+      - coredns
+      - az-local
 
 
 # networks:

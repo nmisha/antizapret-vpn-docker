@@ -19,6 +19,14 @@ services:
     tty: true
     network_mode: host
     restart: unless-stopped
+
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == world ]
+
 #    networks:
       # private_network:
         # ipv4_address: 10.222.0.164
