@@ -1,10 +1,12 @@
 services:
   coredns:
-    image: xtrime/antizapret-vpn-coredns:5.2.1
+    image: xtrime/antizapret-vpn-coredns:5.3.3
     hostname: coredns.antizapret
     restart: unless-stopped
     build: 
       context: .
+      args:
+        - COREDNS_VERSION=v1.14.1
       x-bake:
         platforms:
           - linux/amd64
@@ -17,7 +19,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
     healthcheck:
-      test: /root/healthcheck.sh || kill -TERM 1
+      test: (/root/healthcheck.sh || kill -TERM 1) &> /proc/1/fd/1
       interval: 5s
       timeout: 1m
       start_period: 5s

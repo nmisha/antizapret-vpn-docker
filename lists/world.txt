@@ -2,6 +2,10 @@
 # Hosts witch block russian IPs
 # This hosts will be proxied throught az-world exit node
 
+# root domains
+com.ua
+ua
+
 # GitHub / Copilot
 api.github.com
 copilot-proxy.githubusercontent.com

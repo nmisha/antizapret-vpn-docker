@@ -8,9 +8,7 @@
         prefer_udp
         failover SERVFAIL
     }
+    finalize force_resolve
 
     reload 2s
 }
-
-
-
