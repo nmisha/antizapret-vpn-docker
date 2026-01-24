@@ -29,6 +29,14 @@ services:
       - '$PWD/config-mine/authelia/secrets/STORAGE_ENCRYPTION_KEY:/run/secrets/STORAGE_ENCRYPTION_KEY:rw'
       - /etc/timezone:/etc/timezone:ro
 
+    depends_on:
+      - az-local
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
 
     # depends_on:
     #   - antizapret
