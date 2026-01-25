@@ -5,8 +5,8 @@ HERE="$(dirname "$(readlink -f "${0}")")"
 cd "$HERE"
 export LC_ALL=C.UTF-8
 
-(cat "config/custom/include-ips-custom.txt"; echo ""; cat "config/include-ips-dist.txt") | awk -f scripts/sanitize-lists.awk | (grep -v -E -f config/custom/exclude-ips-custom.txt || echo "") > temp/ips.txt
-(cat "config/custom/include-ips-world-custom.txt"; echo ""; cat "config/include-ips-world-dist.txt") | awk -f scripts/sanitize-lists.awk | (grep -v -E -f config/custom/exclude-ips-world-custom.txt || echo "") > temp/ips-world.txt
+(cat "config/custom/include-ips-custom.txt"; echo ""; cat "config/include-ips-dist.txt") | awk -f scripts/sanitize-lists.awk | (grep -v -E -f config/custom/exclude-ips-custom.txt || echo "") | sort | uniq > temp/ips.txt
+(cat "config/custom/include-ips-world-custom.txt"; echo ""; cat "config/include-ips-world-dist.txt") | awk -f scripts/sanitize-lists.awk | (grep -v -E -f config/custom/exclude-ips-world-custom.txt || echo "") | sort | uniq > temp/ips-world.txt
 
 # Generate OpenVPN route file
 echo -n > temp/openvpn-blocked-ranges.txt
