@@ -2,5 +2,5 @@
 
 # gmail.com
 # google.com
-# myaccount.google.com
+myaccount.google.com
 
