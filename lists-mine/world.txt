@@ -2,10 +2,10 @@
 
 barracuda.com
 grok.com
-gemini.google.com
+# gemini.google.com
 dns.comss.one
 comss.dns.controld.com
-aistudio.google.com
+# aistudio.google.com
 anthropic.com
 claude.com
 
@@ -16,7 +16,7 @@ snapchat.com
 samsung.com
 
 connectivitycheck.gstatic.com
-clients3.google.com
+# clients3.google.com
 connectivitycheck.platform.hicloud.com
 connectivity.samsung.com
 
