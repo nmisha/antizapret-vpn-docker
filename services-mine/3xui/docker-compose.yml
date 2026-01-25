@@ -25,7 +25,7 @@ services:
       replicas: 1
       endpoint_mode: dnsrr
       placement:
-        constraints: [ node.labels.location == world ]
+        constraints: [ node.labels.location == local ]
 
 #    networks:
       # private_network:
