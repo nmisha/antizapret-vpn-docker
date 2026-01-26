@@ -1,4 +1,4 @@
-ARG IMAGE
+ARG IMAGE=ghcr.io/wg-easy/wg-easy:14
 
 FROM ${IMAGE}
 

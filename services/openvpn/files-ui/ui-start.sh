@@ -47,17 +47,22 @@ if [ ! -f /opt/openvpn-ui/db/data.db ]; then
     cp /opt/openvpn-ui/init.db /opt/openvpn-ui/db/data.db
 
     sqlite3 /opt/openvpn-ui/db/data.db <<EOS
-        update o_v_client_config set server_address = '${OPENVPN_EXTERNAL_IP}' where profile = 'default';
         update o_v_config set
-            server = 'server ${OPENVPN_LOCAL_IP_RANGE} 255.255.255.0',
-            route = '#route ${OPENVPN_LOCAL_IP_RANGE} 255.255.255.0',
-            d_n_s_server1 = 'push "dhcp-option DNS ${OPENVPN_DNS}"',
-            push_route = 'push "route ${AZ_SUBNET} 255.252.0.0"'
+            route = '#route ${OPENVPN_LOCAL_IP_RANGE} 255.255.255.0'
         where profile = 'default';
 EOS
     [ $? -gt 0 ] && echo "SQLite migration failed" && exit 1
-
 fi
+
+sqlite3 /opt/openvpn-ui/db/data.db <<EOS
+    update o_v_client_config set server_address = '${OPENVPN_EXTERNAL_IP}' where profile = 'default';
+    update o_v_config set
+        server = 'server ${OPENVPN_LOCAL_IP_RANGE} 255.255.255.0',
+        d_n_s_server1 = 'push "dhcp-option DNS ${OPENVPN_DNS}"',
+        push_route = 'push "route ${AZ_SUBNET} 255.252.0.0"'
+    where profile = 'default';
+EOS
+[ $? -gt 0 ] && echo "SQLite migration failed" && exit 1
 
 # Start the OpenVPN GUI
 echo "Starting OpenVPN UI!"
