@@ -13,13 +13,13 @@ services:
     # - PORT=51821
 
 
-    # environment:
-    #   - HOST=wg-easy-full
-    #   - PORT=51821
-    #   - INSECURE=false
+    environment:
+      - HOST=wg-easy-full
+      - PORT=51821
+      - INSECURE=false
 
-    # networks:
-    #   - host
+    networks:
+      - host
 
     image: ghcr.io/wg-easy/wg-easy:15
 #    image: ghcr.io/wg-easy/wg-easy:latest
@@ -64,9 +64,9 @@ services:
 
 
 networks:
-  # host:
-  #   external: true
-  #   name: host
+  host:
+    external: true
+    name: host
   wg-full:
     driver: bridge
 #    enable_ipv6: true
