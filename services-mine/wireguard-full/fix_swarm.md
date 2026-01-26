@@ -292,3 +292,15 @@ homepage.widget.password:""
 
 Это не критично для NAT, но это прямо хранится в метаданных контейнера (и видно всем, кто может сделать docker inspect). Если это реальный пароль — лучше сменить/убрать из labels.
 
+==================
+
+
+Было:
+
+PostUp   = iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE; ...
+PostDown = iptables -t nat -D POSTROUTING -s 10.8.0.0/24 -o eth0 -j MASQUERADE; ...
+Должно стать:
+
+PostUp   = iptables -t nat -A POSTROUTING -s 10.8.0.0/24 -j MASQUERADE; iptables -A INPUT -p udp -m udp --dport 51820 -j ACCEPT; iptables -A FORWARD -i wg0 -j ACCEPT; iptables -A FORWARD -o wg0 -j ACCEPT;
+PostDown = iptables -t nat -D POSTROUTING -s 10.8.0.0/24 -j MASQUERADE; iptables -D INPUT -p udp -m udp --dport 51820 -j ACCEPT; iptables -D FORWARD -i wg0 -j ACCEPT; iptables -D FORWARD -o wg0 -j ACCEPT;
+Так NAT будет работать независимо от того, eth0 это или eth1.
