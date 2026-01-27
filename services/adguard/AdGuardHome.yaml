@@ -151,6 +151,14 @@ filters:
     name: Dist World Rules MINE
     id: 10002
 
+  - enabled: true
+    url: http://az-local.antizapret/list/?allow=0&url=https://gist.github.com/lord-alfred/9235861756400b9dd2593d727c31b0b1/raw/59b688029ebb44ebc4e36c64a024377dfd7b27c0/porn_sites.txt
+    name: Block Porno for Local
+    id: 10003
+  - enabled: true
+    url: http://az-world.antizapret/list/?allow=0&url=https://gist.github.com/lord-alfred/9235861756400b9dd2593d727c31b0b1/raw/59b688029ebb44ebc4e36c64a024377dfd7b27c0/porn_sites.txt
+    name: Block Porno for World
+    id: 10004
 
 
 
