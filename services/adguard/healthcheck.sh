@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+INIT_FILE="/.inited"
+[ ! -f "$INIT_FILE" ] && exit 0;
+
 ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
 ADGUARDHOME_PORT=${ADGUARDHOME_PORT:-"3000"}
 
@@ -51,7 +54,7 @@ update_client() {
 # resolve domain address to ip address
 function resolve () {
     # $1 domain/ip address, $2 fallback ip address
-    res="$(dig +short $1 | head -n1)"
+    res="$(getent hosts "$1" | head -n1 | awk '{print $1}')"
     if [[ "$res" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         echo "$res"
     else
