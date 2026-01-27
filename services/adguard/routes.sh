@@ -4,7 +4,7 @@ set +x
 
 VPN=false
 self=$(hostname -s)
-interval=1s
+interval=5s
 
 while [[ $# -gt 0 ]]; do
     case $1 in
