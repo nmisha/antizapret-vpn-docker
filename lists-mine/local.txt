@@ -4,3 +4,8 @@
 # google.com
 myaccount.google.com
 ogs.google.com
+
+
+#Kablag
+agilent.com
+
