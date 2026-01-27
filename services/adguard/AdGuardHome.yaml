@@ -10,7 +10,7 @@ users:
 auth_attempts: 5
 block_auth_min: 15
 http_proxy: ""
-language: ""
+language: en
 theme: auto
 dns:
   bind_hosts:
@@ -126,7 +126,7 @@ filters:
     name: Dist World Rules
     id: 7
   - enabled: true
-    url: http://az-local.antizapret/list/?url=https://community.antifilter.download/list/domains.lst
+    url: http://az-local.antizapret/list/?filter_dist=1&url=https://community.antifilter.download/list/domains.lst
     name: Antifilter Community Rules
     id: 8
   - enabled: true
