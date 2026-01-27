@@ -126,7 +126,7 @@ filters:
     name: Dist World Rules
     id: 7
   - enabled: true
-    url: http://az-local.antizapret/list/?filter_dist=1&url=https://community.antifilter.download/list/domains.lst
+    url: http://az-local.antizapret/list/?url=https://community.antifilter.download/list/domains.lst
     name: Antifilter Community Rules
     id: 8
   - enabled: true
@@ -207,7 +207,7 @@ filters:
     name: Dan Pollock's List
     id: 1725302370
   - enabled: true
-    url: https://osint.digitalside.it/Threat-Intel/lists/latestdomains.txt
+    url: https://github.com/davidonzo/Threat-Intel/raw/refs/heads/master/lists/latestdomains.txt
     name: Firebog OSINT.digitalside.it
     id: 1726833723
   - enabled: false
@@ -242,10 +242,6 @@ filters:
     url: https://github.com/alexsannikov/adguardhome-filters/raw/refs/heads/master/fakenews.txt
     name: Alexsannikov fakenews
     id: 1736585235
-  - enabled: true
-    url: https://github.com/nmisha/adguardhome-filters/raw/refs/heads/master/testad.txt
-    name: Nmisha TestAD
-    id: 1749380733
   - enabled: false
     url: https://github.com/Zalexanninev15/NoADS_RU/raw/refs/heads/main/ads_list.txt
     name: Zalexanninev15 NoADS_RU
