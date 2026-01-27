@@ -121,6 +121,12 @@ func (rf *RegexFilter) Close() error {
 }
 
 func NewRegexFilter(file string) (*RegexFilter, error) {
+	out, err := exec.Command("sed", "-i", "s/\\s*$//", file).Output()
+
+	if err != nil {
+		return nil, fmt.Errorf("Failed to normalize line endings: %v, output: %s", err, string(out))
+	}
+
 	cmd := exec.Command(
 		"grep",
 		"--line-buffered",
@@ -248,9 +254,19 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		filtered := buffer
 		buffer = nil
 		if req.FilterDist {
+			if excludeMatcherDist == nil {
+				log.Println("[ERROR] Exclude filter not initialized: dist")
+				http.Error(w, "Exclude filter not initialized: dist", http.StatusInternalServerError)
+				return
+			}
 			filtered, _ = excludeMatcherDist.Filter(filtered)
 		}
 		if req.FilterCustom {
+			if excludeMatcherCustom == nil {
+				log.Println("[ERROR] Exclude filter not initialized: custom")
+				http.Error(w, "Exclude filter not initialized: custom", http.StatusInternalServerError)
+				return
+			}
 			filtered, _ = excludeMatcherCustom.Filter(filtered)
 		}
 
