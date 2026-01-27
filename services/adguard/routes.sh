@@ -39,7 +39,7 @@ fi
 # resolve domain address to ip address
 function resolve () {
     # $1 domain/ip address, $2 fallback ip address
-    res="$(dig +short $1 | head -n1)"
+    res="$(getent hosts "$1" 2>/dev/null | awk '/^[0-9]/{print $1; exit}')"
     if [[ "$res" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         echo "$res"
     else
