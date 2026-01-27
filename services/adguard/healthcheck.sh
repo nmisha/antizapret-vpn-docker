@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
+INIT_FILE="/.inited"
+[ ! -f "$INIT_FILE" ] && exit 0;
+
 ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
 ADGUARDHOME_PORT=${ADGUARDHOME_PORT:-"3000"}
 

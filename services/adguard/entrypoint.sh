@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 
+INIT_FILE="/.inited"
+rm -f "$INIT_FILE"
+
 cp -n /root/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
 
 CONFIG_FILES="/root/antizapret/result/* /root/antizapret/config/custom/*"
@@ -25,9 +28,15 @@ function resolve () {
     fi
 }
 
-AZ_LOCAL_HOST=$(resolve az-local '169.0.0.1')
-AZ_WORLD_HOST=$(resolve az-world '169.0.0.2')
-COREDNS_HOST=$(resolve coredns '169.0.0.3')
+while :; do
+    AZ_LOCAL_HOST=$(resolve az-local '')
+    AZ_WORLD_HOST=$(resolve az-world '')
+    COREDNS_HOST=$(resolve coredns '169.0.0.3')
+    [ -n "${AZ_LOCAL_HOST}" ] && [ -n "${AZ_WORLD_HOST}" ] && break
+    sleep 1;
+    echo "Waiting az-local/az-world and coredns containers to register in DNS..."
+done;
+
 
 yq -i '
     .http.address="0.0.0.0:'$ADGUARDHOME_PORT'" |
@@ -45,4 +54,5 @@ if [ "$SERVER_COUNTRY" = "RU" ]; then
       ' /opt/adguardhome/conf/AdGuardHome.yaml
 fi
 
+touch "$INIT_FILE"
 exec /opt/adguardhome/AdGuardHome "$@"
