@@ -1,0 +1,25 @@
+services:
+  tg-domain-bot:
+    image: tg-domain-bot:latest
+    container_name: tg-domain-bot
+    restart: unless-stopped
+    environment:
+#      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_BOT_TOKEN: "8388320656:AAExol6s5rcFZ3ohonfI7grbio5mmJRKIVI"
+      USERS_FILE: /data/users.json
+      DOMAINS_FILE: /data/domains.txt
+      TARGET_SWARM_SERVICE: "your_swarm_service_name"
+      MANAGER_BASH_CMD: "your bash command here"
+    volumes:
+      # - ./config:/data:rw
+      # нужно только если используешь /manage
+      - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config-mine/tg-domain-bot:/data:rw
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
+
