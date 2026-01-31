@@ -5,7 +5,7 @@ services:
     restart: unless-stopped
     environment:
 #      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
-      TELEGRAM_BOT_TOKEN: "8388320656:AAExol6s5rcFZ3ohonfI7grbio5mmJRKIVI"
+      TELEGRAM_BOT_TOKEN: "TOKEN"
       USERS_FILE: /data/users.json
       DOMAINS_FILE: /data/domains.txt
       TARGET_SWARM_SERVICE: "your_swarm_service_name"
