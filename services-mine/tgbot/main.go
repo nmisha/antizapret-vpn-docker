@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"os"
 	"os/exec"
 	"regexp"
@@ -30,12 +31,13 @@ const (
 )
 
 type User struct {
-	TelegramID int64          `json:"telegram_id"`
-	Name       string         `json:"name"`  // UNIQUE (case-insensitive -> stored normalized)
-	RolesRaw   []string       `json:"roles"` // persisted (canonical)
-	Roles      map[Role]bool  `json:"-"`     // runtime
+	TelegramID int64         `json:"telegram_id"`
+	Name       string        `json:"name"`  // UNIQUE (case-insensitive -> stored normalized)
+	RolesRaw   []string      `json:"roles"` // persisted (canonical)
+	Roles      map[Role]bool `json:"-"`     // runtime
 }
 
+// Admin включает возможности всех ролей
 func (u User) Has(role Role) bool {
 	if u.Roles[RoleAdmin] {
 		return true
@@ -753,31 +755,119 @@ const (
 	cbAddCancel  = "add:cancel"
 )
 
-// ---------------- Help ----------------
+// ---------------- Анекдоты для неизвестных пользователей ----------------
 
-const helpText = `Команды:
-# Домены
-/add <domain>      — добавить домен в твою секцию (DomainEditor)
-/del <domain>      — удалить домен из твоей секции (DomainEditor)
-/list              — показать домены твоей секции (DomainEditor)
-/export            — экспорт всего списка (DomainManager)
+// Требование: если пользователя нет в конфиге — отвечаем одним анекдотом на любую команду
+var jokes = []string{
+	"Штирлиц подошёл к окну. Окно было нараспашку. «Сквозняк», — подумал Штирлиц. «Сквозняк», — подумало окно.",
+	"— Алло, это техподдержка? У меня ничего не работает!\n— А вы пробовали выключить и включить?\n— Пробовал. Теперь вообще не включается.",
+	"Программист в магазине:\n— У вас хлеб свежий?\n— Конечно.\n— Тогда два багета и один багфикс, пожалуйста.",
+	"— Доктор, меня все игнорируют.\n— Следующий!",
+	"Оптимист учит пессимиста работать:\n— Смотри: если сегодня всё плохо — значит завтра будет, как минимум, не хуже.",
+	"— Почему вы опоздали?\n— Я бежал за автобусом.\n— И догнали?\n— Нет, поэтому и опоздал.",
+}
 
-# Сервисы
-/wgstats           — статистика WireGuard для текущего пользователя (Info)
-/wgstats_admin      — статистика WireGuard без имени пользователя (Admin)
-/agh_update_lists   — обновить списки AdGuard (ServiceManager)
+func randomJoke() string {
+	if len(jokes) == 0 {
+		return "Анекдот закончился. Но это тоже смешно."
+	}
+	return jokes[rand.Intn(len(jokes))]
+}
 
-# Админка
-/users             — список пользователей (Admin)
-/grant <name> <role>   — выдать роль (Admin)
-/revoke <name> <role>  — снять роль (Admin)
-/roles [name]      — роли (Admin может смотреть чужие)
-/rename <old> <new> — переименовать пользователя и секцию доменов (Admin)
+// ---------------- Help (динамический) ----------------
 
-/help              — помощь
-`
+type helpCmd struct {
+	Cmd     string
+	Args    string
+	Desc    string
+	NeedAny []Role // если пусто — доступно всем авторизованным пользователям
+}
+
+func helpForUser(u User) string {
+	// /help должен выводить только доступные команды для пользователя
+	// (Admin — через u.Has() проходит везде)
+	cmds := []helpCmd{
+		{Cmd: "/help", Desc: "помощь"},
+		{Cmd: "/roles", Args: "[name]", Desc: "показать роли (свои; Admin может смотреть чужие)"},
+
+		// Домены
+		{Cmd: "/add", Args: "<domain>", Desc: "добавить домен в твою секцию", NeedAny: []Role{RoleDomainEditor}},
+		{Cmd: "/del", Args: "<domain>", Desc: "удалить домен из твоей секции", NeedAny: []Role{RoleDomainEditor}},
+		{Cmd: "/list", Desc: "показать домены твоей секции", NeedAny: []Role{RoleDomainEditor}},
+		{Cmd: "/export", Desc: "экспорт всего списка", NeedAny: []Role{RoleDomainManager}},
+
+		// Сервисы
+		{Cmd: "/wgstats", Desc: "статистика WireGuard для текущего пользователя", NeedAny: []Role{RoleInfo}},
+		{Cmd: "/wgstats_admin", Desc: "статистика WireGuard без имени пользователя", NeedAny: []Role{RoleAdmin}},
+		{Cmd: "/agh_update_lists", Desc: "обновить списки AdGuard", NeedAny: []Role{RoleServiceManager}},
+
+		// Админка
+		{Cmd: "/users", Desc: "список пользователей", NeedAny: []Role{RoleAdmin}},
+		{Cmd: "/grant", Args: "<name> <role>", Desc: "выдать роль", NeedAny: []Role{RoleAdmin}},
+		{Cmd: "/revoke", Args: "<name> <role>", Desc: "снять роль", NeedAny: []Role{RoleAdmin}},
+		{Cmd: "/rename", Args: "<old> <new>", Desc: "переименовать пользователя и секцию доменов", NeedAny: []Role{RoleAdmin}},
+	}
+
+	var b strings.Builder
+	b.WriteString("Доступные команды:\n")
+
+	// сгруппируем красиво по блокам
+	type block struct {
+		Title string
+		Items []helpCmd
+	}
+	blocks := []block{
+		{Title: "Общее", Items: []helpCmd{cmds[0], cmds[1]}},
+		{Title: "Домены", Items: []helpCmd{cmds[2], cmds[3], cmds[4], cmds[5]}},
+		{Title: "Сервисы", Items: []helpCmd{cmds[6], cmds[7], cmds[8]}},
+		{Title: "Админка", Items: []helpCmd{cmds[9], cmds[10], cmds[11], cmds[12]}},
+	}
+
+	printedAnyBlock := false
+	for _, bl := range blocks {
+		lines := make([]string, 0, len(bl.Items))
+		for _, c := range bl.Items {
+			if isCmdAllowed(u, c) {
+				cmdline := c.Cmd
+				if strings.TrimSpace(c.Args) != "" {
+					cmdline += " " + c.Args
+				}
+				lines = append(lines, fmt.Sprintf("• %-22s — %s", cmdline, c.Desc))
+			}
+		}
+		if len(lines) == 0 {
+			continue
+		}
+		if printedAnyBlock {
+			b.WriteString("\n")
+		}
+		printedAnyBlock = true
+		b.WriteString(bl.Title + ":\n")
+		for _, ln := range lines {
+			b.WriteString(ln)
+			b.WriteByte('\n')
+		}
+	}
+
+	return strings.TrimSpace(b.String())
+}
+
+func isCmdAllowed(u User, c helpCmd) bool {
+	// пустой NeedAny -> доступно всем авторизованным
+	if len(c.NeedAny) == 0 {
+		return true
+	}
+	for _, r := range c.NeedAny {
+		if u.Has(r) {
+			return true
+		}
+	}
+	return false
+}
 
 func main() {
+	rand.Seed(time.Now().UnixNano())
+
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if token == "" {
 		log.Fatal("set TELEGRAM_BOT_TOKEN")
@@ -822,25 +912,28 @@ func main() {
 		chatID := update.Message.Chat.ID
 		tgID := update.Message.From.ID
 
-		user, ok, err := usersStore.GetByID(tgID)
-		if err != nil {
-			reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
-			continue
-		}
-		if !ok {
-			reply(bot, chatID, "Доступ запрещён: ты не в списке пользователей.")
-			continue
-		}
-
 		text := strings.TrimSpace(update.Message.Text)
 		if text == "" {
 			continue
 		}
+
+		// Если пользователя нет в конфиге — на любую команду отвечаем анекдотом
+		user, ok, err := usersStore.GetByID(tgID)
+		if err != nil {
+			// Ошибка чтения users.json — это уже наша проблема, пользователю покажем корректно
+			reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
+			continue
+		}
+		if !ok {
+			reply(bot, chatID, randomJoke())
+			continue
+		}
+
 		cmd, arg := splitCmd(text)
 
 		switch cmd {
 		case "/start", "/help", "help":
-			reply(bot, chatID, helpText)
+			reply(bot, chatID, helpForUser(user))
 
 		case "/users", "users":
 			if !user.Has(RoleAdmin) {
@@ -1137,13 +1230,14 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 	chatID := q.Message.Chat.ID
 	tgID := q.From.ID
 
+	// Если пользователя нет в конфиге — тоже отвечаем анекдотом (и ничего не делаем)
 	user, ok, err := usersStore.GetByID(tgID)
 	if err != nil {
 		reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
 		return
 	}
 	if !ok {
-		reply(bot, chatID, "Доступ запрещён: ты не в списке пользователей.")
+		reply(bot, chatID, randomJoke())
 		return
 	}
 
