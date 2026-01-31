@@ -22,17 +22,18 @@ import (
 type Role string
 
 const (
-	RoleDomainEditor  Role = "DomainEditor"
-	RoleDomainManager Role = "DomainManager"
-	RoleManager       Role = "Manager"
-	RoleAdmin         Role = "Admin"
+	RoleDomainEditor   Role = "DomainEditor"
+	RoleDomainManager  Role = "DomainManager"
+	RoleServiceManager Role = "ServiceManager" // renamed from Manager
+	RoleInfo           Role = "Info"
+	RoleAdmin          Role = "Admin"
 )
 
 type User struct {
-	TelegramID int64    `json:"telegram_id"`
-	Name       string   `json:"name"`  // UNIQUE
-	RolesRaw   []string `json:"roles"` // persisted
-	Roles      map[Role]bool `json:"-"` // runtime
+	TelegramID int64          `json:"telegram_id"`
+	Name       string         `json:"name"`  // UNIQUE (case-insensitive -> stored normalized)
+	RolesRaw   []string       `json:"roles"` // persisted (canonical)
+	Roles      map[Role]bool  `json:"-"`     // runtime
 }
 
 func (u User) Has(role Role) bool {
@@ -42,7 +43,31 @@ func (u User) Has(role Role) bool {
 	return u.Roles[role]
 }
 
-func uniqueStrings(in []string) []string {
+func normalizeName(s string) string {
+	return strings.ToLower(strings.TrimSpace(s))
+}
+
+func normalizeRoleString(s string) (Role, error) {
+	r := strings.ToLower(strings.TrimSpace(s))
+	switch r {
+	case strings.ToLower(string(RoleDomainEditor)):
+		return RoleDomainEditor, nil
+	case strings.ToLower(string(RoleDomainManager)):
+		return RoleDomainManager, nil
+	case "manager": // backward compatibility
+		return RoleServiceManager, nil
+	case strings.ToLower(string(RoleServiceManager)):
+		return RoleServiceManager, nil
+	case strings.ToLower(string(RoleInfo)):
+		return RoleInfo, nil
+	case strings.ToLower(string(RoleAdmin)):
+		return RoleAdmin, nil
+	default:
+		return "", fmt.Errorf("unknown role: %q", s)
+	}
+}
+
+func uniqueStringsCaseInsensitive(in []string) []string {
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(in))
 	for _, s := range in {
@@ -50,10 +75,11 @@ func uniqueStrings(in []string) []string {
 		if s == "" {
 			continue
 		}
-		if _, ok := seen[s]; ok {
+		key := strings.ToLower(s)
+		if _, ok := seen[key]; ok {
 			continue
 		}
-		seen[s] = struct{}{}
+		seen[key] = struct{}{}
 		out = append(out, s)
 	}
 	sort.Strings(out)
@@ -61,15 +87,31 @@ func uniqueStrings(in []string) []string {
 }
 
 func normalizeUser(u User) (User, error) {
-	u.Name = strings.TrimSpace(u.Name)
+	u.Name = normalizeName(u.Name)
 	if u.TelegramID == 0 || u.Name == "" {
 		return User{}, fmt.Errorf("invalid user: telegram_id and name required")
 	}
-	u.RolesRaw = uniqueStrings(u.RolesRaw)
+
+	// roles: case-insensitive, stored canonical; accept legacy "Manager" -> "ServiceManager"
+	roleSeen := map[Role]struct{}{}
+	canon := make([]string, 0, len(u.RolesRaw))
 	u.Roles = map[Role]bool{}
-	for _, r := range u.RolesRaw {
-		u.Roles[Role(r)] = true
+
+	for _, rr := range u.RolesRaw {
+		role, err := normalizeRoleString(rr)
+		if err != nil {
+			return User{}, err
+		}
+		if _, ok := roleSeen[role]; ok {
+			continue
+		}
+		roleSeen[role] = struct{}{}
+		u.Roles[role] = true
+		canon = append(canon, string(role))
 	}
+
+	canon = uniqueStringsCaseInsensitive(canon)
+	u.RolesRaw = canon
 	return u, nil
 }
 
@@ -84,7 +126,7 @@ func NewUsersStore(path string) *UsersStore { return &UsersStore{Path: path} }
 
 type usersSnapshot struct {
 	ByID   map[int64]User
-	ByName map[string]User
+	ByName map[string]User // key: normalized lower-case name
 	List   []User
 }
 
@@ -107,11 +149,9 @@ func (us *UsersStore) loadUnlocked() (*usersSnapshot, error) {
 		if err != nil {
 			return nil, err
 		}
-		// уникальность telegram_id
 		if _, exists := byID[nu.TelegramID]; exists {
 			return nil, fmt.Errorf("users.json: duplicate telegram_id %d", nu.TelegramID)
 		}
-		// уникальность name
 		if _, exists := byName[nu.Name]; exists {
 			return nil, fmt.Errorf("users.json: duplicate name %q", nu.Name)
 		}
@@ -121,11 +161,7 @@ func (us *UsersStore) loadUnlocked() (*usersSnapshot, error) {
 		outList = append(outList, nu)
 	}
 
-	// детерминированный порядок
-	sort.Slice(outList, func(i, j int) bool {
-		return outList[i].Name < outList[j].Name
-	})
-
+	sort.Slice(outList, func(i, j int) bool { return outList[i].Name < outList[j].Name })
 	return &usersSnapshot{ByID: byID, ByName: byName, List: outList}, nil
 }
 
@@ -162,7 +198,8 @@ func (us *UsersStore) GetByName(name string) (User, bool, error) {
 	if err != nil {
 		return User{}, false, err
 	}
-	u, ok := snap.ByName[strings.TrimSpace(name)]
+	key := normalizeName(name)
+	u, ok := snap.ByName[key]
 	return u, ok, nil
 }
 
@@ -181,60 +218,74 @@ func (us *UsersStore) GrantByName(name string, role Role) (string, error) {
 	us.mu.Lock()
 	defer us.mu.Unlock()
 
+	// normalize input role (case-insensitive + legacy mapping)
+	nRole, err := normalizeRoleString(string(role))
+	if err != nil {
+		return "", err
+	}
+
 	snap, err := us.loadUnlocked()
 	if err != nil {
 		return "", err
 	}
 
-	name = strings.TrimSpace(name)
-	u, ok := snap.ByName[name]
+	key := normalizeName(name)
+	u, ok := snap.ByName[key]
 	if !ok {
 		return "", fmt.Errorf("user %q not found", name)
 	}
 
-	u.RolesRaw = append(u.RolesRaw, string(role))
-	u.RolesRaw = uniqueStrings(u.RolesRaw)
+	u.RolesRaw = append(u.RolesRaw, string(nRole))
 	nu, err := normalizeUser(u)
 	if err != nil {
 		return "", err
 	}
 
-	// replace in list
 	for i := range snap.List {
-		if snap.List[i].Name == name {
+		if snap.List[i].Name == key {
 			snap.List[i] = nu
 			break
 		}
 	}
+
 	if err := us.saveUnlocked(snap.List); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Выдана роль %s пользователю %s (tg_id=%d)", role, nu.Name, nu.TelegramID), nil
+	return fmt.Sprintf("Выдана роль %s пользователю %s (tg_id=%d)", nRole, nu.Name, nu.TelegramID), nil
 }
 
 func (us *UsersStore) RevokeByName(name string, role Role) (string, error) {
 	us.mu.Lock()
 	defer us.mu.Unlock()
 
+	nRole, err := normalizeRoleString(string(role))
+	if err != nil {
+		return "", err
+	}
+
 	snap, err := us.loadUnlocked()
 	if err != nil {
 		return "", err
 	}
 
-	name = strings.TrimSpace(name)
-	u, ok := snap.ByName[name]
+	key := normalizeName(name)
+	u, ok := snap.ByName[key]
 	if !ok {
 		return "", fmt.Errorf("user %q not found", name)
 	}
 
 	out := make([]string, 0, len(u.RolesRaw))
 	for _, r := range u.RolesRaw {
-		if Role(r) == role {
+		rr, err := normalizeRoleString(r)
+		if err != nil {
+			return "", err
+		}
+		if rr == nRole {
 			continue
 		}
-		out = append(out, r)
+		out = append(out, string(rr))
 	}
-	u.RolesRaw = uniqueStrings(out)
+	u.RolesRaw = out
 
 	nu, err := normalizeUser(u)
 	if err != nil {
@@ -242,7 +293,7 @@ func (us *UsersStore) RevokeByName(name string, role Role) (string, error) {
 	}
 
 	for i := range snap.List {
-		if snap.List[i].Name == name {
+		if snap.List[i].Name == key {
 			snap.List[i] = nu
 			break
 		}
@@ -250,20 +301,20 @@ func (us *UsersStore) RevokeByName(name string, role Role) (string, error) {
 	if err := us.saveUnlocked(snap.List); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("Снята роль %s у пользователя %s (tg_id=%d)", role, nu.Name, nu.TelegramID), nil
+	return fmt.Sprintf("Снята роль %s у пользователя %s (tg_id=%d)", nRole, nu.Name, nu.TelegramID), nil
 }
 
 func (us *UsersStore) Rename(oldName, newName string) (string, error) {
 	us.mu.Lock()
 	defer us.mu.Unlock()
 
-	oldName = strings.TrimSpace(oldName)
-	newName = strings.TrimSpace(newName)
+	oldKey := normalizeName(oldName)
+	newKey := normalizeName(newName)
 
-	if oldName == "" || newName == "" {
+	if oldKey == "" || newKey == "" {
 		return "", fmt.Errorf("old_name and new_name required")
 	}
-	if oldName == newName {
+	if oldKey == newKey {
 		return "", fmt.Errorf("new_name equals old_name")
 	}
 
@@ -272,24 +323,22 @@ func (us *UsersStore) Rename(oldName, newName string) (string, error) {
 		return "", err
 	}
 
-	u, ok := snap.ByName[oldName]
+	u, ok := snap.ByName[oldKey]
 	if !ok {
 		return "", fmt.Errorf("user %q not found", oldName)
 	}
-	if _, exists := snap.ByName[newName]; exists {
+	if _, exists := snap.ByName[newKey]; exists {
 		return "", fmt.Errorf("name %q already exists", newName)
 	}
 
-	// update name
-	u.Name = newName
+	u.Name = newKey
 	nu, err := normalizeUser(u)
 	if err != nil {
 		return "", err
 	}
 
-	// replace in list
 	for i := range snap.List {
-		if snap.List[i].Name == oldName {
+		if snap.List[i].Name == oldKey {
 			snap.List[i] = nu
 			break
 		}
@@ -301,7 +350,6 @@ func (us *UsersStore) Rename(oldName, newName string) (string, error) {
 
 	return fmt.Sprintf("Переименован пользователь %q → %q (tg_id=%d)", oldName, newName, nu.TelegramID), nil
 }
-
 
 // ---------------- Domains store ----------------
 
@@ -553,11 +601,9 @@ func (s *Store) RenameSection(oldName, newName string) (string, error) {
 
 	oldList, ok := sections[oldName]
 	if !ok {
-		// секции могло и не быть — это не фатально
 		return fmt.Sprintf("Секция #%s не найдена — нечего переименовывать.", oldName), nil
 	}
 
-	// merge if target exists
 	if newList, exists := sections[newName]; exists {
 		merged := append(newList, oldList...)
 		sections[newName] = normalizeList(merged)
@@ -573,7 +619,6 @@ func (s *Store) RenameSection(oldName, newName string) (string, error) {
 
 	return fmt.Sprintf("Секция доменов переименована #%s → #%s", oldName, newName), nil
 }
-
 
 // ---------------- Domain normalization (ONLY domains; strip ":" and port) ----------------
 
@@ -639,50 +684,34 @@ func isSubdomainOf(sub, parent string) bool {
 	return idx >= 0 && sub[idx] == '.'
 }
 
-// ---------------- Manager: run command inside swarm service container ----------------
+// ---------------- Service scripts ----------------
 
-func getTargetService() string { return strings.TrimSpace(os.Getenv("TARGET_SWARM_SERVICE")) }
-func getManagerCmd() string    { return strings.TrimSpace(os.Getenv("MANAGER_BASH_CMD")) }
+func envTrim(key string) string { return strings.TrimSpace(os.Getenv(key)) }
 
-func runInSwarmServiceContainer(serviceName, bashCmd string) (string, error) {
-	if serviceName == "" {
-		return "", errors.New("TARGET_SWARM_SERVICE не задан")
+func runScript(name string, args ...string) (string, error) {
+	cmd := exec.Command(name, args...)
+	var outb, errb bytes.Buffer
+	cmd.Stdout = &outb
+	cmd.Stderr = &errb
+	err := cmd.Run()
+
+	out := strings.TrimSpace(outb.String())
+	er := strings.TrimSpace(errb.String())
+	combined := out
+	if er != "" {
+		if combined != "" {
+			combined += "\n"
+		}
+		combined += er
 	}
-	if bashCmd == "" {
-		return "", errors.New("MANAGER_BASH_CMD не задан")
+	if err != nil {
+		if combined == "" {
+			combined = "(пустой вывод)"
+		}
+		return combined, err
 	}
-
-	ps := exec.Command("docker", "ps",
-		"--filter", "label=com.docker.swarm.service.name="+serviceName,
-		"--format", "{{.ID}}",
-	)
-
-	var psOut, psErr bytes.Buffer
-	ps.Stdout = &psOut
-	ps.Stderr = &psErr
-	if err := ps.Run(); err != nil {
-		return "", fmt.Errorf("docker ps error: %v: %s", err, strings.TrimSpace(psErr.String()))
-	}
-
-	ids := strings.Fields(psOut.String())
-	if len(ids) == 0 {
-		return "", fmt.Errorf("не найден ни один контейнер сервиса %q", serviceName)
-	}
-	containerID := ids[0]
-
-	ex := exec.Command("docker", "exec", containerID, "bash", "-lc", bashCmd)
-	var out, errb bytes.Buffer
-	ex.Stdout = &out
-	ex.Stderr = &errb
-
-	if err := ex.Run(); err != nil {
-		return strings.TrimSpace(out.String()) + "\n" + strings.TrimSpace(errb.String()),
-			fmt.Errorf("docker exec failed: %v", err)
-	}
-
-	combined := strings.TrimSpace(out.String())
-	if e := strings.TrimSpace(errb.String()); e != "" {
-		combined = strings.TrimSpace(combined + "\n" + e)
+	if strings.TrimSpace(combined) == "" {
+		combined = "(пустой вывод)"
 	}
 	return combined, nil
 }
@@ -727,22 +756,28 @@ const (
 // ---------------- Help ----------------
 
 const helpText = `Команды:
+# Домены
 /add <domain>      — добавить домен в твою секцию (DomainEditor)
 /del <domain>      — удалить домен из твоей секции (DomainEditor)
 /list              — показать домены твоей секции (DomainEditor)
 /export            — экспорт всего списка (DomainManager)
-/manage            — выполнить команду в контейнере сервиса (Manager)
 
+# Сервисы
+/wgstats           — статистика WireGuard для текущего пользователя (Info)
+/wgstats_admin      — статистика WireGuard без имени пользователя (Admin)
+/agh_update_lists   — обновить списки AdGuard (ServiceManager)
+
+# Админка
 /users             — список пользователей (Admin)
 /grant <name> <role>   — выдать роль (Admin)
 /revoke <name> <role>  — снять роль (Admin)
 /roles [name]      — роли (Admin может смотреть чужие)
+/rename <old> <new> — переименовать пользователя и секцию доменов (Admin)
 
 /help              — помощь
 `
 
 func main() {
-//    godotenv.Load()
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
 	if token == "" {
 		log.Fatal("set TELEGRAM_BOT_TOKEN")
@@ -822,9 +857,8 @@ func main() {
 		case "/roles", "roles":
 			targetName := strings.TrimSpace(arg)
 			if targetName == "" {
-				// свои
 				reply(bot, chatID, fmt.Sprintf("Пользователь %s (tg_id=%d)\nРоли: %s",
-					user.Name, user.TelegramID, strings.Join(uniqueStrings(user.RolesRaw), ", "),
+					user.Name, user.TelegramID, strings.Join(uniqueStringsCaseInsensitive(user.RolesRaw), ", "),
 				))
 				continue
 			}
@@ -842,7 +876,7 @@ func main() {
 				continue
 			}
 			reply(bot, chatID, fmt.Sprintf("Пользователь %s (tg_id=%d)\nРоли: %s",
-				tu.Name, tu.TelegramID, strings.Join(uniqueStrings(tu.RolesRaw), ", "),
+				tu.Name, tu.TelegramID, strings.Join(uniqueStringsCaseInsensitive(tu.RolesRaw), ", "),
 			))
 
 		case "/grant", "grant":
@@ -882,6 +916,64 @@ func main() {
 				continue
 			}
 			reply(bot, chatID, msg)
+
+		case "/wgstats", "wgstats":
+			if !user.Has(RoleInfo) {
+				reply(bot, chatID, "Недостаточно прав. Нужна роль Info (или Admin).")
+				continue
+			}
+			serviceName := envTrim("WG_STATS_SWARM_SERVICE")
+			if serviceName == "" {
+				reply(bot, chatID, "Не задана переменная окружения WG_STATS_SWARM_SERVICE")
+				continue
+			}
+			wgUser := user.Name + "_"
+			out, err := runScript("sr_wg_stats.sh", serviceName, wgUser)
+			if err != nil {
+				reply(bot, chatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
+				continue
+			}
+			reply(bot, chatID, truncate(out, 3800))
+
+		case "/wgstats_admin", "wgstats_admin":
+			if !user.Has(RoleAdmin) {
+				reply(bot, chatID, "Недостаточно прав. Нужна роль Admin.")
+				continue
+			}
+			serviceName := envTrim("WG_STATS_SWARM_SERVICE")
+			if serviceName == "" {
+				reply(bot, chatID, "Не задана переменная окружения WG_STATS_SWARM_SERVICE")
+				continue
+			}
+			// empty username for admin
+			out, err := runScript("sr_wg_stats.sh", serviceName, "")
+			if err != nil {
+				reply(bot, chatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
+				continue
+			}
+			reply(bot, chatID, truncate(out, 3800))
+
+		case "/agh_update_lists", "agh_update_lists":
+			if !user.Has(RoleServiceManager) {
+				reply(bot, chatID, "Недостаточно прав. Нужна роль ServiceManager (или Admin).")
+				continue
+			}
+			host := envTrim("AGH_HOST")
+			login := envTrim("AGH_LOGIN")
+			pass := envTrim("AGH_PASSWORD")
+			port := envTrim("AGH_PORT")
+
+			if host == "" || login == "" || pass == "" || port == "" {
+				reply(bot, chatID, "Не заданы переменные окружения для AdGuard. Нужно: AGH_HOST, AGH_LOGIN, AGH_PASSWORD, AGH_PORT")
+				continue
+			}
+
+			out, err := runScript("sr_agh_update_lists.sh", host, login, pass, port)
+			if err != nil {
+				reply(bot, chatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
+				continue
+			}
+			reply(bot, chatID, truncate(out, 3800))
 
 		case "/add", "add":
 			if !user.Has(RoleDomainEditor) {
@@ -1002,21 +1094,6 @@ func main() {
 			}
 			reply(bot, chatID, all)
 
-		case "/manage", "manage":
-			if !user.Has(RoleManager) {
-				reply(bot, chatID, "Недостаточно прав. Нужна роль Manager (или Admin).")
-				continue
-			}
-			out, err := runInSwarmServiceContainer(getTargetService(), getManagerCmd())
-			if err != nil {
-				reply(bot, chatID, "Команда выполнена с ошибкой:\n"+truncate(out, 3500)+"\n\n"+err.Error())
-				continue
-			}
-			if strings.TrimSpace(out) == "" {
-				out = "(пустой вывод)"
-			}
-			reply(bot, chatID, "OK. Вывод:\n"+truncate(out, 3800))
-
 		case "/rename", "rename":
 			if !user.Has(RoleAdmin) {
 				reply(bot, chatID, "Недостаточно прав. Нужна роль Admin.")
@@ -1030,14 +1107,12 @@ func main() {
 			oldName := fields[0]
 			newName := fields[1]
 
-			// 1) users.json
 			msg1, err := usersStore.Rename(oldName, newName)
 			if err != nil {
 				reply(bot, chatID, "Ошибка: "+err.Error())
 				continue
 			}
 
-			// 2) domains file: rename section header
 			msg2, err := store.RenameSection(oldName, newName)
 			if err != nil {
 				reply(bot, chatID, msg1+"\n\nОшибка при переименовании секции доменов: "+err.Error())
@@ -1201,7 +1276,7 @@ func formatUsers(list []User) string {
 	var b strings.Builder
 	b.WriteString("Пользователи:\n")
 	for _, u := range list {
-		roles := strings.Join(uniqueStrings(u.RolesRaw), ", ")
+		roles := strings.Join(uniqueStringsCaseInsensitive(u.RolesRaw), ", ")
 		if roles == "" {
 			roles = "(нет)"
 		}
