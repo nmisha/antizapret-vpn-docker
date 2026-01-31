@@ -1,0 +1,4 @@
+[
+  { "name": "GitLab", "login": "bot_user", "password": "secret123" },
+  { "name": "Jira",  "login": "ai_user",  "password": "passw0rd" }
+]

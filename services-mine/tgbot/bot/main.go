@@ -39,10 +39,19 @@ func main() {
 	log.Printf("Users file: %s", usersFile)
 	log.Printf("Domains file: %s", domainsPath)
 
+	accountsFile := os.Getenv("ACCOUNTS_FILE")
+	if accountsFile == "" {
+		accountsFile = "./accounts.json"
+	}
+	accountsStore := NewAccountsStore(accountsFile)
+	log.Printf("Accounts file: %s", accountsFile)
+
 	router := NewRouter()
 	RegisterAdminHandlers(router)
 	RegisterDomainHandlers(router)
 	RegisterServiceHandlers(router)
+	RegisterAIHandlers(router)
+
 
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
@@ -50,7 +59,9 @@ func main() {
 
 	for update := range updates {
 		if update.CallbackQuery != nil {
-			handleCallback(bot, usersStore, store, update.CallbackQuery)
+//			handleCallback(bot, usersStore, store, update.CallbackQuery)
+			handleCallback(bot, usersStore, store, accountsStore, update.CallbackQuery)
+
 			continue
 		}
 
@@ -78,6 +89,8 @@ func main() {
 
 		cmd, arg := splitCmd(text)
 
+		isPriv := update.Message.Chat != nil && update.Message.Chat.IsPrivate()
+
 		ctx := &Ctx{
 			Bot:        bot,
 			ChatID:     chatID,
@@ -85,6 +98,9 @@ func main() {
 			User:       user,
 			UsersStore: usersStore,
 			Domains:    store,
+			Accounts: 	accountsStore,
+			IsPrivate: isPriv,
+
 		}
 
 		if handled := router.Dispatch(ctx, cmd, arg); !handled {

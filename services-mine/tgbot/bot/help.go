@@ -22,6 +22,8 @@ func helpForUser(u User) string {
 		{Cmd: "/list", Desc: "показать домены твоей секции", NeedAny: []Role{RoleDomainEditor}},
 		{Cmd: "/export", Desc: "экспорт всего списка", NeedAny: []Role{RoleDomainManager}},
 
+		{Cmd: "/accounts", Desc: "получить учётную запись к сервису (только в личке)", NeedAny: []Role{RoleAiUser}},
+
 		{Cmd: "/wgstats", Desc: "статистика WireGuard для текущего пользователя", NeedAny: []Role{RoleInfo}},
 		{Cmd: "/wgstats_admin", Desc: "статистика WireGuard без имени пользователя", NeedAny: []Role{RoleAdmin}},
 		{Cmd: "/agh_update_lists", Desc: "обновить списки AdGuard", NeedAny: []Role{RoleServiceManager}},
@@ -39,6 +41,7 @@ func helpForUser(u User) string {
 	blocks := []block{
 		{Title: "Общее", Items: []helpCmd{cmds[0], cmds[1]}},
 		{Title: "Домены", Items: []helpCmd{cmds[2], cmds[3], cmds[4], cmds[5]}},
+		{Title: "AI", Items: []helpCmd{cmds[13]}},
 		{Title: "Сервисы", Items: []helpCmd{cmds[6], cmds[7], cmds[8]}},
 		{Title: "Админка", Items: []helpCmd{cmds[9], cmds[10], cmds[11], cmds[12]}},
 	}
