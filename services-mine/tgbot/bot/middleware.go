@@ -1,10 +1,15 @@
 package main
 
 import (
+	"log"
 	"strings"
+	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-// RequireRole — требует конкретную роль. Admin проходит всегда через u.Has().
+//type Middleware func(next HandlerFunc) HandlerFunc
+
 func RequireRole(role Role, msg string) Middleware {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx *Ctx, arg string) {
@@ -20,7 +25,6 @@ func RequireRole(role Role, msg string) Middleware {
 	}
 }
 
-// RequireAnyRole — требует любую из ролей. Admin проходит всегда через u.Has().
 func RequireAnyRole(msg string, roles ...Role) Middleware {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx *Ctx, arg string) {
@@ -38,7 +42,6 @@ func RequireAnyRole(msg string, roles ...Role) Middleware {
 	}
 }
 
-// RequireNonEmptyArg — требует непустой аргумент.
 func RequireNonEmptyArg(msg string) Middleware {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx *Ctx, arg string) {
@@ -54,22 +57,40 @@ func RequireNonEmptyArg(msg string) Middleware {
 	}
 }
 
-// RequirePrivateChat — команда доступна только в личке с ботом.
-func RequirePrivateChat(msg string) Middleware {
+func RequireFields(n int, msg string) Middleware {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx *Ctx, arg string) {
-			// ctx.ChatID есть всегда, но тип чата нам нужен отдельно — поэтому проверяем по ctx.Bot.GetChat
-			// Проще и без лишних запросов: передадим флаг из main/update.
-			// Но чтобы не ломать архитектуру, добавим IsPrivate в Ctx (см. ctx.go ниже).
-			if ctx.IsPrivate {
-				next(ctx, arg)
+			fields := strings.Fields(arg)
+			if len(fields) != n {
+				if msg == "" {
+					msg = "Неверный формат команды."
+				}
+				reply(ctx.Bot, ctx.ChatID, msg)
 				return
 			}
-			if msg == "" {
-				msg = "Команда доступна только в личных сообщениях с ботом."
-			}
-			reply(ctx.Bot, ctx.ChatID, msg)
+			ctx.Fields = fields
+			next(ctx, arg)
 		}
 	}
 }
 
+func WithTyping() Middleware {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(ctx *Ctx, arg string) {
+			_, _ = ctx.Bot.Request(tgbotapi.NewChatAction(ctx.ChatID, tgbotapi.ChatTyping))
+			next(ctx, arg)
+		}
+	}
+}
+
+func LogCommand() Middleware {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(ctx *Ctx, arg string) {
+			start := time.Now()
+			next(ctx, arg)
+			d := time.Since(start)
+			log.Printf("cmd=%s user=%s tg_id=%d dur=%s arg=%q",
+				ctx.Cmd, ctx.User.Name, ctx.User.TelegramID, d, strings.TrimSpace(arg))
+		}
+	}
+}

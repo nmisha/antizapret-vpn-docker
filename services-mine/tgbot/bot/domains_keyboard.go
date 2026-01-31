@@ -2,12 +2,6 @@ package main
 
 import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-const (
-	cbAddReplace = "add:replace"
-	cbAddSub     = "add:sub"
-	cbAddCancel  = "add:cancel"
-)
-
 func buildAddDecisionKeyboard(canReplace, canSub bool) tgbotapi.InlineKeyboardMarkup {
 	var row []tgbotapi.InlineKeyboardButton
 	if canReplace {
