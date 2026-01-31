@@ -10,25 +10,29 @@ import (
 const (
 	accCbPrefix = "acc:"
 	accCbCancel = "acc:cancel"
-	// acc:0, acc:1, ...
 )
 
 func RegisterAIHandlers(r *Router) {
 	r.Handle("/accounts", handleAccounts,
 		LogCommand(),
 		WithTyping(),
-		RequirePrivateChat("Команда доступна только в личных сообщениях с ботом."),
 		RequireRole(RoleAiUser, "Недостаточно прав. Нужна роль AiUser (или Admin)."),
 	)
 	r.Alias("accounts", "/accounts")
 }
 
-
 func handleAccounts(ctx *Ctx, _ string) {
+	// Мягкий UI: если не личка — даём кнопку открыть личку
+	if !ctx.IsPrivate {
+		replyWithOpenDM(ctx)
+		return
+	}
+
 	if ctx.Accounts == nil {
 		reply(ctx.Bot, ctx.ChatID, "AccountsStore не настроен.")
 		return
 	}
+
 	list, err := ctx.Accounts.List()
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения accounts файла: "+err.Error())
@@ -49,6 +53,31 @@ func handleAccounts(ctx *Ctx, _ string) {
 	}
 }
 
+func replyWithOpenDM(ctx *Ctx) {
+	username := ctx.Bot.Self.UserName
+	if username == "" {
+		reply(ctx.Bot, ctx.ChatID, "Выдача учётных данных доступна только в личных сообщениях с ботом.")
+		return
+	}
+
+	// deep-link: откроет личку и может стартануть сценарий
+	url := fmt.Sprintf("https://t.me/%s?start=accounts", username)
+
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonURL("💬 Открыть личку", url),
+		},
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("✖ Отмена", "ui:cancel"),
+		},
+	)
+
+	msg := tgbotapi.NewMessage(ctx.ChatID, "Учётные данные выдаются **только в личке** с ботом.\nНажми кнопку ниже:")
+	msg.ParseMode = "Markdown"
+	msg.ReplyMarkup = kb
+	_, _ = ctx.Bot.Send(msg)
+}
+
 func buildAccountsKeyboard(list []Account) tgbotapi.InlineKeyboardMarkup {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(list)+1)
 
@@ -65,13 +94,11 @@ func buildAccountsKeyboard(list []Account) tgbotapi.InlineKeyboardMarkup {
 }
 
 func handleAccountsCallback(bot *tgbotapi.BotAPI, ctx *Ctx, data string) {
-	// cancel
 	if data == accCbCancel {
 		reply(bot, ctx.ChatID, "Ок, отменил.")
 		return
 	}
 
-	// acc:<index>
 	idxStr := data[len(accCbPrefix):]
 	idx, err := strconv.Atoi(idxStr)
 	if err != nil || idx < 0 {
@@ -90,7 +117,6 @@ func handleAccountsCallback(bot *tgbotapi.BotAPI, ctx *Ctx, data string) {
 	}
 
 	a := list[idx]
-	// ВНИМАНИЕ: пароль отправляется в чат.
 	text := fmt.Sprintf(
 		"Учётная запись: %s\nЛогин: %s\nПароль: %s",
 		a.Name, a.Login, a.Password,

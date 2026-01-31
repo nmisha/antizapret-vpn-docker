@@ -38,15 +38,18 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 
 	data := q.Data
 
-	// accounts callbacks
+	if data == "ui:cancel" {
+		reply(bot, chatID, "Ок.")
+		return
+	}
+
+	// accounts callbacks (строго только личка)
 	if strings.HasPrefix(data, accCbPrefix) || data == accCbCancel {
-		// только личка
 		if q.Message == nil || q.Message.Chat == nil || !q.Message.Chat.IsPrivate() {
-			reply(bot, chatID, "Выдача учётных данных доступна только в личных сообщениях с ботом.")
+			reply(bot, chatID, "Учётные данные выдаются только в личных сообщениях с ботом.")
 			return
 		}
-
-		if !user.Has(RoleAiUser) { // Admin пройдёт из-за Has()
+		if !user.Has(RoleAiUser) { // Admin пройдёт, т.к. Has() true
 			reply(bot, chatID, "Недостаточно прав. Нужна роль AiUser (или Admin).")
 			return
 		}
@@ -54,13 +57,11 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 			reply(bot, chatID, "AccountsStore не настроен.")
 			return
 		}
-
-		// важно: ctx.IsPrivate=true (для единообразия)
 		ctx.IsPrivate = true
-
 		handleAccountsCallback(bot, ctx, data)
 		return
 	}
+
 
 	// domains pending callbacks (add:...)
 	handleDomainPendingCallback(bot, ctx, q)
