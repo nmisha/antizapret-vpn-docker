@@ -14,6 +14,7 @@ const (
 	RoleServiceManager Role = "ServiceManager" // renamed from Manager
 	RoleInfo           Role = "Info"
 	RoleAdmin          Role = "Admin"
+	RoleAiUser         Role = "AiUser"
 )
 
 type User struct {
@@ -50,6 +51,8 @@ func normalizeRoleString(s string) (Role, error) {
 		return RoleInfo, nil
 	case strings.ToLower(string(RoleAdmin)):
 		return RoleAdmin, nil
+	case strings.ToLower(string(RoleAiUser)):
+		return RoleAiUser, nil
 	default:
 		return "", fmt.Errorf("unknown role: %q", s)
 	}

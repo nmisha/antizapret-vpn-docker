@@ -9,4 +9,12 @@ type Ctx struct {
 	User       User
 	UsersStore *UsersStore
 	Domains    *Store
+	Accounts   *AccountsStore
+
+	// chat meta
+	IsPrivate bool
+
+	// middleware/runtime
+	Cmd    string
+	Fields []string
 }

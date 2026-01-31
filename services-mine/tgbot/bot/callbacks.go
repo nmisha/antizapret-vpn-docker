@@ -1,16 +1,16 @@
 package main
 
 import (
-	"fmt"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, q *tgbotapi.CallbackQuery) {
+func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, accounts *AccountsStore, q *tgbotapi.CallbackQuery) {
 	ack := tgbotapi.NewCallback(q.ID, "")
 	_, _ = bot.Request(ack)
 
-	if q.From == nil {
+	if q.From == nil || q.Message == nil {
 		return
 	}
 	chatID := q.Message.Chat.ID
@@ -26,84 +26,42 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
-	p, ok := getPending(tgID)
-	if !ok {
-		reply(bot, chatID, "Нет ожидающего добавления. Используй /add <domain>.")
+	ctx := &Ctx{
+		Bot:        bot,
+		ChatID:     chatID,
+		TgID:       tgID,
+		User:       user,
+		UsersStore: usersStore,
+		Domains:    store,
+		Accounts:   accounts,
+	}
+
+	data := q.Data
+
+	// accounts callbacks
+	if strings.HasPrefix(data, accCbPrefix) || data == accCbCancel {
+		// только личка
+		if q.Message == nil || q.Message.Chat == nil || !q.Message.Chat.IsPrivate() {
+			reply(bot, chatID, "Выдача учётных данных доступна только в личных сообщениях с ботом.")
+			return
+		}
+
+		if !user.Has(RoleAiUser) { // Admin пройдёт из-за Has()
+			reply(bot, chatID, "Недостаточно прав. Нужна роль AiUser (или Admin).")
+			return
+		}
+		if accounts == nil {
+			reply(bot, chatID, "AccountsStore не настроен.")
+			return
+		}
+
+		// важно: ctx.IsPrivate=true (для единообразия)
+		ctx.IsPrivate = true
+
+		handleAccountsCallback(bot, ctx, data)
 		return
 	}
-	if q.Message != nil && (q.Message.MessageID != p.MessageID || q.Message.Chat.ID != p.ChatID) {
-		reply(bot, chatID, "Эта кнопка уже устарела. Повтори /add <domain>.")
-		return
-	}
 
-	switch q.Data {
-	case cbAddCancel:
-		clearPending(tgID)
-		editMessage(bot, chatID, p.MessageID, "Ок, отменил.", nil)
-
-	case cbAddReplace:
-		if !user.Has(RoleDomainEditor) {
-			editMessage(bot, chatID, p.MessageID, "Недостаточно прав. Нужна роль DomainEditor (или Admin).", nil)
-			clearPending(tgID)
-			return
-		}
-		canReplace := (p.ParentSection == user.Name) || user.Has(RoleDomainManager)
-		if !canReplace {
-			editMessage(bot, chatID, p.MessageID, "Нельзя: покрывающий домен в чужой секции, а роли DomainManager/Admin нет.", nil)
-			return
-		}
-		if err := store.ReplaceDomain(p.ParentSection, p.ParentDomain, p.TargetSection, p.Candidate); err != nil {
-			editMessage(bot, chatID, p.MessageID, "Ошибка сохранения: "+err.Error(), nil)
-			return
-		}
-		clearPending(tgID)
-		editMessage(bot, chatID, p.MessageID,
-			fmt.Sprintf("OK: удалил *%s* из #%s и добавил *%s* в #%s",
-				p.ParentDomain, p.ParentSection, p.Candidate, p.TargetSection),
-			nil,
-		)
-
-	case cbAddSub:
-		if !user.Has(RoleDomainManager) {
-			editMessage(bot, chatID, p.MessageID, "Недостаточно прав. Нужна роль DomainManager (или Admin).", nil)
-			return
-		}
-		added, err := store.AddDomain(p.TargetSection, p.Candidate)
-		if err != nil {
-			editMessage(bot, chatID, p.MessageID, "Ошибка сохранения: "+err.Error(), nil)
-			return
-		}
-		clearPending(tgID)
-		if !added {
-			editMessage(bot, chatID, p.MessageID, "Уже есть в твоей секции: "+p.Candidate, nil)
-			return
-		}
-		editMessage(bot, chatID, p.MessageID,
-			fmt.Sprintf("OK: добавил поддомен *%s* в #%s (домен *%s* в #%s не трогал)",
-				p.Candidate, p.TargetSection, p.ParentDomain, p.ParentSection),
-			nil,
-		)
-
-	default:
-		reply(bot, chatID, "Неизвестное действие.")
-	}
-}
-
-func buildAddDecisionKeyboard(canReplace, canSub bool) tgbotapi.InlineKeyboardMarkup {
-	var row []tgbotapi.InlineKeyboardButton
-	if canReplace {
-		row = append(row, tgbotapi.NewInlineKeyboardButtonData("➕ Заменить (удалить домен)", cbAddReplace))
-	}
-	if canSub {
-		row = append(row, tgbotapi.NewInlineKeyboardButtonData("➕ Добавить поддомен (не удалять)", cbAddSub))
-	}
-	cancelRow := []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("✖ Отмена", cbAddCancel),
-	}
-	kb := [][]tgbotapi.InlineKeyboardButton{}
-	if len(row) > 0 {
-		kb = append(kb, row)
-	}
-	kb = append(kb, cancelRow)
-	return tgbotapi.NewInlineKeyboardMarkup(kb...)
+	// domains pending callbacks (add:...)
+	handleDomainPendingCallback(bot, ctx, q)
 }
