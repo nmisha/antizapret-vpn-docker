@@ -690,32 +690,37 @@ func isSubdomainOf(sub, parent string) bool {
 
 func envTrim(key string) string { return strings.TrimSpace(os.Getenv(key)) }
 
+// Требование: получать ответ и выводить в телеграмм, если нет ошибок.
+// На success возвращаем ТОЛЬКО stdout (stderr игнорируем), на error — stdout+stderr.
 func runScript(name string, args ...string) (string, error) {
 	cmd := exec.Command(name, args...)
 	var outb, errb bytes.Buffer
 	cmd.Stdout = &outb
 	cmd.Stderr = &errb
+
 	err := cmd.Run()
 
-	out := strings.TrimSpace(outb.String())
-	er := strings.TrimSpace(errb.String())
-	combined := out
-	if er != "" {
+	stdout := strings.TrimSpace(outb.String())
+	stderr := strings.TrimSpace(errb.String())
+
+	if err == nil {
+		if stdout == "" {
+			return "(пустой вывод)", nil
+		}
+		return stdout, nil
+	}
+
+	combined := stdout
+	if stderr != "" {
 		if combined != "" {
 			combined += "\n"
 		}
-		combined += er
-	}
-	if err != nil {
-		if combined == "" {
-			combined = "(пустой вывод)"
-		}
-		return combined, err
+		combined += stderr
 	}
 	if strings.TrimSpace(combined) == "" {
 		combined = "(пустой вывод)"
 	}
-	return combined, nil
+	return combined, err
 }
 
 // ---------------- Pending add state + callbacks (inline buttons) ----------------
@@ -757,7 +762,6 @@ const (
 
 // ---------------- Анекдоты для неизвестных пользователей ----------------
 
-// Требование: если пользователя нет в конфиге — отвечаем одним анекдотом на любую команду
 var jokes = []string{
 	"Штирлиц подошёл к окну. Окно было нараспашку. «Сквозняк», — подумал Штирлиц. «Сквозняк», — подумало окно.",
 	"— Алло, это техподдержка? У меня ничего не работает!\n— А вы пробовали выключить и включить?\n— Пробовал. Теперь вообще не включается.",
@@ -784,8 +788,6 @@ type helpCmd struct {
 }
 
 func helpForUser(u User) string {
-	// /help должен выводить только доступные команды для пользователя
-	// (Admin — через u.Has() проходит везде)
 	cmds := []helpCmd{
 		{Cmd: "/help", Desc: "помощь"},
 		{Cmd: "/roles", Args: "[name]", Desc: "показать роли (свои; Admin может смотреть чужие)"},
@@ -811,7 +813,6 @@ func helpForUser(u User) string {
 	var b strings.Builder
 	b.WriteString("Доступные команды:\n")
 
-	// сгруппируем красиво по блокам
 	type block struct {
 		Title string
 		Items []helpCmd
@@ -853,7 +854,6 @@ func helpForUser(u User) string {
 }
 
 func isCmdAllowed(u User, c helpCmd) bool {
-	// пустой NeedAny -> доступно всем авторизованным
 	if len(c.NeedAny) == 0 {
 		return true
 	}
@@ -920,7 +920,6 @@ func main() {
 		// Если пользователя нет в конфиге — на любую команду отвечаем анекдотом
 		user, ok, err := usersStore.GetByID(tgID)
 		if err != nil {
-			// Ошибка чтения users.json — это уже наша проблема, пользователю покажем корректно
 			reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
 			continue
 		}
@@ -1026,6 +1025,7 @@ func main() {
 				reply(bot, chatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
 				continue
 			}
+			// success -> печатаем ответ скрипта
 			reply(bot, chatID, truncate(out, 3800))
 
 		case "/wgstats_admin", "wgstats_admin":
@@ -1038,7 +1038,6 @@ func main() {
 				reply(bot, chatID, "Не задана переменная окружения WG_STATS_SWARM_SERVICE")
 				continue
 			}
-			// empty username for admin
 			out, err := runScript("sr_wg_stats.sh", serviceName, "")
 			if err != nil {
 				reply(bot, chatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
@@ -1066,6 +1065,7 @@ func main() {
 				reply(bot, chatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
 				continue
 			}
+			// success -> печатаем ответ скрипта
 			reply(bot, chatID, truncate(out, 3800))
 
 		case "/add", "add":
@@ -1230,7 +1230,7 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 	chatID := q.Message.Chat.ID
 	tgID := q.From.ID
 
-	// Если пользователя нет в конфиге — тоже отвечаем анекдотом (и ничего не делаем)
+	// Если пользователя нет в конфиге — тоже отвечаем анекдотом
 	user, ok, err := usersStore.GetByID(tgID)
 	if err != nil {
 		reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
@@ -1387,6 +1387,4 @@ func truncate(s string, max int) string {
 	return s[:max] + "\n…(truncated)"
 }
 
-// (оставил импорт strconv выше — на случай расширений, сейчас он не обязателен)
-// чтобы не ругался компилятор, используем strconv здесь минимально:
 var _ = strconv.IntSize
