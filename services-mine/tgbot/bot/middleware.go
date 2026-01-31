@@ -8,8 +8,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-//type Middleware func(next HandlerFunc) HandlerFunc
-
 func RequireRole(role Role, msg string) Middleware {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx *Ctx, arg string) {
