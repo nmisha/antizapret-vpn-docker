@@ -22,7 +22,7 @@ services:
       replicas: 1
       endpoint_mode: dnsrr
       placement:
-        constraints: [ node.labels.location == local ]
+        constraints: [ node.labels.location == world ]
 
     environment:
 #      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
