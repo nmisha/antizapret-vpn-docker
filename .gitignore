@@ -6,3 +6,4 @@
 /config/
 /config-mine/
 /docker-compose.override.yml*
+services-mine/tgbot_old/
