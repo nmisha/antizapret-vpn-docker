@@ -47,7 +47,7 @@ services:
       # нужно только если используешь /manage
       - /var/run/docker.sock:/var/run/docker.sock:rw
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config-mine/tg-domain-bot:/data:rw
+      - $PWD/config-mine/tgbot:/data:rw
 
       - $PWD/config/antizapret/custom:/custom
 
