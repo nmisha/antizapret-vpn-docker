@@ -20,7 +20,7 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
     healthcheck:
-      test: (/root/healthcheck.sh || kill -TERM 1) &> /proc/1/fd/1
+      test: (/root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
       interval: 5s
       timeout: 1m
       start_period: 5s
