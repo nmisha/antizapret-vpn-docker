@@ -62,7 +62,6 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
-
 	// domains pending callbacks (add:...)
 	handleDomainPendingCallback(bot, ctx, q)
 }

@@ -52,14 +52,13 @@ func main() {
 	RegisterServiceHandlers(router)
 	RegisterAIHandlers(router)
 
-
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
 		if update.CallbackQuery != nil {
-//			handleCallback(bot, usersStore, store, update.CallbackQuery)
+			//			handleCallback(bot, usersStore, store, update.CallbackQuery)
 			handleCallback(bot, usersStore, store, accountsStore, update.CallbackQuery)
 
 			continue
@@ -98,9 +97,8 @@ func main() {
 			User:       user,
 			UsersStore: usersStore,
 			Domains:    store,
-			Accounts: 	accountsStore,
-			IsPrivate: isPriv,
-
+			Accounts:   accountsStore,
+			IsPrivate:  isPriv,
 		}
 
 		if handled := router.Dispatch(ctx, cmd, arg); !handled {

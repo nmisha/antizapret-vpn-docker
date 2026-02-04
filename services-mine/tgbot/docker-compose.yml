@@ -43,10 +43,17 @@ services:
       AGH_PASSWORD: ""
       AGH_PORT: "3000"
 
+      WG_HOST: "wireguard.antizapret"
+      WG_PORT: "51821"
+      WG_PASSWORD: "password"
+
+# curl -u "admin:ADMIN_PASSWORD" "http://<wg-easy-host>:51821/api/wireguard/client"
+
+
     volumes:
       # - ./config:/data:rw
       # нужно только если используешь /manage
-      - /var/run/docker.sock:/var/run/docker.sock:rw
+      # - /var/run/docker.sock:/var/run/docker.sock:rw
       - /etc/localtime:/etc/localtime:ro
       - $PWD/config-mine/tgbot:/data:rw
 

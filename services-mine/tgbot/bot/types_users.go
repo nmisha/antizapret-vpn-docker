@@ -18,10 +18,12 @@ const (
 )
 
 type User struct {
-	TelegramID int64         `json:"telegram_id"`
-	Name       string        `json:"name"`  // UNIQUE (case-insensitive -> stored normalized)
-	RolesRaw   []string      `json:"roles"` // persisted (canonical)
-	Roles      map[Role]bool `json:"-"`     // runtime
+	TelegramID    int64         `json:"telegram_id"`
+	Name          string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
+	WgProfilesRaw []string      `json:"wg_profiles,omitempty"`
+	RolesRaw      []string      `json:"roles"` // persisted (canonical)
+	Roles         map[Role]bool `json:"-"`     // runtime
+	WgProfiles    []string      `json:"-"`     // normalized (lower-case) wg profile prefixes/names
 }
 
 // Admin включает возможности всех ролей
@@ -102,5 +104,18 @@ func normalizeUser(u User) (User, error) {
 
 	canon = uniqueStringsCaseInsensitive(canon)
 	u.RolesRaw = canon
+
+	// WireGuard profile prefixes/names (case-insensitive)
+	u.WgProfilesRaw = uniqueStringsCaseInsensitive(u.WgProfilesRaw)
+	u.WgProfiles = make([]string, 0, len(u.WgProfilesRaw))
+	for _, p := range u.WgProfilesRaw {
+		pp := strings.ToLower(strings.TrimSpace(p))
+		if pp == "" {
+			continue
+		}
+		u.WgProfiles = append(u.WgProfiles, pp)
+	}
+	sort.Strings(u.WgProfiles)
+
 	return u, nil
 }

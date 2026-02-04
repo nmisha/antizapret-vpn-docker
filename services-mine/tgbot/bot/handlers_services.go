@@ -18,32 +18,59 @@ func RegisterServiceHandlers(r *Router) {
 }
 
 func handleWgStats(ctx *Ctx, _ string) {
-	serviceName := envTrim("WG_STATS_SWARM_SERVICE")
-	if serviceName == "" {
-		reply(ctx.Bot, ctx.ChatID, "Не задана переменная окружения WG_STATS_SWARM_SERVICE")
+	if !ctx.IsPrivate {
+		reply(ctx.Bot, ctx.ChatID, "Статистика WireGuard доступна только в личных сообщениях боту.")
 		return
 	}
-	wgUser := ctx.User.Name + "_"
-	out, err := runScript("sr_wg_stats.sh", serviceName, wgUser)
+	host := envTrim("WG_HOST")
+	port := envTrim("WG_PORT")
+	pass := envTrim("WG_PASSWORD")
+
+	client, err := newWgEasyClient(host, port, pass)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
+		reply(ctx.Bot, ctx.ChatID, "Не заданы переменные окружения WireGuard. Нужно: WG_HOST, WG_PORT, WG_PASSWORD")
 		return
 	}
-	reply(ctx.Bot, ctx.ChatID, truncate(out, 3800))
+
+	peers, err := client.listPeers()
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику WireGuard:\n"+truncate(err.Error(), 3500))
+		return
+	}
+
+	filtered := filterPeersByUserPrefixes(peers, ctx.User.WgProfiles)
+	if len(filtered) == 0 {
+		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одного WireGuard профиля по вашим правилам из users.json (wg_profiles).")
+		return
+	}
+
+	msg := formatWgPeersStats(filtered)
+	reply(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
 }
 
 func handleWgStatsAdmin(ctx *Ctx, _ string) {
-	serviceName := envTrim("WG_STATS_SWARM_SERVICE")
-	if serviceName == "" {
-		reply(ctx.Bot, ctx.ChatID, "Не задана переменная окружения WG_STATS_SWARM_SERVICE")
+	if !ctx.IsPrivate {
+		reply(ctx.Bot, ctx.ChatID, "Статистика WireGuard доступна только в личных сообщениях боту.")
 		return
 	}
-	out, err := runScript("sr_wg_stats.sh", serviceName, "")
+	host := envTrim("WG_HOST")
+	port := envTrim("WG_PORT")
+	pass := envTrim("WG_PASSWORD")
+
+	client, err := newWgEasyClient(host, port, pass)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
+		reply(ctx.Bot, ctx.ChatID, "Не заданы переменные окружения WireGuard. Нужно: WG_HOST, WG_PORT, WG_PASSWORD")
 		return
 	}
-	reply(ctx.Bot, ctx.ChatID, truncate(out, 3800))
+
+	peers, err := client.listPeers()
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику WireGuard:\n"+truncate(err.Error(), 3500))
+		return
+	}
+
+	msg := formatWgPeersStats(peers)
+	reply(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
 }
 
 func handleAghUpdateLists(ctx *Ctx, _ string) {

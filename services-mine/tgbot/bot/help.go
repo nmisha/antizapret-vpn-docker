@@ -32,7 +32,6 @@ func helpForUser(u User) string {
 		{Cmd: "/rename", Args: "<old> <new>", Desc: "переименовать пользователя и секцию доменов", NeedAny: []Role{RoleAdmin}},
 
 		{Cmd: "/accounts", Desc: "получить учётную запись к сервису (только в личке)", NeedAny: []Role{RoleAiUser}},
-
 	}
 
 	type block struct {
