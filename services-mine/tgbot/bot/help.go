@@ -22,7 +22,7 @@ func helpForUser(u User) string {
 		{Cmd: "/list", Desc: "показать домены твоей секции", NeedAny: []Role{RoleDomainEditor}},
 		{Cmd: "/export", Desc: "экспорт всего списка", NeedAny: []Role{RoleDomainManager}},
 
-		{Cmd: "/wgstats", Desc: "статистика WireGuard для текущего пользователя", NeedAny: []Role{RoleInfo}},
+		{Cmd: "/wgstats", Desc: "статистика WireGuard для текущего пользователя", NeedAny: []Role{RoleWgStats}},
 		{Cmd: "/wgstats_admin", Desc: "статистика WireGuard без имени пользователя", NeedAny: []Role{RoleAdmin}},
 		{Cmd: "/agh_update_lists", Desc: "обновить списки AdGuard", NeedAny: []Role{RoleServiceManager}},
 

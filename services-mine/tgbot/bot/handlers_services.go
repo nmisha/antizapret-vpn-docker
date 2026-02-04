@@ -2,7 +2,7 @@ package main
 
 func RegisterServiceHandlers(r *Router) {
 	r.Handle("/wgstats", handleWgStats,
-		RequireRole(RoleInfo, "Недостаточно прав. Нужна роль Info (или Admin)."),
+		RequireRole(RoleWgStats, "Недостаточно прав. Нужна роль WgStats (или Admin)."),
 	)
 	r.Alias("wgstats", "/wgstats")
 

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -91,6 +92,26 @@ func handleDel(ctx *Ctx, arg string) {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
 		return
 	}
+
+	// DomainManager и Admin могут удалять домены из любой секции
+	if ctx.User.Has(RoleDomainManager) || ctx.User.Has(RoleAdmin) {
+		sections, err := ctx.Domains.DelDomainAny(d)
+		if err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения: "+err.Error())
+			return
+		}
+		if len(sections) == 0 {
+			reply(ctx.Bot, ctx.ChatID, "Не найдено ни в одной секции: "+d)
+			return
+		}
+		if len(sections) == 1 {
+			reply(ctx.Bot, ctx.ChatID, "Удалено из секции #"+sections[0]+": "+d)
+			return
+		}
+		reply(ctx.Bot, ctx.ChatID, "Удалено из секций #"+strings.Join(sections, ", #")+": "+d)
+		return
+	}
+
 	removed, err := ctx.Domains.DelDomain(ctx.User.Name, d)
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения: "+err.Error())

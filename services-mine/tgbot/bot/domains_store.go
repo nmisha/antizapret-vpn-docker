@@ -141,6 +141,42 @@ func (s *Store) DelDomain(sectionName, domain string) (bool, error) {
 	return true, s.Save(sections)
 }
 
+func (s *Store) DelDomainAny(domain string) ([]string, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	sections, err := s.Load()
+	if err != nil {
+		return nil, err
+	}
+
+	affected := make([]string, 0, 1)
+	changed := false
+
+	for sec, list := range sections {
+		out := make([]string, 0, len(list))
+		removedHere := false
+		for _, d := range list {
+			if d == domain {
+				removedHere = true
+				changed = true
+				continue
+			}
+			out = append(out, d)
+		}
+		if removedHere {
+			affected = append(affected, sec)
+			sections[sec] = normalizeList(out)
+		}
+	}
+
+	if !changed {
+		return nil, nil
+	}
+	sort.Strings(affected)
+	return affected, s.Save(sections)
+}
+
 func (s *Store) List(sectionName string) ([]string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
