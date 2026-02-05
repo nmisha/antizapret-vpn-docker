@@ -11,8 +11,8 @@ function resolve () {
     fi
 }
 
-export AZ_LOCAL_HOST=$(resolve 'az-local' '')
-export AZ_WORLD_HOST=$(resolve 'az-world' '')
-export DNS_HOST=$(resolve 'adguard' '')
+export AZ_LOCAL_HOST=$(resolve 'az-local' '169.254.0.1')
+export AZ_WORLD_HOST=$(resolve 'az-world' '169.254.0.2')
+export DNS_HOST=$(resolve 'adguard' '169.254.0.3')
 
 envsubst < /root/Corefile.template > /Corefile
