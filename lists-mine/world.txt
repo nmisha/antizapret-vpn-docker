@@ -3,6 +3,8 @@
 # Mikhail
 freenom.com
 honda.com
+docs.photoprism.app
+photoprism.app
 
 
 # OLD
