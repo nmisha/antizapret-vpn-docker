@@ -151,11 +151,8 @@ func handleWgCallback(ctx *Ctx, data string) {
 			}
 			reply(ctx.Bot, ctx.ChatID, "OK: disabled")
 		case "delete":
-			if err := client.deleteClient(peerID); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Не удалось удалить:\n"+truncate(err.Error(), 3500))
-				return
-			}
-			reply(ctx.Bot, ctx.ChatID, "OK: deleted")
+			// Confirm deletion
+			sendConfirm(ctx, "Удалить WireGuard профиль (id="+peerID+")?", "wg:delete", peerID)
 		case "rename":
 			setWgPending(ctx.TgID, wgPending{Kind: wgPendingRename, PeerID: peerID})
 			reply(ctx.Bot, ctx.ChatID, "Отправь новое имя профиля одним сообщением.")

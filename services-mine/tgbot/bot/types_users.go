@@ -18,6 +18,7 @@ const (
 	RoleSupport        Role = "Support"
 	RoleAdmin          Role = "Admin"
 	RoleAiUser         Role = "AiUser"
+	RoleNetUser        Role = "NetUser"
 )
 
 type User struct {

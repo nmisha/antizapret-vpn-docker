@@ -66,7 +66,7 @@ func handleAdminMsgMenu(ctx *Ctx, _ string) {
 }
 
 func handleHelp(ctx *Ctx, _ string) {
-	reply(ctx.Bot, ctx.ChatID, helpForUser(ctx.User))
+	replyHTML(ctx.Bot, ctx.ChatID, helpForUser(ctx.User))
 }
 
 func handleUsers(ctx *Ctx, _ string) {
@@ -229,13 +229,14 @@ func sendBroadcast(ctx *Ctx, text string) {
 	}
 
 	msg := fmt.Sprintf("Готово. Отправлено: %d. Ошибок: %d.", sent, failed)
-	if failed > 0 {
-		msg += "\n\nНе доставлено:" + "\n" + strings.Join(failLines, "\n")
-		if failed > len(failLines) {
-			msg += fmt.Sprintf("\n… и ещё %d", failed-len(failLines))
-		}
-	}
 	reply(ctx.Bot, ctx.ChatID, msg)
+	if failed > 0 {
+		details := "Не доставлено:\n" + strings.Join(failLines, "\n")
+		if failed > len(failLines) {
+			details += fmt.Sprintf("\n… и ещё %d", failed-len(failLines))
+		}
+		sendTextChunks(ctx.Bot, ctx.ChatID, details)
+	}
 }
 
 func sendAdminMessageToUser(ctx *Ctx, targetID int64, targetName, text string) {

@@ -113,11 +113,8 @@ func performWgPeerAction(ctx *Ctx, client *wgEasyClient, action string, peerID s
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: disabled")
 	case "delete":
-		if err := client.deleteClient(peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Не удалось удалить:\n"+truncate(err.Error(), 3500))
-			return
-		}
-		reply(ctx.Bot, ctx.ChatID, "OK: deleted")
+		// Confirm deletion (actual deletion in handleConfirmCallback)
+		sendConfirm(ctx, "Удалить WireGuard профиль (id="+peerID+")?", "wgn:delete", peerID)
 	case "conf":
 		sendWgConfigAsFile(ctx, client, peerID)
 	case "qr":

@@ -71,6 +71,7 @@ func main() {
 	RegisterServiceHandlers(router)
 	RegisterWgProfilesHandlers(router)
 	RegisterWgNameCommands(router)
+	RegisterNetHandlers(router)
 	RegisterSupportHandlers(router)
 	RegisterAIHandlers(router)
 

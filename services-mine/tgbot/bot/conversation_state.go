@@ -7,6 +7,7 @@ type ConvMode string
 const (
 	ConvNone                  ConvMode = ""
 	ConvSupportAwaitText      ConvMode = "support_await_text"
+	ConvNetDNSAwaitDomain    ConvMode = "net_dns_await_domain"
 	ConvAdminBroadcastText    ConvMode = "admin_broadcast_text"
 	ConvAdminBroadcastConfirm ConvMode = "admin_broadcast_confirm"
 	ConvAdminMsgSelectUser    ConvMode = "admin_msg_select_user"

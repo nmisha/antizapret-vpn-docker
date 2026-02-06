@@ -59,6 +59,13 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
+	// confirmation callbacks (delete, etc.)
+	if strings.HasPrefix(data, confirmCbPrefix) {
+		if handleConfirmCallback(ctx, data) {
+			return
+		}
+	}
+
 	// admin messaging wizard callbacks
 	if strings.HasPrefix(data, adminMsgCbPrefix) {
 		if !user.Has(RoleAdmin) {
