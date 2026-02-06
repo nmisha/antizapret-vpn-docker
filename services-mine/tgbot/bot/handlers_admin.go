@@ -3,6 +3,8 @@ package main
 import (
 	"fmt"
 	"strings"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func RegisterAdminHandlers(r *Router) {
@@ -18,6 +20,10 @@ func RegisterAdminHandlers(r *Router) {
 	// roles
 	r.Handle("/roles", handleRoles)
 	r.Alias("roles", "/roles")
+
+	// roles catalog (admin)
+	r.Handle("/roles_catalog", handleRolesCatalog, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	r.Alias("roles_catalog", "/roles_catalog")
 
 	// grant/revoke/rename — admin only + обязательные аргументы (где нужно)
 	r.Handle("/grant", handleGrant,
@@ -37,6 +43,26 @@ func RegisterAdminHandlers(r *Router) {
 		RequireNonEmptyArg("Формат: /rename <old_name> <new_name>"),
 	)
 	r.Alias("rename", "/rename")
+
+	// admin messaging
+	r.Handle("/adminmsg", handleAdminMsgMenu,
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+	)
+	r.Alias("adminmsg", "/adminmsg")
+
+	r.Handle("/broadcast", handleBroadcast,
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+	)
+	r.Alias("broadcast", "/broadcast")
+
+	r.Handle("/message", handleMessageUser,
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+	)
+	r.Alias("msg", "/message")
+}
+
+func handleAdminMsgMenu(ctx *Ctx, _ string) {
+	showAdminMessagingMenu(ctx)
 }
 
 func handleHelp(ctx *Ctx, _ string) {
@@ -134,4 +160,78 @@ func handleRename(ctx *Ctx, arg string) {
 	}
 
 	reply(ctx.Bot, ctx.ChatID, msg1+"\n"+msg2)
+}
+
+func handleBroadcast(ctx *Ctx, arg string) {
+	text := strings.TrimSpace(arg)
+	if text == "" {
+		// Soft UI
+		startAdminBroadcastUI(ctx)
+		return
+	}
+
+	sendBroadcast(ctx, text)
+}
+
+func handleMessageUser(ctx *Ctx, arg string) {
+	fields := strings.Fields(arg)
+	if len(fields) == 0 {
+		// Soft UI
+		startAdminPickUserUI(ctx)
+		return
+	}
+	if len(fields) < 2 {
+		reply(ctx.Bot, ctx.ChatID, "Формат: /message <name> <сообщение> (или просто /message для UI)")
+		return
+	}
+	target := fields[0]
+	text := strings.TrimSpace(arg[len(target):])
+	text = strings.TrimSpace(text)
+	if text == "" {
+		reply(ctx.Bot, ctx.ChatID, "Формат: /message <name> <сообщение>")
+		return
+	}
+
+	u, ok, err := ctx.UsersStore.GetByName(target)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+		return
+	}
+	if !ok {
+		reply(ctx.Bot, ctx.ChatID, "Пользователь не найден: "+target)
+		return
+	}
+
+	sendAdminMessageToUser(ctx, u.TelegramID, u.Name, text)
+}
+
+func sendBroadcast(ctx *Ctx, text string) {
+	users, err := ctx.UsersStore.ListUsers()
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+		return
+	}
+
+	sent, failed := 0, 0
+	for _, u := range users {
+		m := tgbotapi.NewMessage(u.TelegramID, "📢 Сообщение от администратора:\n\n"+text)
+		m.DisableWebPagePreview = true
+		if _, e := ctx.Bot.Send(m); e == nil {
+			sent++
+		} else {
+			failed++
+		}
+	}
+
+	reply(ctx.Bot, ctx.ChatID, fmt.Sprintf("Готово. Отправлено: %d. Ошибок: %d.", sent, failed))
+}
+
+func sendAdminMessageToUser(ctx *Ctx, targetID int64, targetName, text string) {
+	m := tgbotapi.NewMessage(targetID, "✉️ Сообщение от администратора:\n\n"+text)
+	m.DisableWebPagePreview = true
+	if _, e := ctx.Bot.Send(m); e != nil {
+		reply(ctx.Bot, ctx.ChatID, "Не удалось отправить: "+e.Error())
+		return
+	}
+	reply(ctx.Bot, ctx.ChatID, "Отправлено пользователю: "+targetName)
 }

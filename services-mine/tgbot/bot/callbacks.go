@@ -26,6 +26,12 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
+	s := getSettingsCached()
+	if !s.BotEnabledForUsers && !user.Has(RoleAdmin) {
+		reply(bot, chatID, "Бот временно отключён.")
+		return
+	}
+
 	ctx := &Ctx{
 		Bot:        bot,
 		ChatID:     chatID,
@@ -38,8 +44,28 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 
 	data := q.Data
 
+	// log callback as incoming
+	if gLogger != nil {
+		s := getSettingsCached()
+		if s.LoggingEnabled {
+			gLogger.Append(formatLogLine("IN", chatID, "callback:"+data))
+		}
+	}
+
 	if data == "ui:cancel" {
-		reply(bot, chatID, "Ок.")
+		// cancel any active wizard state for this chat/user
+		clearConv(chatID, tgID)
+		reply(bot, chatID, "Ок, отменил.")
+		return
+	}
+
+	// admin messaging wizard callbacks
+	if strings.HasPrefix(data, adminMsgCbPrefix) {
+		if !user.Has(RoleAdmin) {
+			reply(bot, chatID, "Недостаточно прав. Нужна роль Admin.")
+			return
+		}
+		handleAdminMessagingCallback(ctx, data)
 		return
 	}
 
@@ -59,6 +85,39 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		}
 		ctx.IsPrivate = true
 		handleAccountsCallback(bot, ctx, data)
+		return
+	}
+
+	// accounts admin ui callbacks (строго только личка)
+	if strings.HasPrefix(data, accAdminCbPrefix) {
+		if q.Message == nil || q.Message.Chat == nil || !q.Message.Chat.IsPrivate() {
+			reply(bot, chatID, "Управление учётными записями доступно только в личных сообщениях с ботом.")
+			return
+		}
+		if !user.Has(RoleAdmin) {
+			reply(bot, chatID, "Недостаточно прав. Нужна роль Admin.")
+			return
+		}
+		if accounts == nil {
+			reply(bot, chatID, "AccountsStore не настроен.")
+			return
+		}
+		ctx.IsPrivate = true
+		handleAccountsAdminCallback(ctx, data)
+		return
+	}
+
+	// wg name-based disambiguation callbacks
+	if strings.HasPrefix(data, wgNameCbPrefix) {
+		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
+		handleWgNameCallback(ctx, data)
+		return
+	}
+
+	// wg profiles callbacks
+	if strings.HasPrefix(data, wgCbPrefix) {
+		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
+		handleWgCallback(ctx, data)
 		return
 	}
 

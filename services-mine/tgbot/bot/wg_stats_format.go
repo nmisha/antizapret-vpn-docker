@@ -85,6 +85,7 @@ func formatWgPeersStats(peers []wgEasyPeer) string {
 		lines = append(lines,
 			fmt.Sprintf("<b>Profile: %s</b>", nameEsc),
 			fmt.Sprintf("Last Handshake: %s%s", lastStr, statusSuffix),
+			fmt.Sprintf("Enabled: %s", yesNo(p.Enabled)),
 			fmt.Sprintf("TX: %s", humanMBGB(p.TransferTx)),
 			fmt.Sprintf("RX: %s", humanMBGB(p.TransferRx)),
 		)
@@ -124,4 +125,11 @@ func humanMBGB(bytes int64) string {
 		return fmt.Sprintf("%.2f ГБ", float64(bytes)/float64(GB))
 	}
 	return fmt.Sprintf("%.2f МБ", float64(bytes)/float64(MB))
+}
+
+func yesNo(v bool) string {
+	if v {
+		return "yes"
+	}
+	return "no"
 }

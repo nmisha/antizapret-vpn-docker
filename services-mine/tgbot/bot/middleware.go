@@ -72,6 +72,23 @@ func RequireFields(n int, msg string) Middleware {
 	}
 }
 
+// RequirePrivate ограничивает выполнение команды личным чатом с ботом.
+// Полезно для UI/операций с чувствительными данными (например, пароли).
+func RequirePrivate(msg string) Middleware {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(ctx *Ctx, arg string) {
+			if ctx.IsPrivate {
+				next(ctx, arg)
+				return
+			}
+			if msg == "" {
+				msg = "Эта команда доступна только в личных сообщениях с ботом."
+			}
+			reply(ctx.Bot, ctx.ChatID, msg)
+		}
+	}
+}
+
 func WithTyping() Middleware {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx *Ctx, arg string) {
