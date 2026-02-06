@@ -8,6 +8,12 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+func formatLogLine(dir string, chatID int64, text string) string {
+	text = strings.ReplaceAll(text, "\n", "\\n")
+	text = truncate(text, 900)
+	return fmt.Sprintf("%s %s chat=%d text=%s", time.Now().Format("2006-01-02 15:04:05"), dir, chatID, text)
+}
+
 func reply(bot *tgbotapi.BotAPI, chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.DisableWebPagePreview = true

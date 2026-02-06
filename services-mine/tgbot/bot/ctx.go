@@ -13,6 +13,8 @@ type Ctx struct {
 
 	// chat meta
 	IsPrivate bool
+	ChatType  string
+	ChatTitle string
 
 	// middleware/runtime
 	Cmd    string

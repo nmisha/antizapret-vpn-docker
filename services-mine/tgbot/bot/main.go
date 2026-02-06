@@ -23,6 +23,19 @@ func main() {
 	}
 	usersStore := NewUsersStore(usersFile)
 
+	// Ensure users.json exists (create empty array if missing)
+	if err := ensureJSONFile(usersFile, "[]\n"); err != nil {
+		log.Fatal(err)
+	}
+
+	// settings and logger live next to users.json
+	gSettings = NewSettingsStore(usersFile)
+	if err := gSettings.Ensure(); err != nil {
+		log.Fatal(err)
+	}
+	loadSettingsIntoCache()
+	gLogger = NewBotLogger(usersFile)
+
 	domainsPath := os.Getenv("DOMAINS_FILE")
 	if domainsPath == "" {
 		domainsPath = "./domains.txt"
@@ -43,13 +56,21 @@ func main() {
 	if accountsFile == "" {
 		accountsFile = "./accounts.json"
 	}
+	if err := ensureJSONFile(accountsFile, "[]\n"); err != nil {
+		log.Fatal(err)
+	}
 	accountsStore := NewAccountsStore(accountsFile)
 	log.Printf("Accounts file: %s", accountsFile)
 
 	router := NewRouter()
 	RegisterAdminHandlers(router)
+	RegisterAdminAccountsHandlers(router)
+	RegisterAdminAccountsUIHandlers(router)
+	RegisterAdminSettingsHandlers(router)
 	RegisterDomainHandlers(router)
 	RegisterServiceHandlers(router)
+	RegisterWgProfilesHandlers(router)
+	RegisterWgNameCommands(router)
 	RegisterSupportHandlers(router)
 	RegisterAIHandlers(router)
 
@@ -77,6 +98,14 @@ func main() {
 			continue
 		}
 
+		// log incoming
+		if gLogger != nil {
+			s := getSettingsCached()
+			if s.LoggingEnabled {
+				gLogger.Append(formatLogLine("IN", chatID, text))
+			}
+		}
+
 		user, ok, err := usersStore.GetByID(tgID)
 		if err != nil {
 			reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
@@ -87,9 +116,22 @@ func main() {
 			continue
 		}
 
-		cmd, arg := splitCmd(text)
-
 		isPriv := update.Message.Chat != nil && update.Message.Chat.IsPrivate()
+		chatType := ""
+		chatTitle := ""
+		if update.Message.Chat != nil {
+			chatType = update.Message.Chat.Type
+			chatTitle = update.Message.Chat.Title
+		}
+
+		// global disable for non-admin
+		s := getSettingsCached()
+		if !s.BotEnabledForUsers && !user.Has(RoleAdmin) {
+			reply(bot, chatID, "Бот временно отключён.")
+			continue
+		}
+
+		cmd, arg := splitCmd(text)
 
 		ctx := &Ctx{
 			Bot:        bot,
@@ -100,6 +142,23 @@ func main() {
 			Domains:    store,
 			Accounts:   accountsStore,
 			IsPrivate:  isPriv,
+			ChatType:   chatType,
+			ChatTitle:  chatTitle,
+		}
+
+		// pending wg admin actions (rename/add)
+		if handleWgPendingIfAny(ctx, text) {
+			continue
+		}
+
+		// pending admin accounts ui actions
+		if handleAccAdminPendingIfAny(ctx, text) {
+			continue
+		}
+
+		// soft UI wizards (support + admin messaging)
+		if handleConversationStateIfAny(ctx, text, cmd, arg) {
+			continue
 		}
 
 		if handled := router.Dispatch(ctx, cmd, arg); !handled {

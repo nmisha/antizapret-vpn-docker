@@ -14,15 +14,19 @@ func RegisterSupportHandlers(r *Router) {
 }
 
 func handleSupport(ctx *Ctx, arg string) {
-	if !ctx.IsPrivate {
-		reply(ctx.Bot, ctx.ChatID, "Пожалуйста, напиши в поддержку в личных сообщениях боту: /support <сообщение>")
-		return
-	}
 	msg := strings.TrimSpace(arg)
 	if msg == "" {
-		reply(ctx.Bot, ctx.ChatID, "Напиши так: /support <сообщение>")
+		// Soft UI: works both in private and in groups.
+		setConv(ctx.ChatID, ctx.TgID, ConvState{Mode: ConvSupportAwaitText})
+		supportStartUI(ctx)
 		return
 	}
+
+	sendSupportMessage(ctx, msg)
+}
+
+// sendSupportMessage forwards a support request to all users with the Support role.
+func sendSupportMessage(ctx *Ctx, msg string) {
 
 	users, err := ctx.UsersStore.ListUsers()
 	if err != nil {
@@ -37,10 +41,20 @@ func handleSupport(ctx *Ctx, arg string) {
 			continue
 		}
 
+		source := "private"
+		if !ctx.IsPrivate {
+			source = "group"
+			if ctx.ChatTitle != "" {
+				source = fmt.Sprintf("group: %s", ctx.ChatTitle)
+			}
+		}
+
 		body := fmt.Sprintf(
-			"🆘 <b>Support request</b>\nFrom: <b>%s</b> (tg_id=%d)\n\n%s",
+			"🆘 <b>Support request</b>\nFrom: <b>%s</b> (tg_id=%d)\nChat: %s (chat_id=%d)\n\n%s",
 			html.EscapeString(ctx.User.Name),
 			ctx.TgID,
+			html.EscapeString(source),
+			ctx.ChatID,
 			html.EscapeString(msg),
 		)
 		m := tgbotapi.NewMessage(u.TelegramID, body)
