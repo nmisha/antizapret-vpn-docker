@@ -14,6 +14,7 @@ const (
 	RoleServiceManager Role = "ServiceManager" // renamed from Manager
 	RoleInfo           Role = "Info"
 	RoleWgStats        Role = "WgStats"
+	RoleSupport        Role = "Support"
 	RoleAdmin          Role = "Admin"
 	RoleAiUser         Role = "AiUser"
 )
@@ -32,6 +33,11 @@ func (u User) Has(role Role) bool {
 	if u.Roles[RoleAdmin] {
 		return true
 	}
+	return u.Roles[role]
+}
+
+// HasExact checks whether the role is explicitly assigned (without Admin override).
+func (u User) HasExact(role Role) bool {
 	return u.Roles[role]
 }
 
@@ -54,6 +60,8 @@ func normalizeRoleString(s string) (Role, error) {
 		return RoleInfo, nil
 	case strings.ToLower(string(RoleWgStats)):
 		return RoleWgStats, nil
+	case strings.ToLower(string(RoleSupport)):
+		return RoleSupport, nil
 	case strings.ToLower(string(RoleAdmin)):
 		return RoleAdmin, nil
 	case strings.ToLower(string(RoleAiUser)):
