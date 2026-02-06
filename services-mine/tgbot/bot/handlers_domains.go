@@ -93,35 +93,10 @@ func handleDel(ctx *Ctx, arg string) {
 		return
 	}
 
-	// DomainManager и Admin могут удалять домены из любой секции
-	if ctx.User.Has(RoleDomainManager) || ctx.User.Has(RoleAdmin) {
-		sections, err := ctx.Domains.DelDomainAny(d)
-		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения: "+err.Error())
-			return
-		}
-		if len(sections) == 0 {
-			reply(ctx.Bot, ctx.ChatID, "Не найдено ни в одной секции: "+d)
-			return
-		}
-		if len(sections) == 1 {
-			reply(ctx.Bot, ctx.ChatID, "Удалено из секции #"+sections[0]+": "+d)
-			return
-		}
-		reply(ctx.Bot, ctx.ChatID, "Удалено из секций #"+strings.Join(sections, ", #")+": "+d)
-		return
-	}
-
-	removed, err := ctx.Domains.DelDomain(ctx.User.Name, d)
-	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения: "+err.Error())
-		return
-	}
-	if !removed {
-		reply(ctx.Bot, ctx.ChatID, "Не найдено в твоей секции: "+d)
-		return
-	}
-	reply(ctx.Bot, ctx.ChatID, "Удалено из секции #"+ctx.User.Name+": "+d)
+	// Confirmation for any destructive action.
+	// Actual deletion is performed in handleConfirmCallback.
+	sendConfirm(ctx, "Удалить домен \""+d+"\"?", "domain:del", d)
+	return
 }
 
 func handleList(ctx *Ctx, _ string) {

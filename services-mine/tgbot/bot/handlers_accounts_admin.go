@@ -82,12 +82,13 @@ func handleAccSet(ctx *Ctx, arg string) {
 
 func handleAccDel(ctx *Ctx, arg string) {
 	name := strings.TrimSpace(arg)
-	msg, err := ctx.Accounts.DeleteByName(name)
-	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
+	if name == "" {
+		reply(ctx.Bot, ctx.ChatID, "Формат: /acc_del <name>")
 		return
 	}
-	reply(ctx.Bot, ctx.ChatID, msg)
+	// Confirmation for any destructive action.
+	// Actual deletion is performed in handleConfirmCallback.
+	sendConfirm(ctx, "Удалить учётную запись \""+name+"\"?", "acc:del", name)
 }
 
 func handleAccRename(ctx *Ctx, arg string) {
