@@ -213,6 +213,7 @@ func sendBroadcast(ctx *Ctx, text string) {
 	}
 
 	sent, failed := 0, 0
+	failLines := make([]string, 0, 8)
 	for _, u := range users {
 		m := tgbotapi.NewMessage(u.TelegramID, "📢 Сообщение от администратора:\n\n"+text)
 		m.DisableWebPagePreview = true
@@ -220,17 +221,28 @@ func sendBroadcast(ctx *Ctx, text string) {
 			sent++
 		} else {
 			failed++
+			// collect details (cap to keep message size reasonable)
+			if len(failLines) < 30 {
+				failLines = append(failLines, fmt.Sprintf("• %s (%d): %v", u.Name, u.TelegramID, e))
+			}
 		}
 	}
 
-	reply(ctx.Bot, ctx.ChatID, fmt.Sprintf("Готово. Отправлено: %d. Ошибок: %d.", sent, failed))
+	msg := fmt.Sprintf("Готово. Отправлено: %d. Ошибок: %d.", sent, failed)
+	if failed > 0 {
+		msg += "\n\nНе доставлено:" + "\n" + strings.Join(failLines, "\n")
+		if failed > len(failLines) {
+			msg += fmt.Sprintf("\n… и ещё %d", failed-len(failLines))
+		}
+	}
+	reply(ctx.Bot, ctx.ChatID, msg)
 }
 
 func sendAdminMessageToUser(ctx *Ctx, targetID int64, targetName, text string) {
 	m := tgbotapi.NewMessage(targetID, "✉️ Сообщение от администратора:\n\n"+text)
 	m.DisableWebPagePreview = true
 	if _, e := ctx.Bot.Send(m); e != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось отправить: "+e.Error())
+		reply(ctx.Bot, ctx.ChatID, fmt.Sprintf("Не удалось отправить %s (%d): %v", targetName, targetID, e))
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, "Отправлено пользователю: "+targetName)

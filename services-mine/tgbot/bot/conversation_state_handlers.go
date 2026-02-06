@@ -39,10 +39,10 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 			reply(ctx.Bot, ctx.ChatID, "Напиши текст рассылки обычным сообщением (или /cancel).")
 			return true
 		}
-		st.Draft = strings.TrimSpace(fullText)
-		st.Mode = ConvAdminBroadcastConfirm
-		setConv(ctx.ChatID, ctx.TgID, st)
-		showAdminBroadcastConfirm(ctx, st.Draft)
+		// отправляем сразу, без подтверждения
+		text := strings.TrimSpace(fullText)
+		sendBroadcast(ctx, text)
+		clearConv(ctx.ChatID, ctx.TgID)
 		return true
 
 	case ConvAdminMsgAwaitText:
@@ -50,10 +50,10 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 			reply(ctx.Bot, ctx.ChatID, "Напиши текст сообщения обычным сообщением (или /cancel).")
 			return true
 		}
-		st.Draft = strings.TrimSpace(fullText)
-		st.Mode = ConvAdminMsgConfirm
-		setConv(ctx.ChatID, ctx.TgID, st)
-		showAdminUserMessageConfirm(ctx, st.TargetName, st.Draft)
+		// отправляем сразу, без подтверждения
+		text := strings.TrimSpace(fullText)
+		sendAdminMessageToUser(ctx, st.TargetID, st.TargetName, text)
+		clearConv(ctx.ChatID, ctx.TgID)
 		return true
 
 	case ConvAdminMsgSearchUser:
