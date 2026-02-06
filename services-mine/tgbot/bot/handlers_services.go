@@ -1,5 +1,7 @@
 package main
 
+import "strings"
+
 func RegisterServiceHandlers(r *Router) {
 	r.Handle("/wgstats", handleWgStats,
 		RequireRole(RoleWgStats, "Недостаточно прав. Нужна роль WgStats (или Admin)."),
@@ -17,10 +19,25 @@ func RegisterServiceHandlers(r *Router) {
 	r.Alias("agh_update_lists", "/agh_update_lists")
 }
 
-func handleWgStats(ctx *Ctx, _ string) {
+func handleWgStats(ctx *Ctx, arg string) {
 	if !ctx.IsPrivate {
 		reply(ctx.Bot, ctx.ChatID, "Статистика WireGuard доступна только в личных сообщениях боту.")
 		return
+	}
+
+	// Admin may request stats for a specific user: /wgstats <name>
+	target := ctx.User
+	if strings.TrimSpace(arg) != "" && ctx.User.Has(RoleAdmin) {
+		u, ok, err := ctx.UsersStore.GetByName(arg)
+		if err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+			return
+		}
+		if !ok {
+			reply(ctx.Bot, ctx.ChatID, "Пользователь не найден: "+arg)
+			return
+		}
+		target = u
 	}
 	host := envTrim("WG_HOST")
 	port := envTrim("WG_PORT")
@@ -38,14 +55,14 @@ func handleWgStats(ctx *Ctx, _ string) {
 		return
 	}
 
-	filtered := filterPeersByUserPrefixes(peers, ctx.User.WgProfiles)
+	filtered := filterPeersByUserPrefixes(peers, target.WgProfiles)
 	if len(filtered) == 0 {
 		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одного WireGuard профиля по вашим правилам из users.json (wg_profiles).")
 		return
 	}
 
 	msg := formatWgPeersStats(filtered)
-	reply(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
+	replyHTML(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
 }
 
 func handleWgStatsAdmin(ctx *Ctx, _ string) {
@@ -70,7 +87,7 @@ func handleWgStatsAdmin(ctx *Ctx, _ string) {
 	}
 
 	msg := formatWgPeersStats(peers)
-	reply(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
+	replyHTML(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
 }
 
 func handleAghUpdateLists(ctx *Ctx, _ string) {

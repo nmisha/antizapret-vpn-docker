@@ -2,10 +2,13 @@ package main
 
 import (
 	"fmt"
+	"html"
 	"sort"
 	"strings"
 	"time"
 )
+
+const wgOfflineAfter = 10 * time.Minute
 
 func filterPeersByUserPrefixes(peers []wgEasyPeer, prefixesLower []string) []wgEasyPeer {
 	if len(prefixesLower) == 0 {
@@ -54,27 +57,59 @@ func formatWgPeersStats(peers []wgEasyPeer) string {
 		if idx > 0 {
 			lines = append(lines, "") // blank line between profiles
 		}
-		t := p.latestHandshakeTime()
-		mins := 999999
-		if !t.IsZero() {
-			mins = int(now.Sub(t).Minutes())
-			if mins < 0 {
-				mins = 0
+
+		nameEsc := html.EscapeString(strings.TrimSpace(p.Name))
+		last := p.latestHandshakeTime()
+		delta, hasDelta := time.Duration(0), false
+		if !last.IsZero() {
+			delta = now.Sub(last)
+			if delta < 0 {
+				delta = 0
 			}
+			hasDelta = true
 		}
-		status := "online"
-		if mins > 60 || t.IsZero() {
-			status = "offline"
+
+		// If the old formatting produced "999999 мин", show a dash.
+		showDash := (!hasDelta) || (delta.Minutes() >= 999999)
+		offline := showDash || delta > wgOfflineAfter
+
+		lastStr := "—"
+		if !showDash {
+			lastStr = humanSince(delta)
+		}
+		statusSuffix := ""
+		if offline {
+			statusSuffix = " (offline)"
 		}
 
 		lines = append(lines,
-			fmt.Sprintf("Название: %s", p.Name),
-			fmt.Sprintf("Handshake: %d мин (%s)", mins, status),
-			fmt.Sprintf("RX: %s", humanMBGB(p.TransferRx)),
+			fmt.Sprintf("<b>Profile: %s</b>", nameEsc),
+			fmt.Sprintf("Last Handshake: %s%s", lastStr, statusSuffix),
 			fmt.Sprintf("TX: %s", humanMBGB(p.TransferTx)),
+			fmt.Sprintf("RX: %s", humanMBGB(p.TransferRx)),
 		)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func humanSince(d time.Duration) string {
+	if d < 0 {
+		d = 0
+	}
+	sec := int(d.Seconds())
+	if sec < 60 {
+		return fmt.Sprintf("%d сек", sec)
+	}
+	min := sec / 60
+	if min < 60 {
+		return fmt.Sprintf("%d мин", min)
+	}
+	hr := min / 60
+	if hr < 24 {
+		return fmt.Sprintf("%d ч", hr)
+	}
+	day := hr / 24
+	return fmt.Sprintf("%d д", day)
 }
 
 func humanMBGB(bytes int64) string {

@@ -14,6 +14,13 @@ func reply(bot *tgbotapi.BotAPI, chatID int64, text string) {
 	_, _ = bot.Send(msg)
 }
 
+func replyHTML(bot *tgbotapi.BotAPI, chatID int64, htmlText string) {
+	msg := tgbotapi.NewMessage(chatID, htmlText)
+	msg.DisableWebPagePreview = true
+	msg.ParseMode = "HTML"
+	_, _ = bot.Send(msg)
+}
+
 func editMessage(bot *tgbotapi.BotAPI, chatID int64, messageID int, text string, markup *tgbotapi.InlineKeyboardMarkup) {
 	edit := tgbotapi.NewEditMessageText(chatID, messageID, text)
 	edit.ParseMode = "Markdown"

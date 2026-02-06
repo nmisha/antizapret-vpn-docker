@@ -50,6 +50,7 @@ func main() {
 	RegisterAdminHandlers(router)
 	RegisterDomainHandlers(router)
 	RegisterServiceHandlers(router)
+	RegisterSupportHandlers(router)
 	RegisterAIHandlers(router)
 
 	u := tgbotapi.NewUpdate(0)
