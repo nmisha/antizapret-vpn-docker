@@ -15,7 +15,7 @@ COPY . .
 
 # собираем пакет ./bot (где main.go)
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
-    go build -trimpath -ldflags="-s -w" -o /out/tgbot ./bot
+    go build -trimpath -ldflags="-s -w" -o /out/tgbot ./cmd/bot
 
 
 # ---------- runtime stage ----------
@@ -32,10 +32,10 @@ WORKDIR /app
 COPY --from=builder /out/tgbot ./tgbot
 
 # целиком папку scripts
-COPY --from=builder /src/scripts ./scripts
+# COPY --from=builder /src/scripts ./scripts
 
 # на всякий случай сделаем .sh исполняемыми
-RUN chmod -R +x ./scripts
+# RUN chmod -R +x ./scripts
 
 # если твой бот слушает порт — можно EXPOSE, но необязательно
 # EXPOSE 8080
