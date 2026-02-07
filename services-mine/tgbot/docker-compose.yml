@@ -43,6 +43,9 @@ services:
       AGH_PASSWORD: ""
       AGH_PORT: "3000"
 
+      AGH_USER_COOLDOWN_SECONDS: 600
+      AGH_TIMEOUT_SECONDS: 600
+
       WG_HOST: "wireguard.antizapret"
       WG_PORT: "51821"
       WG_PASSWORD: "password"

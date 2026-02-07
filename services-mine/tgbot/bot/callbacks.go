@@ -15,6 +15,7 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 	}
 	chatID := q.Message.Chat.ID
 	tgID := q.From.ID
+	fromLabel := tgUserLabel(q.From)
 
 	user, ok, err := usersStore.GetByID(tgID)
 	if err != nil {
@@ -40,6 +41,7 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		UsersStore: usersStore,
 		Domains:    store,
 		Accounts:   accounts,
+		FromUser:   fromLabel,
 	}
 
 	data := q.Data
@@ -48,7 +50,7 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 	if gLogger != nil {
 		s := getSettingsCached()
 		if s.LoggingEnabled {
-			gLogger.Append(formatLogLine("IN", chatID, "callback:"+data))
+			gLogger.Append(formatLogLine("IN", chatID, fromLabel, "callback:"+data))
 		}
 	}
 

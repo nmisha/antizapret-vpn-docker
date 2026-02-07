@@ -16,6 +16,9 @@ type Ctx struct {
 	ChatType  string
 	ChatTitle string
 
+	// telegram sender label (from telegram, may be empty)
+	FromUser string
+
 	// middleware/runtime
 	Cmd    string
 	Fields []string
