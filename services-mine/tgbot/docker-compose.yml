@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:1.0.6
+    image: nmisha/antizapret-vpn-tgbot:1.0.7
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
@@ -44,7 +44,7 @@ services:
       AGH_PORT: "3000"
 
       AGH_USER_COOLDOWN_SECONDS: 600
-      AGH_TIMEOUT_SECONDS: 700
+      AGH_TIMEOUT_SECONDS: 300
 
       WG_HOST: "wireguard.antizapret"
       WG_PORT: "51821"

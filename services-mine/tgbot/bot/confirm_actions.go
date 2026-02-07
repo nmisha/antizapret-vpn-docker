@@ -24,7 +24,8 @@ func sendConfirm(ctx *Ctx, prompt string, kind string, payload string) {
 	)
 	m := tgbotapi.NewMessage(ctx.ChatID, prompt)
 	m.ReplyMarkup = kb
-	_, _ = ctx.Bot.Send(m)
+	_, err := ctx.Bot.Send(m)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", prompt)
 }
 
 func handleConfirmCallback(ctx *Ctx, data string) bool {

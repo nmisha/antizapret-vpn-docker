@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-//	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )

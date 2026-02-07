@@ -25,7 +25,8 @@ func sendTextChunks(bot *tgbotapi.BotAPI, chatID int64, text string) {
 		}
 		m := tgbotapi.NewMessage(chatID, chunk)
 		m.DisableWebPagePreview = true
-		_, _ = bot.Send(m)
+		_, err := bot.Send(m)
+		logSendErrorIfEnabled(chatID, err, "send message", chunk)
 		text = strings.TrimSpace(text[len(chunk):])
 	}
 }

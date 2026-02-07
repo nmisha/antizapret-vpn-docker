@@ -4,6 +4,17 @@ import (
 	"strings"
 )
 
+func htmlEscape(s string) string {
+	// Telegram HTML parse mode requires escaping special chars.
+	// We mainly need this because help text uses <domain> placeholders.
+	r := strings.NewReplacer(
+		"&", "&amp;",
+		"<", "&lt;",
+		">", "&gt;",
+	)
+	return r.Replace(s)
+}
+
 type helpCmd struct {
 	Cmd     string
 	Args    string
@@ -112,6 +123,7 @@ func helpForUser(u User) string {
 			if it.Desc != "" {
 				line += " — " + it.Desc
 			}
+			line = htmlEscape(line)
 			b.WriteString("• ")
 			b.WriteString(line)
 			b.WriteString("\n")

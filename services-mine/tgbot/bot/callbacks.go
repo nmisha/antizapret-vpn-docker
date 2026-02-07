@@ -16,6 +16,7 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 	chatID := q.Message.Chat.ID
 	tgID := q.From.ID
 	fromLabel := tgUserLabel(q.From)
+	setChatUserLabel(chatID, fromLabel)
 
 	user, ok, err := usersStore.GetByID(tgID)
 	if err != nil {
@@ -26,6 +27,16 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		reply(bot, chatID, randomJoke())
 		return
 	}
+
+	label := strings.TrimSpace(fromLabel)
+	if user.Name != "" {
+		if label != "" {
+			label = label + "/" + user.Name
+		} else {
+			label = user.Name
+		}
+	}
+	setChatUserLabel(chatID, label)
 
 	s := getSettingsCached()
 	if !s.BotEnabledForUsers && !user.Has(RoleAdmin) {
