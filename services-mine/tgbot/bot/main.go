@@ -4,6 +4,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -94,6 +95,7 @@ func main() {
 		chatID := update.Message.Chat.ID
 		tgID := update.Message.From.ID
 		fromLabel := tgUserLabel(update.Message.From)
+		setChatUserLabel(chatID, fromLabel)
 
 		text := Trim(update.Message.Text)
 		if text == "" {
@@ -117,6 +119,17 @@ func main() {
 			reply(bot, chatID, randomJoke())
 			continue
 		}
+
+		// enrich chat label with user record name (if present)
+		label := strings.TrimSpace(fromLabel)
+		if user.Name != "" {
+			if label != "" {
+				label = label + "/" + user.Name
+			} else {
+				label = user.Name
+			}
+		}
+		setChatUserLabel(chatID, label)
 
 		isPriv := update.Message.Chat != nil && update.Message.Chat.IsPrivate()
 		chatType := ""

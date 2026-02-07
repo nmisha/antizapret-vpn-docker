@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"sync"
@@ -23,7 +24,8 @@ func aghUserCooldownFromEnv() time.Duration {
 }
 
 func aghCooldownNotice() string {
-	return "ℹ️ Для пользователей без роли Admin действует тайм-аут " + fmtDurationRu(aghUserCooldown) + "."
+	// Neutral wording without role mentions (requested).
+	return "ℹ️ Тайм-аут для повторного запроса: " + fmtDurationRu(aghUserCooldown) + "."
 }
 
 var aghUserCooldown = aghUserCooldownFromEnv()
@@ -132,16 +134,8 @@ func handleAghUpdateLists(ctx *Ctx, _ string) {
 	// Prevent parallel refresh runs (can be heavy and slow)
 	aghRefreshMu.Lock()
 	if aghRefreshInProgress {
-		started := aghRefreshStartedAt
 		aghRefreshMu.Unlock()
-		msg := "⏳ Обновление списков AdGuard Home уже выполняется. Попробуйте позже."
-		if ctx.User.HasExact(RoleAdmin) && !started.IsZero() {
-			msg += "\n(Запущено: " + started.Format("2006-01-02 15:04:05") + ")"
-		}
-		if !ctx.User.HasExact(RoleAdmin) {
-			msg += "\n\n" + aghCooldownNotice()
-		}
-		reply(ctx.Bot, ctx.ChatID, msg)
+		reply(ctx.Bot, ctx.ChatID, "⏳ Обновление списков AdGuard Home уже выполняется. Попробуйте позже.")
 		return
 	}
 	aghRefreshInProgress = true
@@ -157,7 +151,7 @@ func handleAghUpdateLists(ctx *Ctx, _ string) {
 	if !ctx.User.HasExact(RoleAdmin) {
 		ok, wait := aghUpdateLimiter.allow(ctx.User.TelegramID)
 		if !ok {
-			reply(ctx.Bot, ctx.ChatID, "⏳ Слишком часто. Попробуйте через "+fmtDurationRu(wait)+".\n\n"+aghCooldownNotice())
+			reply(ctx.Bot, ctx.ChatID, "⏳ Слишком часто. Повторно можно запросить через "+fmtDurationRu(wait)+".")
 			return
 		}
 	}
@@ -178,6 +172,7 @@ func handleAghUpdateLists(ctx *Ctx, _ string) {
 		reply(ctx.Bot, ctx.ChatID, "Не удалось обновить списки AdGuard Home. Попробуйте позже.\n\n"+aghCooldownNotice())
 		return
 	}
+
 	updatedWhite, err := client.refreshFilters(true)
 	if err != nil {
 		logAghErrorIfEnabled(ctx, "AdGuard refresh whitelists failed: "+err.Error())
@@ -189,14 +184,21 @@ func handleAghUpdateLists(ctx *Ctx, _ string) {
 		return
 	}
 
-	msg := "✅ Обновление списков AdGuard Home запущено.\n" +
-		"• Blocklists обновлено: " + strconv.Itoa(updatedBlock) + "\n" +
-		"• Whitelist-фильтров обновлено: " + strconv.Itoa(updatedWhite)
-
-	if !ctx.User.HasExact(RoleAdmin) {
-		msg += "\n\n" + aghCooldownNotice()
+	var b strings.Builder
+	b.WriteString("✅ Обновление списков AdGuard Home выполнено.\n")
+	if ctx.User.HasExact(RoleAdmin) {
+		fmt.Fprintf(&b, "Обновлено списков: блок-листы — %d, whitelist — %d.\n", updatedBlock, updatedWhite)
 	}
-	reply(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
+	if !ctx.User.HasExact(RoleAdmin) {
+		b.WriteString("Повторно можно запросить через ")
+		b.WriteString(fmtDurationRu(aghUserCooldown))
+		b.WriteString(".\n")
+		b.WriteString(aghCooldownNotice())
+	} else {
+		b.WriteString("Повторно можно запросить сразу.")
+	}
+
+	reply(ctx.Bot, ctx.ChatID, truncate(b.String(), 3800))
 }
 
 func logAghErrorIfEnabled(ctx *Ctx, msg string) {

@@ -80,7 +80,8 @@ func wgNameAction(ctx *Ctx, action string, query string, extra string) {
 	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Найдено несколько профилей. Выбери точный:")
 	m.ReplyMarkup = kb
-	_, _ = ctx.Bot.Send(m)
+	_, err = ctx.Bot.Send(m)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
 func matchPeersByNamePrefix(peers []wgEasyPeer, query string) []wgEasyPeer {

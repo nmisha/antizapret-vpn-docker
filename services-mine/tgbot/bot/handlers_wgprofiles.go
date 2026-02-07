@@ -69,7 +69,8 @@ func handleWgProfilesAdmin(ctx *Ctx, _ string) {
 	)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Select scope:")
 	m.ReplyMarkup = kb
-	_, _ = ctx.Bot.Send(m)
+	_, err := ctx.Bot.Send(m)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
 func sendWgProfilesList(ctx *Ctx, peers []wgEasyPeer, pickPrefix string) {
@@ -95,7 +96,8 @@ func sendWgProfilesList(ctx *Ctx, peers []wgEasyPeer, pickPrefix string) {
 	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Select profile:")
 	m.ReplyMarkup = kb
-	_, _ = ctx.Bot.Send(m)
+	_, err := ctx.Bot.Send(m)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
 func makeWgClientFromEnv() (*wgEasyClient, error) {
@@ -136,7 +138,8 @@ func sendWgUsersList(ctx *Ctx) {
 	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Select user:")
 	m.ReplyMarkup = kb
-	_, _ = ctx.Bot.Send(m)
+	_, err = ctx.Bot.Send(m)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
 // helper used for admin scope selection
@@ -191,7 +194,8 @@ func sendAdminProfileActions(ctx *Ctx, peerID string) {
 	)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Select action:")
 	m.ReplyMarkup = kb
-	_, _ = ctx.Bot.Send(m)
+	_, err := ctx.Bot.Send(m)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
 // send user profile actions menu for a selected profile
@@ -208,7 +212,8 @@ func sendUserProfileActions(ctx *Ctx, peerID string) {
 	)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Select action:")
 	m.ReplyMarkup = kb
-	_, _ = ctx.Bot.Send(m)
+	_, err := ctx.Bot.Send(m)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
 func sendWgConfigAsFile(ctx *Ctx, client *wgEasyClient, peerID string) {
@@ -219,7 +224,8 @@ func sendWgConfigAsFile(ctx *Ctx, client *wgEasyClient, peerID string) {
 	}
 	doc := tgbotapi.NewDocument(ctx.ChatID, tgbotapi.FileBytes{Name: filename, Bytes: data})
 	doc.Caption = "WireGuard profile configuration"
-	_, _ = ctx.Bot.Send(doc)
+	_, err = ctx.Bot.Send(doc)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
 func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
@@ -231,7 +237,8 @@ func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 	// SVG лучше отправлять документом
 	doc := tgbotapi.NewDocument(ctx.ChatID, tgbotapi.FileBytes{Name: "qrcode.svg", Bytes: data})
 	doc.Caption = "WireGuard QR (SVG)"
-	_, _ = ctx.Bot.Send(doc)
+	_, err = ctx.Bot.Send(doc)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
 func sendWgStatsForPeerID(ctx *Ctx, client *wgEasyClient, peerID string) {

@@ -75,7 +75,8 @@ func replyWithOpenDM(ctx *Ctx) {
 	msg := tgbotapi.NewMessage(ctx.ChatID, "Учётные данные выдаются **только в личке** с ботом.\nНажми кнопку ниже:")
 	msg.ParseMode = "Markdown"
 	msg.ReplyMarkup = kb
-	_, _ = ctx.Bot.Send(msg)
+	_, err := ctx.Bot.Send(msg)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", msg.Text)
 }
 
 func buildAccountsKeyboard(list []Account) tgbotapi.InlineKeyboardMarkup {

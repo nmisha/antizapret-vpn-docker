@@ -32,17 +32,34 @@ func tgUserLabel(u *tgbotapi.User) string {
 	return "id=" + fmt.Sprint(u.ID)
 }
 
+func logSendErrorIfEnabled(chatID int64, err error, op string, payload string) {
+	if err == nil || gLogger == nil {
+		return
+	}
+	s := getSettingsCached()
+	if !s.LoggingEnabled {
+		return
+	}
+	user := getChatUserLabel(chatID)
+	msg := op + ": " + err.Error()
+	if payload != "" {
+		msg += " | " + payload
+	}
+	gLogger.Append(formatLogLine("SEND_ERR", chatID, user, truncate(msg, 2000)))
+}
 func reply(bot *tgbotapi.BotAPI, chatID int64, text string) {
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.DisableWebPagePreview = true
-	_, _ = bot.Send(msg)
+	_, err := bot.Send(msg)
+	logSendErrorIfEnabled(chatID, err, "send message", text)
 }
 
 func replyHTML(bot *tgbotapi.BotAPI, chatID int64, htmlText string) {
 	msg := tgbotapi.NewMessage(chatID, htmlText)
 	msg.DisableWebPagePreview = true
 	msg.ParseMode = "HTML"
-	_, _ = bot.Send(msg)
+	_, err := bot.Send(msg)
+	logSendErrorIfEnabled(chatID, err, "send message", htmlText)
 }
 
 func editMessage(bot *tgbotapi.BotAPI, chatID int64, messageID int, text string, markup *tgbotapi.InlineKeyboardMarkup) {
@@ -51,7 +68,8 @@ func editMessage(bot *tgbotapi.BotAPI, chatID int64, messageID int, text string,
 	if markup != nil {
 		edit.ReplyMarkup = markup
 	}
-	_, _ = bot.Send(edit)
+	_, err := bot.Send(edit)
+	logSendErrorIfEnabled(chatID, err, "edit message", text)
 }
 
 func splitCmd(s string) (cmd, arg string) {
