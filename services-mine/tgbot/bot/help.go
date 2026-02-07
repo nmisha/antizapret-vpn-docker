@@ -49,7 +49,7 @@ func helpForUser(u User) string {
 		{
 			Title: "Сервисы",
 			Items: []helpCmd{
-				{Cmd: "/sr_agh_update_lists", Desc: "обновить списки AdGuard", NeedAny: []Role{RoleServiceManager}},
+				{Cmd: "/sr_agh_update_lists", Desc: "обновить списки AdGuard Home (filters)", NeedAny: []Role{RoleDomainEditor, RoleServiceManager}},
 			},
 		},
 		{
