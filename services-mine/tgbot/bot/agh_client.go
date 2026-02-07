@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -23,6 +24,7 @@ func newAghClientFromEnv() (*aghClient, error) {
 	login := envTrim("AGH_LOGIN")
 	pass := envTrim("AGH_PASSWORD")
 	scheme := envTrim("AGH_SCHEME")
+	timeoutEnv := envTrim("AGH_TIMEOUT_SECONDS")
 	if scheme == "" {
 		scheme = "http"
 	}
@@ -33,12 +35,21 @@ func newAghClientFromEnv() (*aghClient, error) {
 	port = strings.TrimSpace(port)
 
 	base := fmt.Sprintf("%s://%s:%s", scheme, host, port)
+
+	// Updating filter lists can be slow (download + parsing).
+	// Default timeout is 5 minutes; override via AGH_TIMEOUT_SECONDS.
+	timeout := 5 * time.Minute
+	if timeoutEnv != "" {
+		if n, err := strconv.Atoi(strings.TrimSpace(timeoutEnv)); err == nil && n > 0 {
+			timeout = time.Duration(n) * time.Second
+		}
+	}
 	return &aghClient{
 		baseURL: base,
 		login:   login,
 		pass:    pass,
 		hc: &http.Client{
-			Timeout: 25 * time.Second,
+			Timeout: timeout,
 		},
 	}, nil
 }

@@ -3,10 +3,35 @@ package main
 import (
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
-var aghUpdateLimiter = newCooldownLimiter(5 * time.Minute)
+func aghUserCooldownFromEnv() time.Duration {
+	// Cooldown for non-Admin users for AdGuard list refresh command.
+	// Default: 5 minutes. Override via AGH_USER_COOLDOWN_SECONDS (integer, seconds).
+	cooldown := 5 * time.Minute
+	env := envTrim("AGH_USER_COOLDOWN_SECONDS")
+	if env == "" {
+		return cooldown
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(env))
+	if err != nil || n <= 0 {
+		return cooldown
+	}
+	return time.Duration(n) * time.Second
+}
+
+func aghCooldownNotice() string {
+	return "ℹ️ Для пользователей без роли Admin действует тайм-аут " + fmtDurationRu(aghUserCooldown) + "."
+}
+
+var aghUserCooldown = aghUserCooldownFromEnv()
+var aghUpdateLimiter = newCooldownLimiter(aghUserCooldown)
+
+var aghRefreshMu sync.Mutex
+var aghRefreshInProgress bool
+var aghRefreshStartedAt time.Time
 
 func RegisterServiceHandlers(r *Router) {
 	r.Handle("/wgstats", handleWgStats,
@@ -104,11 +129,35 @@ func handleWgStatsAdmin(ctx *Ctx, _ string) {
 }
 
 func handleAghUpdateLists(ctx *Ctx, _ string) {
+	// Prevent parallel refresh runs (can be heavy and slow)
+	aghRefreshMu.Lock()
+	if aghRefreshInProgress {
+		started := aghRefreshStartedAt
+		aghRefreshMu.Unlock()
+		msg := "⏳ Обновление списков AdGuard Home уже выполняется. Попробуйте позже."
+		if ctx.User.HasExact(RoleAdmin) && !started.IsZero() {
+			msg += "\n(Запущено: " + started.Format("2006-01-02 15:04:05") + ")"
+		}
+		if !ctx.User.HasExact(RoleAdmin) {
+			msg += "\n\n" + aghCooldownNotice()
+		}
+		reply(ctx.Bot, ctx.ChatID, msg)
+		return
+	}
+	aghRefreshInProgress = true
+	aghRefreshStartedAt = time.Now()
+	aghRefreshMu.Unlock()
+	defer func() {
+		aghRefreshMu.Lock()
+		aghRefreshInProgress = false
+		aghRefreshMu.Unlock()
+	}()
+
 	// Cooldown for non-admin users
 	if !ctx.User.HasExact(RoleAdmin) {
 		ok, wait := aghUpdateLimiter.allow(ctx.User.TelegramID)
 		if !ok {
-			reply(ctx.Bot, ctx.ChatID, "⏳ Слишком часто. Попробуйте через "+fmtDurationRu(wait)+".\n\nℹ️ Для пользователей без роли Admin действует тайм-аут 5 минут.")
+			reply(ctx.Bot, ctx.ChatID, "⏳ Слишком часто. Попробуйте через "+fmtDurationRu(wait)+".\n\n"+aghCooldownNotice())
 			return
 		}
 	}
@@ -121,12 +170,22 @@ func handleAghUpdateLists(ctx *Ctx, _ string) {
 
 	updatedBlock, err := client.refreshFilters(false)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось обновить списки AdGuard Home:\n"+truncate(err.Error(), 3500))
+		logAghErrorIfEnabled(ctx, "AdGuard refresh blocklists failed: "+err.Error())
+		if ctx.User.HasExact(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "Не удалось обновить списки AdGuard Home:\n"+truncate(err.Error(), 3500))
+			return
+		}
+		reply(ctx.Bot, ctx.ChatID, "Не удалось обновить списки AdGuard Home. Попробуйте позже.\n\n"+aghCooldownNotice())
 		return
 	}
 	updatedWhite, err := client.refreshFilters(true)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось обновить whitelist-фильтры AdGuard Home:\n"+truncate(err.Error(), 3500))
+		logAghErrorIfEnabled(ctx, "AdGuard refresh whitelists failed: "+err.Error())
+		if ctx.User.HasExact(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "Не удалось обновить whitelist-фильтры AdGuard Home:\n"+truncate(err.Error(), 3500))
+			return
+		}
+		reply(ctx.Bot, ctx.ChatID, "Не удалось обновить списки AdGuard Home. Попробуйте позже.\n\n"+aghCooldownNotice())
 		return
 	}
 
@@ -135,7 +194,27 @@ func handleAghUpdateLists(ctx *Ctx, _ string) {
 		"• Whitelist-фильтров обновлено: " + strconv.Itoa(updatedWhite)
 
 	if !ctx.User.HasExact(RoleAdmin) {
-		msg += "\n\nℹ️ Для пользователей без роли Admin действует тайм-аут 5 минут."
+		msg += "\n\n" + aghCooldownNotice()
 	}
 	reply(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
+}
+
+func logAghErrorIfEnabled(ctx *Ctx, msg string) {
+	if gLogger == nil {
+		return
+	}
+	s := getSettingsCached()
+	if !s.LoggingEnabled {
+		return
+	}
+	// include both telegram sender label (if any) and user record name
+	label := strings.TrimSpace(ctx.FromUser)
+	if ctx.User.Name != "" {
+		if label != "" {
+			label = label + "/" + ctx.User.Name
+		} else {
+			label = ctx.User.Name
+		}
+	}
+	gLogger.Append(formatLogLine("ERR", ctx.ChatID, label, truncate(msg, 2000)))
 }

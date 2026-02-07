@@ -93,6 +93,7 @@ func main() {
 
 		chatID := update.Message.Chat.ID
 		tgID := update.Message.From.ID
+		fromLabel := tgUserLabel(update.Message.From)
 
 		text := Trim(update.Message.Text)
 		if text == "" {
@@ -103,7 +104,7 @@ func main() {
 		if gLogger != nil {
 			s := getSettingsCached()
 			if s.LoggingEnabled {
-				gLogger.Append(formatLogLine("IN", chatID, text))
+				gLogger.Append(formatLogLine("IN", chatID, fromLabel, text))
 			}
 		}
 
@@ -145,6 +146,7 @@ func main() {
 			IsPrivate:  isPriv,
 			ChatType:   chatType,
 			ChatTitle:  chatTitle,
+			FromUser:   fromLabel,
 		}
 
 		// pending wg admin actions (rename/add)

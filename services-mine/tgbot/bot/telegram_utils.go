@@ -8,10 +8,28 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func formatLogLine(dir string, chatID int64, text string) string {
+func formatLogLine(dir string, chatID int64, user string, text string) string {
 	text = strings.ReplaceAll(text, "\n", "\\n")
 	text = truncate(text, 900)
+	user = strings.TrimSpace(user)
+	if user != "" {
+		return fmt.Sprintf("%s %s chat=%d user=%s text=%s", time.Now().Format("2006-01-02 15:04:05"), dir, chatID, user, text)
+	}
 	return fmt.Sprintf("%s %s chat=%d text=%s", time.Now().Format("2006-01-02 15:04:05"), dir, chatID, text)
+}
+
+func tgUserLabel(u *tgbotapi.User) string {
+	if u == nil {
+		return ""
+	}
+	if u.UserName != "" {
+		return "@" + u.UserName
+	}
+	name := strings.TrimSpace(strings.TrimSpace(u.FirstName + " " + u.LastName))
+	if name != "" {
+		return name
+	}
+	return "id=" + fmt.Sprint(u.ID)
 }
 
 func reply(bot *tgbotapi.BotAPI, chatID int64, text string) {
