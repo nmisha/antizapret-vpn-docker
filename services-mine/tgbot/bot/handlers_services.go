@@ -1,6 +1,12 @@
 package main
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+	"time"
+)
+
+var aghUpdateLimiter = newCooldownLimiter(5 * time.Minute)
 
 func RegisterServiceHandlers(r *Router) {
 	r.Handle("/wgstats", handleWgStats,
@@ -13,9 +19,16 @@ func RegisterServiceHandlers(r *Router) {
 	)
 	r.Alias("wgstats_admin", "/wgstats_admin")
 
-	r.Handle("/agh_update_lists", handleAghUpdateLists,
-		RequireRole(RoleServiceManager, "Недостаточно прав. Нужна роль ServiceManager (или Admin)."),
+	// AdGuard Home: update filter lists (blocklists + whitelists)
+	// Canonical command: /sr_agh_update_lists
+	r.Handle("/sr_agh_update_lists", handleAghUpdateLists,
+		RequireAnyRole("Недостаточно прав. Нужна роль DomainEditor или ServiceManager (или Admin).", RoleDomainEditor, RoleServiceManager),
 	)
+	// Backward compatible alias:
+	r.Handle("/agh_update_lists", handleAghUpdateLists,
+		RequireAnyRole("Недостаточно прав. Нужна роль DomainEditor или ServiceManager (или Admin).", RoleDomainEditor, RoleServiceManager),
+	)
+	r.Alias("sr_agh_update_lists", "/sr_agh_update_lists")
 	r.Alias("agh_update_lists", "/agh_update_lists")
 }
 
@@ -91,20 +104,38 @@ func handleWgStatsAdmin(ctx *Ctx, _ string) {
 }
 
 func handleAghUpdateLists(ctx *Ctx, _ string) {
-	host := envTrim("AGH_HOST")
-	login := envTrim("AGH_LOGIN")
-	pass := envTrim("AGH_PASSWORD")
-	port := envTrim("AGH_PORT")
-
-	if host == "" || login == "" || pass == "" || port == "" {
-		reply(ctx.Bot, ctx.ChatID, "Не заданы переменные окружения для AdGuard. Нужно: AGH_HOST, AGH_LOGIN, AGH_PASSWORD, AGH_PORT")
-		return
+	// Cooldown for non-admin users
+	if !ctx.User.HasExact(RoleAdmin) {
+		ok, wait := aghUpdateLimiter.allow(ctx.User.TelegramID)
+		if !ok {
+			reply(ctx.Bot, ctx.ChatID, "⏳ Слишком часто. Попробуйте через "+fmtDurationRu(wait)+".\n\nℹ️ Для пользователей без роли Admin действует тайм-аут 5 минут.")
+			return
+		}
 	}
 
-	out, err := runScript("sr_agh_update_lists.sh", host, login, pass, port)
+	client, err := newAghClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Скрипт выполнен с ошибкой:\n"+truncate(out, 3500))
+		reply(ctx.Bot, ctx.ChatID, "Не заданы переменные окружения для AdGuard Home.\nНужно: AGH_HOST, AGH_PORT, AGH_LOGIN, AGH_PASSWORD\nОпционально: AGH_SCHEME (http/https)")
 		return
 	}
-	reply(ctx.Bot, ctx.ChatID, truncate(out, 3800))
+
+	updatedBlock, err := client.refreshFilters(false)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Не удалось обновить списки AdGuard Home:\n"+truncate(err.Error(), 3500))
+		return
+	}
+	updatedWhite, err := client.refreshFilters(true)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Не удалось обновить whitelist-фильтры AdGuard Home:\n"+truncate(err.Error(), 3500))
+		return
+	}
+
+	msg := "✅ Обновление списков AdGuard Home запущено.\n" +
+		"• Blocklists обновлено: " + strconv.Itoa(updatedBlock) + "\n" +
+		"• Whitelist-фильтров обновлено: " + strconv.Itoa(updatedWhite)
+
+	if !ctx.User.HasExact(RoleAdmin) {
+		msg += "\n\nℹ️ Для пользователей без роли Admin действует тайм-аут 5 минут."
+	}
+	reply(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
 }
