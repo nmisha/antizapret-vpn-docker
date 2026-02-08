@@ -70,6 +70,8 @@ func normalizeRoleString(s string) (Role, error) {
 		return RoleAdmin, nil
 	case strings.ToLower(string(RoleAiUser)):
 		return RoleAiUser, nil
+	case strings.ToLower(string(RoleNetUser)):
+		return RoleNetUser, nil
 	default:
 		return "", fmt.Errorf("unknown role: %q", s)
 	}
