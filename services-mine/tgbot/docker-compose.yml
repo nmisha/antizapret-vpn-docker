@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:1.0.8
+    image: nmisha/antizapret-vpn-tgbot:1.0.9
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
@@ -49,6 +49,9 @@ services:
       WG_HOST: "wireguard.antizapret"
       WG_PORT: "51821"
       WG_PASSWORD: "password"
+
+      NET_DNS_SERVER: "adguard.antizapret" #"antizapret_coredns"
+
 
 # curl -u "admin:ADMIN_PASSWORD" "http://<wg-easy-host>:51821/api/wireguard/client"
 

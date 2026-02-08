@@ -23,6 +23,17 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 	}
 
 	switch st.Mode {
+	case ConvNetDNSAwaitDomain:
+		// Expect a non-command message with a domain.
+		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {
+			reply(ctx.Bot, ctx.ChatID, "Введи домен обычным сообщением (или /cancel).")
+			return true
+		}
+		domain := strings.TrimSpace(fullText)
+		clearConv(ctx.ChatID, ctx.TgID)
+		netDNSResolveAndReply(ctx, domain)
+		return true
+
 	case ConvSupportAwaitText:
 		// Expect a non-command message.
 		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {

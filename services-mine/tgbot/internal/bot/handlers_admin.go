@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -16,6 +17,18 @@ func RegisterAdminHandlers(reg *CommandRegistry) {
 	// users/admin
 	reg.Command(CommandSpec{Cmd: "/users", Desc: "список пользователей и ролей", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUsers, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
 	reg.Alias("users", "/users")
+
+	// user management
+	reg.Command(CommandSpec{Cmd: "/user_add", Args: "<name> <tg_id>", Desc: "добавить пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUserAdd,
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /user_add <name> <tg_id>"),
+	)
+	reg.Alias("user_add", "/user_add")
+	reg.Command(CommandSpec{Cmd: "/user_del", Args: "<name>", Desc: "удалить пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUserDel,
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /user_del <name>"),
+	)
+	reg.Alias("user_del", "/user_del")
 
 	// roles
 	reg.Command(CommandSpec{Cmd: "/roles", Args: "[name]", Desc: "показать роли (свои; Admin может смотреть чужие)", Section: "Быстрый старт"}, handleRoles)
@@ -40,14 +53,14 @@ func RegisterAdminHandlers(reg *CommandRegistry) {
 	)
 	reg.Alias("revoke", "/revoke")
 
-	reg.Handle("/rename", handleRename,
+	reg.Command(CommandSpec{Cmd: "/rename", Args: "<old_name> <new_name>", Desc: "переименовать пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleRename,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /rename <old_name> <new_name>"),
 	)
 	reg.Alias("rename", "/rename")
 
 	// admin messaging
-	reg.Handle("/adminmsg", handleAdminMsgMenu,
+	reg.Command(CommandSpec{Cmd: "/adminmsg", Desc: "UI: написать пользователю", Section: "Админ: сообщения", NeedAny: []Role{RoleAdmin}}, handleAdminMsgMenu,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("adminmsg", "/adminmsg")
@@ -58,7 +71,7 @@ func RegisterAdminHandlers(reg *CommandRegistry) {
 	)
 	reg.Alias("broadcast", "/broadcast")
 
-	reg.Handle("/message", handleMessageUser,
+	reg.Command(CommandSpec{Cmd: "/message", Args: "<name> <text>", Desc: "написать пользователю (без UI)", Section: "Админ: сообщения", NeedAny: []Role{RoleAdmin}}, handleMessageUser,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("msg", "/message")
@@ -79,6 +92,40 @@ func handleUsers(ctx *Ctx, _ string) {
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, formatUsers(list))
+}
+
+func handleUserAdd(ctx *Ctx, arg string) {
+	fields := strings.Fields(arg)
+	if len(fields) != 2 {
+		reply(ctx.Bot, ctx.ChatID, "Формат: /user_add <name> <tg_id>")
+		return
+	}
+	name := fields[0]
+	tgID, err := strconv.ParseInt(fields[1], 10, 64)
+	if err != nil || tgID <= 0 {
+		reply(ctx.Bot, ctx.ChatID, "tg_id должен быть числом. Формат: /user_add <name> <tg_id>")
+		return
+	}
+	msg, err := ctx.UsersStore.Add(name, tgID)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
+		return
+	}
+	reply(ctx.Bot, ctx.ChatID, msg)
+}
+
+func handleUserDel(ctx *Ctx, arg string) {
+	name := strings.TrimSpace(arg)
+	if name == "" {
+		reply(ctx.Bot, ctx.ChatID, "Формат: /user_del <name>")
+		return
+	}
+	msg, err := ctx.UsersStore.DeleteByName(name)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
+		return
+	}
+	reply(ctx.Bot, ctx.ChatID, msg)
 }
 
 func handleRoles(ctx *Ctx, arg string) {

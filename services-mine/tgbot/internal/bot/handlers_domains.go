@@ -24,7 +24,7 @@ func RegisterDomainHandlers(reg *CommandRegistry) {
 	)
 	reg.Alias("list", "/list")
 
-	reg.Handle("/export", handleExport,
+	reg.Command(CommandSpec{Cmd: "/export", Desc: "экспортировать все домены", Section: "Домены", NeedAny: []Role{RoleDomainManager}}, handleExport,
 		RequireRole(RoleDomainManager, "Недостаточно прав. Нужна роль DomainManager (или Admin)."),
 	)
 	reg.Alias("export", "/export")

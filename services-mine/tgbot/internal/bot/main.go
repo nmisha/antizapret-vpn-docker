@@ -12,7 +12,8 @@ import (
 )
 
 // Run starts the Telegram bot and blocks processing updates.
-func Run() error {
+// register is a required callback that must register all commands via CommandRegistry.
+func Run(register func(reg *CommandRegistry)) error {
 	rand.Seed(time.Now().UnixNano())
 
 	token := os.Getenv("TELEGRAM_BOT_TOKEN")
@@ -68,7 +69,10 @@ func Run() error {
 	router := NewRouter()
 	reg := NewCommandRegistry(router)
 	gCmdRegistry = reg
-	RegisterAllModules(reg)
+	if register == nil {
+		return fmt.Errorf("register callback is nil")
+	}
+	register(reg)
 
 	ValidateHelpCoverage(reg)
 

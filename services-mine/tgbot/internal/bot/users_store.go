@@ -240,3 +240,74 @@ func (us *UsersStore) Rename(oldName, newName string) (string, error) {
 
 	return fmt.Sprintf("Переименован пользователь %q → %q (tg_id=%d)", oldName, newName, nu.TelegramID), nil
 }
+
+// Add creates a new user with given name and telegram id.
+// Roles are empty by default.
+func (us *UsersStore) Add(name string, tgID int64) (string, error) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+
+	key := normalizeName(name)
+	if key == "" {
+		return "", fmt.Errorf("name required")
+	}
+	if tgID <= 0 {
+		return "", fmt.Errorf("telegram_id required")
+	}
+
+	snap, err := us.loadUnlocked()
+	if err != nil {
+		return "", err
+	}
+	if _, exists := snap.ByName[key]; exists {
+		return "", fmt.Errorf("name %q already exists", name)
+	}
+	if _, exists := snap.ByID[tgID]; exists {
+		return "", fmt.Errorf("telegram_id %d already exists", tgID)
+	}
+
+	u := User{Name: key, TelegramID: tgID, RolesRaw: []string{}}
+	nu, err := normalizeUser(u)
+	if err != nil {
+		return "", err
+	}
+
+	list := append(snap.List, nu)
+	if err := us.saveUnlocked(list); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Добавлен пользователь %q (tg_id=%d)", nu.Name, nu.TelegramID), nil
+}
+
+// DeleteByName removes a user by name.
+func (us *UsersStore) DeleteByName(name string) (string, error) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+
+	key := normalizeName(name)
+	if key == "" {
+		return "", fmt.Errorf("name required")
+	}
+
+	snap, err := us.loadUnlocked()
+	if err != nil {
+		return "", err
+	}
+	if _, exists := snap.ByName[key]; !exists {
+		return "", fmt.Errorf("user %q not found", name)
+	}
+
+	out := make([]User, 0, len(snap.List))
+	var tgID int64
+	for _, u := range snap.List {
+		if u.Name == key {
+			tgID = u.TelegramID
+			continue
+		}
+		out = append(out, u)
+	}
+	if err := us.saveUnlocked(out); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("Удалён пользователь %q (tg_id=%d)", key, tgID), nil
+}
