@@ -93,7 +93,7 @@ func netDNSResolveAndReply(ctx *Ctx, domain string) {
 		tag := classifyIP(ipStr)
 		lines = append(lines, fmt.Sprintf("• <code>%s</code> — %s", html.EscapeString(ipStr), html.EscapeString(tag)))
 	}
-	lines = append(lines, fmt.Sprintf("• DNS: <code>%s</code>", html.EscapeString(server)))
+//	lines = append(lines, fmt.Sprintf("• DNS: <code>%s</code>", html.EscapeString(server)))
 
 	m := tgbotapi.NewMessage(ctx.ChatID, strings.Join(lines, "\n"))
 	m.ParseMode = "HTML"
