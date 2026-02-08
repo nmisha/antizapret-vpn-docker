@@ -13,7 +13,9 @@ import (
 )
 
 func RegisterNetHandlers(reg *CommandRegistry) {
-	reg.Handle("/net_dns_resolve", handleNetDNSResolve, RequireRole(RoleNetUser, "Недостаточно прав.")) // works in private & groups
+	reg.Command(CommandSpec{Cmd: "/net_dns_resolve", Args: "[domain]", Desc: "DNS resolve (через заданный DNS-сервер)", Section: "Сеть", NeedAny: []Role{RoleNetUser}}, handleNetDNSResolve,
+		RequireRole(RoleNetUser, "Недостаточно прав."),
+	)
 	reg.Alias("net_dns_resolve", "/net_dns_resolve")
 }
 
