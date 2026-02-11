@@ -187,7 +187,7 @@ Some containers have same ports. So you need to choose unique external port in d
    ```
 2. Update clients:
    - Wireguard/Amnezia - need to download new client configs, or add `14.16.0.0/14` to AllowedIps manually in old configs.
-   - OpenVPN - all is done automatically. Some clients require reboot (ASUS routers, for example).
+   - OpenVPN - need to click save at openvpn-ui server config page: http://openvpn-ui.antizapret:8080/ov/config/ and then restart openvpn server.
 
 ## Reset:
 Remove all settings, vpn configs and return initial state of service:
