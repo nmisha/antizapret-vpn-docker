@@ -109,7 +109,7 @@ filters:
     url: http://az-local.antizapret/list/?allow=0&suffix=0&url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/dns.txt
     name: Block DOH DNS
     id: 3
-  - enabled: true
+  - enabled: false
     url: http://az-local.antizapret/list/?file=/root/antizapret/config/custom/include-hosts-custom.txt
     name: Custom Local Rules
     id: 4
@@ -165,6 +165,10 @@ filters:
     url: http://az-local.antizapret/list/?filter_dist=0&filter_custom=1&url=https://github.com/kablag/addPath/raw/refs/heads/main/path
     name: Dist Local Rules KABLAG
     id: 20001
+  - enabled: false
+    url: http://az-world.antizapret/list/?filter_dist=0&filter_custom=1&url=https://raw.githubusercontent.com/kablag/addPath/refs/heads/main/pathout
+    name: Dist World Rules KABLAG
+    id: 20002
 
 
   - enabled: true
