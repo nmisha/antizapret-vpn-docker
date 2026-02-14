@@ -1,0 +1,41 @@
+:local wgIf "wg-NL-VPS-V5";
+:local rt "wg-vps-6";
+:local listName "wg-vps-6";
+:local tag ("AZ-" . $rt);
+
+# 0) sanity: WG interface exists
+:if ([:len [/interface/wireguard find where name=$wgIf]] = 0) do={ :error ("WireGuard interface not found: " . $wgIf) }
+
+# 1) create routing table if missing
+:if ([:len [/routing/table find where name=$rt]] = 0) do={ /routing/table add name=$rt fib }
+
+# 2) cleanup old objects (by comment/tag/name)
+# routing rule(s)
+/routing/rule remove [find where comment=$tag]
+# mangle rule(s)
+/ip/firewall/mangle remove [find where comment=$tag]
+# optional: old default route in that table (only those we tagged)
+/ip/route remove [find where routing-table=$rt and comment=$tag]
+# optional: old NAT rule (tagged)
+/ip/firewall/nat remove [find where comment=$tag]
+
+# 3) default route in WG table (selective tunnel works because only marked traffic uses this table)
+#    NOTE: keep WAN default in main untouched
+/ip/route add dst-address=0.0.0.0/0 gateway=$wgIf routing-table=$rt distance=1 comment=$tag
+
+# 4) mark routing for destinations in address-list (LAN->any)
+#    If you also want router-originated traffic (DNS/ntp/update) to follow, add OUTPUT rule below.
+/ip/firewall/mangle add chain=prerouting dst-address-list=$listName \
+  action=mark-routing new-routing-mark=$rt passthrough=no comment=$tag
+
+# 4b) (optional) also mark router-originated traffic to these dst (uncomment if needed)
+# /ip/firewall/mangle add chain=output dst-address-list=$listName \
+#   action=mark-routing new-routing-mark=$rt passthrough=no comment=$tag
+
+# 5) routing rule: marked traffic -> lookup in WG table
+/routing/rule add routing-mark=$rt action=lookup table=$rt comment=$tag
+
+# 6) NAT (usually required so clients behind RouterOS work through WG)
+/ip/firewall/nat add chain=srcnat out-interface=$wgIf action=masquerade comment=$tag
+
+:log info ("Selective WG ready: table/mark=" . $rt . " list=" . $listName . " gw=" . $wgIf);
