@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:1.1.1
+    image: nmisha/antizapret-vpn-tgbot:6.0.0
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
