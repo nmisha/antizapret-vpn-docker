@@ -58,7 +58,7 @@ func netDNSResolveAndReply(ctx *Ctx, domain string) {
 
 	server := strings.TrimSpace(os.Getenv("NET_DNS_SERVER"))
 	if server == "" {
-		server = "10.224.0.1:53"
+		server = "14.16.0.1:53"
 	}
 	// Allow providing only IP, without port.
 	if !strings.Contains(server, ":") {
@@ -91,7 +91,8 @@ func netDNSResolveAndReply(ctx *Ctx, domain string) {
 	for _, a := range addrs {
 		ipStr := a.IP.String()
 		tag := classifyIP(ipStr)
-		lines = append(lines, fmt.Sprintf("• <code>%s</code> — %s", html.EscapeString(ipStr), html.EscapeString(tag)))
+//		lines = append(lines, fmt.Sprintf("• <code>%s</code> — %s", html.EscapeString(ipStr), html.EscapeString(tag)))
+		lines = append(lines, fmt.Sprintf("• <code>%s</code> — %s", html.EscapeString("<hidden>"), html.EscapeString(tag)))
 	}
 //	lines = append(lines, fmt.Sprintf("• DNS: <code>%s</code>", html.EscapeString(server)))
 
@@ -104,10 +105,10 @@ func netDNSResolveAndReply(ctx *Ctx, domain string) {
 
 func classifyIP(ipStr string) string {
 	// MSK / NL by prefix for 10.224 / 10.226
-	if strings.HasPrefix(ipStr, "10.224.") {
+	if strings.HasPrefix(ipStr, "14.16.") {
 		return "MSK-Node"
 	}
-	if strings.HasPrefix(ipStr, "10.226.") {
+	if strings.HasPrefix(ipStr, "14.18.") {
 		return "NL-Node"
 	}
 
