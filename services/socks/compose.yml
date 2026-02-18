@@ -1,6 +1,6 @@
 services:
   socks:
-    image: xtrime/antizapret-vpn-socks:6.0.1
+    image: xtrime/antizapret-vpn-socks:6.0.2
     init: true
     build:
       context: .
