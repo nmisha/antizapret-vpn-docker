@@ -440,7 +440,9 @@ Openvpn
 - `AZ_SUBNET=14.16.0.0/14` - subnet for virtual blocked ips.
 
 Openvpn-ui
-- `OPENVPN_ADMIN_PASSWORD=` — will be used as a server address in .ovpn profiles upon keys generation (default: your server's IP)
+- `OPENVPN_ADMIN_USERNAME=` - replace default username with your username
+- `OPENVPN_ADMIN_PASSWORD=` - replace default password with your password
+- `OPENVPN_EXTERNAL_IP` - external ip of your server, by default detected automatically
 - `OPENVPN_DNS=14.16.0.1` - DNS address for clients. Must be in `ANTIZAPRET_SUBNET`
 - `OPENVPN_LOCAL_IP_RANGE=10.1.165.0` - subnet for ovpn clients. Subnet can be viewed in adguard journal or in ovpn-ui panel
 
