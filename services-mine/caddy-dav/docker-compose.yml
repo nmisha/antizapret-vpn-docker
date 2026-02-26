@@ -1,0 +1,52 @@
+services:
+  caddy-dav:
+    # image: yourrepo/caddy-dav-wrapper:latest
+    image: nmisha/antizapret-caddy-dav:6.0.0
+#    container_name: tg-domain-bot
+    hostname: caddy-dav.antizapret
+    restart: unless-stopped
+
+    init: true
+    build:
+      context: .
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    logging:
+      driver: json-file
+      options:
+        max-size: 100k
+        max-file: 2
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        # constraints: [ node.labels.location == world ]
+        constraints: [ node.labels.location == local ]
+      # restart_policy:
+      #   condition: on-failure
+
+    environment:
+      DAV_ROOT: /data
+      DAV_LISTEN: ":80"
+      DAV_BROWSE: "true"
+      DAV_PREFIX: "/"         # или "/dav"
+      DAV_READONLY: "false"
+    volumes:
+      # - type: bind
+      #   source: /mnt/files
+      #   target: /data
+      # опционально: если хочешь сохранять сгенеренный Caddyfile на хосте:
+      # - type: bind
+      #   source: /opt/caddy
+      #   target: /etc/caddy
+        # read_only: true
+
+      - /etc/localtime:/etc/localtime:ro
+      # - $PWD/config-mine/tgbot:/data:rw
+      # - $PWD/config/antizapret/custom:/custom
+      - type: bind
+        source: $PWD/config/antizapret/custom
+        target: /data
