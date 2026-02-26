@@ -32,8 +32,8 @@ services:
       DAV_ROOT: /data
       DAV_LISTEN: ":80"
       DAV_BROWSE: "true"
-      DAV_PREFIX: "/"         # или "/dav"
-      DAV_READONLY: "false"
+      DAV_PATH: "/"          # или "/dav"
+      # DAV_READONLY: "false"
     volumes:
       # - type: bind
       #   source: /mnt/files
