@@ -15,6 +15,11 @@ import (
 const confirmCbPrefix = "confirm:"
 
 func sendConfirm(ctx *Ctx, prompt string, kind string, payload string) {
+	if kind == "domain:del" {
+		handleConfirmCallback(ctx, confirmCbPrefix+kind+":"+url.QueryEscape(payload))
+		return
+	}
+
 	cb := confirmCbPrefix + kind + ":" + url.QueryEscape(payload)
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
