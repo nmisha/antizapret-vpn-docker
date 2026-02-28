@@ -109,6 +109,7 @@ filters:
     url: http://az-local.antizapret/list/?allow=0&suffix=0&url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/dns.txt
     name: Block DOH DNS
     id: 3
+
   - enabled: false
     url: http://az-local.antizapret/list/?file=/root/antizapret/config/custom/include-hosts-custom.txt
     name: Custom Local Rules
@@ -117,6 +118,16 @@ filters:
     url: http://az-world.antizapret/list/?file=/root/antizapret/config/custom/include-hosts-custom.txt
     name: Custom World Rules
     id: 5
+
+  # - enabled: false
+  #   url: http://az-local.antizapret/list/?filter_dist=0&filter_custom=1&url=http://caddy-dav.antizapret/include-hosts-custom.txt
+  #   name: Custom Local Rules
+  #   id: 4
+  # - enabled: true
+  #   url: http://az-world.antizapret/list/?filter_dist=0&filter_custom=1&url=http://caddy-dav.antizapret/include-hosts-custom.txt
+  #   name: Custom World Rules
+  #   id: 5
+
   - enabled: true
     url: http://az-local.antizapret/list/?url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/local.txt
     name: Dist Local Rules
