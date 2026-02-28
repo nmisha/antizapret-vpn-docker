@@ -39,6 +39,7 @@ services:
     depends_on:
       - coredns
       - az-local
+      # - caddy-dav
     environment:
       - |
         ROUTES=
