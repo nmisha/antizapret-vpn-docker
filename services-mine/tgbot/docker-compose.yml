@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:6.0.1
+    image: nmisha/antizapret-vpn-tgbot:6.0.2
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
@@ -31,6 +31,8 @@ services:
       USERS_FILE: /data/users.json
       # DOMAINS_FILE: /data/domains.txt
       DOMAINS_FILE: /custom/include-hosts-custom.txt
+      DOMAINS_LOCAL_FILE: /custom/include-hosts-custom.txt
+      DOMAINS_WORLD_FILE: /custom/include-hosts-custom.txt
       ACCOUNTS_FILE: /data/accounts.json
 
       # TARGET_SWARM_SERVICE: "your_swarm_service_name"
