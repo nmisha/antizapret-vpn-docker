@@ -37,13 +37,17 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 	if !strings.HasPrefix(data, confirmCbPrefix) {
 		return false
 	}
-	parts := strings.SplitN(strings.TrimPrefix(data, confirmCbPrefix), ":", 2)
-	if len(parts) != 2 {
+	rest := strings.TrimPrefix(data, confirmCbPrefix)
+	// kind itself may contain ':' (e.g. "domain:del").
+	// payload is URL-escaped, so ':' inside payload will be encoded and won't
+	// interfere with splitting.
+	idx := strings.LastIndex(rest, ":")
+	if idx <= 0 || idx >= len(rest)-1 {
 		reply(ctx.Bot, ctx.ChatID, "Некорректный запрос подтверждения.")
 		return true
 	}
-	kind := parts[0]
-	payloadEsc := parts[1]
+	kind := rest[:idx]
+	payloadEsc := rest[idx+1:]
 	payload, _ := url.QueryUnescape(payloadEsc)
 
 	switch kind {
