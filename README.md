@@ -113,7 +113,7 @@ Find full example in [docker-compose.override.sample.yml](./docker-compose.overr
 ```
 
 ## Docker Swarm, multiple exit nodes (Advanced)
-Version 5 comes with ability to forward traffic to different exit nodes for different domains. 
+Version 5 and 6 comes with ability to forward traffic to different exit nodes for different domains. 
 For example, YouTube works best if exit node is close to client and other services require foreign IP to work. 
 Docker swarm is used to build unified network between containers.
 
@@ -141,7 +141,7 @@ Some of the sites, which use geoip to block users, will be proxied through **for
     ```
 1. [Primary] Add labels for nodes `docker node update --label-add location=local az-local && docker node update --label-add location=world az-world`
 1. [Primary, Secondary]: create config folders on **both nodes**: ```docker compose pull; docker compose up -d; sleep 60; docker compose down;```
-1. [Primary]: start swarm `docker compose config | docker run --rm -i xtrime/antizapret-vpn:5 compose2swarm | docker stack deploy --prune -c - antizapret `
+1. [Primary]: start swarm `docker compose config | docker run --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret `
 
 ## After installation
 1. Make sure Secure DNS is disabled in your browser settings. 
@@ -349,7 +349,7 @@ To disable authentication, omit `SOCKS_USERNAME` and `SOCKS_PASSWORD` (or leave 
 
 ### Configuration
 
-Add Dante services to `docker-compose.override.yml`:
+Add socks5 services to `docker-compose.override.yml`:
 ```yml
   socks-local:
     hostname: socks-local.antizapret
@@ -389,11 +389,11 @@ Add Dante services to `docker-compose.override.yml`:
 
 1. Connect to VPN
 2. Configure SOCKS5 proxy in your application or proxy manager:
-   - **Host:** `socks-local.antizapret` or `socks-world.antizapret`
-   - **Port:** `8118`
-   - **Type:** SOCKS5
-   - **Username:** value of `SOCKS_USERNAME`
-   - **Password:** value of `SOCKS_PASSWORD`
+    - **Host:** `socks-local.antizapret` or `socks-world.antizapret`
+    - **Port:** `8118`
+    - **Type:** SOCKS5
+    - **Username:** value of `SOCKS_USERNAME`
+    - **Password:** value of `SOCKS_PASSWORD`
 
 ### Example use cases
 
@@ -440,7 +440,9 @@ Openvpn
 - `AZ_SUBNET=14.16.0.0/14` - subnet for virtual blocked ips.
 
 Openvpn-ui
-- `OPENVPN_ADMIN_PASSWORD=` — will be used as a server address in .ovpn profiles upon keys generation (default: your server's IP)
+- `OPENVPN_ADMIN_USERNAME=` - replace default username with your username
+- `OPENVPN_ADMIN_PASSWORD=` - replace default password with your password
+- `OPENVPN_EXTERNAL_IP` - external ip of your server, by default detected automatically
 - `OPENVPN_DNS=14.16.0.1` - DNS address for clients. Must be in `ANTIZAPRET_SUBNET`
 - `OPENVPN_LOCAL_IP_RANGE=10.1.165.0` - subnet for ovpn clients. Subnet can be viewed in adguard journal or in ovpn-ui panel
 
