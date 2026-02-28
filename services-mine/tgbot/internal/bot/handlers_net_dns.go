@@ -91,8 +91,8 @@ func netDNSResolveAndReply(ctx *Ctx, domain string) {
 	for _, a := range addrs {
 		ipStr := a.IP.String()
 		tag := classifyIP(ipStr)
-//		lines = append(lines, fmt.Sprintf("• <code>%s</code> — %s", html.EscapeString(ipStr), html.EscapeString(tag)))
-		lines = append(lines, fmt.Sprintf("• <code>%s</code> — %s", html.EscapeString("<hidden>"), html.EscapeString(tag)))
+		lines = append(lines, fmt.Sprintf("• <code>%s</code> — %s", html.EscapeString(ipStr), html.EscapeString(tag)))
+		// lines = append(lines, fmt.Sprintf("• <code>%s</code> — %s", html.EscapeString("<hidden>"), html.EscapeString(tag)))
 	}
 //	lines = append(lines, fmt.Sprintf("• DNS: <code>%s</code>", html.EscapeString(server)))
 
@@ -106,10 +106,12 @@ func netDNSResolveAndReply(ctx *Ctx, domain string) {
 func classifyIP(ipStr string) string {
 	// MSK / NL by prefix for 10.224 / 10.226
 	if strings.HasPrefix(ipStr, "14.16.") {
-		return "MSK-Node"
+		// return "MSK-Node"
+		return "NEAR-Node"
 	}
 	if strings.HasPrefix(ipStr, "14.18.") {
-		return "NL-Node"
+		// return "NL-Node"
+		return "FAR-Node"
 	}
 
 	ip := net.ParseIP(ipStr)
