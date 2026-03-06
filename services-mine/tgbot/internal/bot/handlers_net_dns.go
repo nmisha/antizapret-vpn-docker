@@ -104,6 +104,10 @@ func netDNSResolveAndReply(ctx *Ctx, domain string) {
 }
 
 func classifyIP(ipStr string) string {
+	if ipStr == "0.0.0.0" {
+		return "Blocked"
+	}
+
 	// MSK / NL by prefix for 10.224 / 10.226
 	if strings.HasPrefix(ipStr, "14.16.") {
 		// return "MSK-Node"
