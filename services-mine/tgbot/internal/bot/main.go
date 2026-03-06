@@ -146,21 +146,25 @@ func Run(register func(reg *CommandRegistry)) error {
 			continue
 		}
 
-		cmd, arg := splitCmd(text)
+		cmd, arg, argStartUTF16 := splitCmdMeta(text)
+		argEntities := sliceEntitiesForSuffix(update.Message.Entities, argStartUTF16)
 
 		ctx := &Ctx{
-			Bot:        bot,
-			ChatID:     chatID,
-			MessageID:  update.Message.MessageID,
-			TgID:       tgID,
-			User:       user,
-			UsersStore: usersStore,
-			Domains:    store,
-			Accounts:   accountsStore,
-			IsPrivate:  isPriv,
-			ChatType:   chatType,
-			ChatTitle:  chatTitle,
-			FromUser:   fromLabel,
+			Bot:             bot,
+			ChatID:          chatID,
+			MessageID:       update.Message.MessageID,
+			TgID:            tgID,
+			User:            user,
+			UsersStore:      usersStore,
+			Domains:         store,
+			Accounts:        accountsStore,
+			IsPrivate:       isPriv,
+			ChatType:        chatType,
+			ChatTitle:       chatTitle,
+			FromUser:        fromLabel,
+			MessageText:     text,
+			MessageEntities: update.Message.Entities,
+			ArgEntities:     argEntities,
 		}
 
 		// pending wg admin actions (rename/add)

@@ -189,7 +189,7 @@ func handleAdminMessagingCallback(ctx *Ctx, data string) {
 			clearConv(ctx.ChatID, ctx.TgID)
 			return
 		}
-		sendBroadcast(ctx, s.Draft)
+		sendBroadcast(ctx, s.Draft, nil)
 		clearConv(ctx.ChatID, ctx.TgID)
 		return
 
@@ -241,7 +241,7 @@ func handleAdminMessagingCallback(ctx *Ctx, data string) {
 			clearConv(ctx.ChatID, ctx.TgID)
 			return
 		}
-		sendAdminMessageToUser(ctx, s.TargetID, s.TargetName, s.Draft)
+		sendAdminMessageToUser(ctx, s.TargetID, s.TargetName, s.Draft, nil)
 		clearConv(ctx.ChatID, ctx.TgID)
 		return
 	}

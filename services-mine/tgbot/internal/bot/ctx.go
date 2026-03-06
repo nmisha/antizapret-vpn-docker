@@ -21,6 +21,9 @@ type Ctx struct {
 	FromUser string
 
 	// middleware/runtime
-	Cmd    string
-	Fields []string
+	Cmd             string
+	Fields          []string
+	MessageText     string
+	MessageEntities []tgbotapi.MessageEntity
+	ArgEntities     []tgbotapi.MessageEntity
 }

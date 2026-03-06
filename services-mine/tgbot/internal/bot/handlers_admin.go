@@ -232,14 +232,14 @@ func handleRename(ctx *Ctx, arg string) {
 }
 
 func handleBroadcast(ctx *Ctx, arg string) {
-	text := strings.TrimSpace(arg)
+	text := arg
 	if text == "" {
 		// Soft UI
 		startAdminBroadcastUI(ctx)
 		return
 	}
 
-	sendBroadcast(ctx, text)
+	sendBroadcast(ctx, text, ctx.ArgEntities)
 }
 
 func handleMessageUser(ctx *Ctx, arg string) {
@@ -254,8 +254,7 @@ func handleMessageUser(ctx *Ctx, arg string) {
 		return
 	}
 	target := fields[0]
-	text := strings.TrimSpace(arg[len(target):])
-	text = strings.TrimSpace(text)
+	text, textEntities := parseRemainderAfterFirstToken(arg, ctx.ArgEntities)
 	if text == "" {
 		reply(ctx.Bot, ctx.ChatID, "Формат: /message <name> <сообщение>")
 		return
@@ -271,10 +270,10 @@ func handleMessageUser(ctx *Ctx, arg string) {
 		return
 	}
 
-	sendAdminMessageToUser(ctx, u.TelegramID, u.Name, text)
+	sendAdminMessageToUser(ctx, u.TelegramID, u.Name, text, textEntities)
 }
 
-func sendBroadcast(ctx *Ctx, text string) {
+func sendBroadcast(ctx *Ctx, text string, entities []tgbotapi.MessageEntity) {
 	users, err := ctx.UsersStore.ListUsers()
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
@@ -284,7 +283,9 @@ func sendBroadcast(ctx *Ctx, text string) {
 	sent, failed := 0, 0
 	failLines := make([]string, 0, 8)
 	for _, u := range users {
-		m := tgbotapi.NewMessage(u.TelegramID, "📢 Сообщение от администратора:\n\n"+text)
+		body, bodyEntities := prependAndShiftEntities("📢 Сообщение от администратора:\n\n", text, entities)
+		m := tgbotapi.NewMessage(u.TelegramID, body)
+		m.Entities = bodyEntities
 		m.DisableWebPagePreview = true
 		if _, e := ctx.Bot.Send(m); e == nil {
 			sent++
@@ -308,12 +309,36 @@ func sendBroadcast(ctx *Ctx, text string) {
 	}
 }
 
-func sendAdminMessageToUser(ctx *Ctx, targetID int64, targetName, text string) {
-	m := tgbotapi.NewMessage(targetID, "✉️ Сообщение от администратора:\n\n"+text)
+func sendAdminMessageToUser(ctx *Ctx, targetID int64, targetName, text string, entities []tgbotapi.MessageEntity) {
+	body, bodyEntities := prependAndShiftEntities("✉️ Сообщение от администратора:\n\n", text, entities)
+	m := tgbotapi.NewMessage(targetID, body)
+	m.Entities = bodyEntities
 	m.DisableWebPagePreview = true
 	if _, e := ctx.Bot.Send(m); e != nil {
 		reply(ctx.Bot, ctx.ChatID, fmt.Sprintf("Не удалось отправить %s (%d): %v", targetName, targetID, e))
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, "Отправлено пользователю: "+targetName)
+}
+
+func parseRemainderAfterFirstToken(arg string, entities []tgbotapi.MessageEntity) (string, []tgbotapi.MessageEntity) {
+	if arg == "" {
+		return "", nil
+	}
+	i := strings.IndexAny(arg, " \t\r\n")
+	if i < 0 {
+		return "", nil
+	}
+	j := i
+	for j < len(arg) {
+		switch arg[j] {
+		case ' ', '\t', '\r', '\n':
+			j++
+		default:
+			text := arg[j:]
+			startUTF16 := utf16Len(arg[:j])
+			return text, sliceEntitiesForSuffix(entities, startUTF16)
+		}
+	}
+	return "", nil
 }

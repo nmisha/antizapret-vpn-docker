@@ -2,7 +2,6 @@ package bot
 
 import (
 	"fmt"
-	"html"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -22,11 +21,11 @@ func handleSupport(ctx *Ctx, arg string) {
 		return
 	}
 
-	sendSupportMessage(ctx, msg)
+	sendSupportMessage(ctx, msg, ctx.ArgEntities)
 }
 
 // sendSupportMessage forwards a support request to all users with the Support role.
-func sendSupportMessage(ctx *Ctx, msg string) {
+func sendSupportMessage(ctx *Ctx, msg string, entities []tgbotapi.MessageEntity) {
 
 	users, err := ctx.UsersStore.ListUsers()
 	if err != nil {
@@ -49,16 +48,16 @@ func sendSupportMessage(ctx *Ctx, msg string) {
 			}
 		}
 
-		body := fmt.Sprintf(
-			"🆘 <b>Support request</b>\nFrom: <b>%s</b> (tg_id=%d)\nChat: %s (chat_id=%d)\n\n%s",
-			html.EscapeString(ctx.User.Name),
+		prefix := fmt.Sprintf(
+			"🆘 Support request\nFrom: %s (tg_id=%d)\nChat: %s (chat_id=%d)\n\n",
+			ctx.User.Name,
 			ctx.TgID,
-			html.EscapeString(source),
+			source,
 			ctx.ChatID,
-			html.EscapeString(msg),
 		)
+		body, bodyEntities := prependAndShiftEntities(prefix, msg, entities)
 		m := tgbotapi.NewMessage(u.TelegramID, body)
-		m.ParseMode = "HTML"
+		m.Entities = bodyEntities
 		m.DisableWebPagePreview = true
 		if _, e := ctx.Bot.Send(m); e == nil {
 			sent++
