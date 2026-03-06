@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	qrcode "github.com/skip2/go-qrcode"
 )
 
 const (
@@ -229,18 +230,24 @@ func sendWgConfigAsFile(ctx *Ctx, client *wgEasyClient, peerID string) {
 }
 
 func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
-	data, err := client.getQRCodeSVG(peerID)
+	confData, _, err := client.getConfiguration(peerID)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить QR:\n"+truncate(err.Error(), 3500))
+		reply(ctx.Bot, ctx.ChatID, "Failed to get QR data:\n"+truncate(err.Error(), 3500))
 		return
 	}
-	// SVG лучше отправлять документом
-	doc := tgbotapi.NewDocument(ctx.ChatID, tgbotapi.FileBytes{Name: "qrcode.svg", Bytes: data})
-	doc.Caption = "WireGuard QR (SVG)"
-	_, err = ctx.Bot.Send(doc)
+
+	// Generate PNG QR from WireGuard config so Telegram renders it as an image in chat.
+	pngData, err := qrcode.Encode(string(confData), qrcode.Medium, 512)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Failed to generate QR:\n"+truncate(err.Error(), 3500))
+		return
+	}
+
+	photo := tgbotapi.NewPhoto(ctx.ChatID, tgbotapi.FileBytes{Name: "qrcode.png", Bytes: pngData})
+	photo.Caption = "WireGuard QR"
+	_, err = ctx.Bot.Send(photo)
 	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
-
 func sendWgStatsForPeerID(ctx *Ctx, client *wgEasyClient, peerID string) {
 	peers, err := client.listPeers()
 	if err != nil {
