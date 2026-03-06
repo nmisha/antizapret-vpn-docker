@@ -77,7 +77,7 @@ func handleLogShow(ctx *Ctx, _ string) {
 		reply(ctx.Bot, ctx.ChatID, "Лог пуст.")
 		return
 	}
-	reply(ctx.Bot, ctx.ChatID, text)
+	sendTextChunks(ctx.Bot, ctx.ChatID, text)
 }
 
 func handleLogTailSet(ctx *Ctx, arg string) {
