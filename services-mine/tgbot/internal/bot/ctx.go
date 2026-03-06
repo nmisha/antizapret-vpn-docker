@@ -5,7 +5,6 @@ import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 type Ctx struct {
 	Bot        *tgbotapi.BotAPI
 	ChatID     int64
-	MessageID  int
 	TgID       int64
 	User       User
 	UsersStore *UsersStore
