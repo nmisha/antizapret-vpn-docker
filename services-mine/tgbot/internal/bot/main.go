@@ -152,7 +152,6 @@ func Run(register func(reg *CommandRegistry)) error {
 		ctx := &Ctx{
 			Bot:             bot,
 			ChatID:          chatID,
-			MessageID:       update.Message.MessageID,
 			TgID:            tgID,
 			User:            user,
 			UsersStore:      usersStore,

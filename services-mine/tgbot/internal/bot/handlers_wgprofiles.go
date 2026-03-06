@@ -244,7 +244,16 @@ func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 	}
 
 	photo := tgbotapi.NewPhoto(ctx.ChatID, tgbotapi.FileBytes{Name: "qrcode.png", Bytes: pngData})
-	photo.Caption = "WireGuard QR"
+	caption := "WireGuard QR"
+	if peers, listErr := client.listPeers(); listErr == nil {
+		for _, p := range peers {
+			if p.ID == peerID && strings.TrimSpace(p.Name) != "" {
+				caption = p.Name
+				break
+			}
+		}
+	}
+	photo.Caption = caption
 	_, err = ctx.Bot.Send(photo)
 	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
