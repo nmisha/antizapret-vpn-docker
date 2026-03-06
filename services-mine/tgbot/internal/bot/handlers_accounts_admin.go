@@ -5,29 +5,36 @@ import (
 )
 
 func RegisterAdminAccountsHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/acc_list", Args: "", Desc: "список учётных записей", Section: "Админ: аккаунты", NeedAny: []Role{RoleAdmin}}, handleAccList, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/acc_list", Args: "", Desc: "список учётных записей", Section: "Админ: аккаунты", NeedAny: []Role{RoleAdmin}}, handleAccList,
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequirePrivateWithOpenDM("Команда /acc_list доступна только в личных сообщениях с ботом."),
+	)
 	reg.Alias("acc_list", "/acc_list")
 
 	reg.Command(CommandSpec{Cmd: "/acc_add", Args: "<name> <login> <password>", Desc: "добавить/обновить учётную запись", Section: "Админ: аккаунты", NeedAny: []Role{RoleAdmin}}, handleAccAdd,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequirePrivateWithOpenDM("Команда /acc_add доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /acc_add <name> <login> <password>"),
 	)
 	reg.Alias("acc_add", "/acc_add")
 
 	reg.Command(CommandSpec{Cmd: "/acc_del", Args: "<name>", Desc: "удалить учётную запись", Section: "Админ: аккаунты", NeedAny: []Role{RoleAdmin}}, handleAccDel,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequirePrivateWithOpenDM("Команда /acc_del доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /acc_del <name>"),
 	)
 	reg.Alias("acc_del", "/acc_del")
 
 	reg.Command(CommandSpec{Cmd: "/acc_rename", Args: "<old_name> <new_name>", Desc: "переименовать учётную запись", Section: "Админ: аккаунты", NeedAny: []Role{RoleAdmin}}, handleAccRename,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequirePrivateWithOpenDM("Команда /acc_rename доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /acc_rename <old_name> <new_name>"),
 	)
 	reg.Alias("acc_rename", "/acc_rename")
 
 	reg.Command(CommandSpec{Cmd: "/acc_set", Args: "<name> <login> <password>", Desc: "обновить логин/пароль учётной записи", Section: "Админ: аккаунты", NeedAny: []Role{RoleAdmin}}, handleAccSet,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequirePrivateWithOpenDM("Команда /acc_set доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /acc_set <name> <login> <password>"),
 	)
 	reg.Alias("acc_set", "/acc_set")

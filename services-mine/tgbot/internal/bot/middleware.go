@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"fmt"
 	"log"
 	"strings"
 	"time"
@@ -87,6 +88,44 @@ func RequirePrivate(msg string) Middleware {
 			reply(ctx.Bot, ctx.ChatID, msg)
 		}
 	}
+}
+
+// RequirePrivateWithOpenDM limits command usage to private chat and suggests opening DM.
+func RequirePrivateWithOpenDM(msg string) Middleware {
+	return func(next HandlerFunc) HandlerFunc {
+		return func(ctx *Ctx, arg string) {
+			if ctx.IsPrivate {
+				next(ctx, arg)
+				return
+			}
+			if msg == "" {
+				msg = "Эта команда доступна только в личных сообщениях с ботом."
+			}
+			replyWithOpenDMButton(ctx, msg)
+		}
+	}
+}
+
+func replyWithOpenDMButton(ctx *Ctx, intro string) {
+	username := ctx.Bot.Self.UserName
+	if username == "" {
+		reply(ctx.Bot, ctx.ChatID, intro)
+		return
+	}
+
+	url := fmt.Sprintf("https://t.me/%s", username)
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonURL("Открыть личку", url),
+		},
+		[]tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("Отмена", "ui:cancel"),
+		},
+	)
+	m := tgbotapi.NewMessage(ctx.ChatID, intro+"\n\nНажми кнопку ниже:")
+	m.ReplyMarkup = kb
+	_, err := ctx.Bot.Send(m)
+	logSendErrorIfEnabled(ctx.ChatID, err, "send message", m.Text)
 }
 
 func WithTyping() Middleware {
