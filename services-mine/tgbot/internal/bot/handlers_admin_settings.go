@@ -6,39 +6,39 @@ import (
 )
 
 func RegisterAdminSettingsHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/log", Args: "", Desc: "показать последние строки лога", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogShow, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log", Args: "", Desc: "показать последние строки лога", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogShow, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log доступна только в личных сообщениях с ботом."))
 	reg.Alias("log", "/log")
 
-	reg.Command(CommandSpec{Cmd: "/log_tail", Args: "<N>", Desc: "настроить сколько строк показывает /log", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogTailSet, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log_tail", Args: "<N>", Desc: "настроить сколько строк показывает /log", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogTailSet, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log_tail доступна только в личных сообщениях с ботом."))
 	reg.Alias("log_tail", "/log_tail")
 
-	reg.Command(CommandSpec{Cmd: "/log_clear", Args: "", Desc: "очистить лог", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogClear, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log_clear", Args: "", Desc: "очистить лог", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogClear, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log_clear доступна только в личных сообщениях с ботом."))
 	reg.Alias("log_clear", "/log_clear")
 
 	// Split logging toggles:
-	reg.Command(CommandSpec{Cmd: "/log_errors_on", Args: "", Desc: "включить логирование ошибок", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogErrorsOn, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log_errors_on", Args: "", Desc: "включить логирование ошибок", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogErrorsOn, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log_errors_on доступна только в личных сообщениях с ботом."))
 	reg.Alias("log_errors_on", "/log_errors_on")
-	reg.Command(CommandSpec{Cmd: "/log_errors_off", Args: "", Desc: "выключить логирование ошибок", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogErrorsOff, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log_errors_off", Args: "", Desc: "выключить логирование ошибок", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogErrorsOff, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log_errors_off доступна только в личных сообщениях с ботом."))
 	reg.Alias("log_errors_off", "/log_errors_off")
 
-	reg.Command(CommandSpec{Cmd: "/log_cmd_on", Args: "", Desc: "включить логирование команд", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogCmdOn, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log_cmd_on", Args: "", Desc: "включить логирование команд", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogCmdOn, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log_cmd_on доступна только в личных сообщениях с ботом."))
 	reg.Alias("log_cmd_on", "/log_cmd_on")
-	reg.Command(CommandSpec{Cmd: "/log_cmd_off", Args: "", Desc: "выключить логирование команд", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogCmdOff, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log_cmd_off", Args: "", Desc: "выключить логирование команд", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogCmdOff, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log_cmd_off доступна только в личных сообщениях с ботом."))
 	reg.Alias("log_cmd_off", "/log_cmd_off")
 
 	// Backward compatible: toggles both
-	reg.Command(CommandSpec{Cmd: "/log_on", Args: "", Desc: "включить логирование (оба)", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogOn, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log_on", Args: "", Desc: "включить логирование (оба)", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogOn, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log_on доступна только в личных сообщениях с ботом."))
 	reg.Alias("log_on", "/log_on")
-	reg.Command(CommandSpec{Cmd: "/log_off", Args: "", Desc: "выключить логирование (оба)", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogOff, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/log_off", Args: "", Desc: "выключить логирование (оба)", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleLogOff, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /log_off доступна только в личных сообщениях с ботом."))
 	reg.Alias("log_off", "/log_off")
 
-	reg.Command(CommandSpec{Cmd: "/bot_on", Args: "", Desc: "включить ответы бота", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleBotOn, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/bot_on", Args: "", Desc: "включить ответы бота", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleBotOn, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /bot_on доступна только в личных сообщениях с ботом."))
 	reg.Alias("bot_on", "/bot_on")
 
-	reg.Command(CommandSpec{Cmd: "/bot_off", Args: "", Desc: "выключить ответы бота", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleBotOff, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/bot_off", Args: "", Desc: "выключить ответы бота", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleBotOff, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /bot_off доступна только в личных сообщениях с ботом."))
 	reg.Alias("bot_off", "/bot_off")
 
-	reg.Command(CommandSpec{Cmd: "/settings", Args: "", Desc: "настройки бота (логирование, отключение ответов)", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleSettingsShow, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
+	reg.Command(CommandSpec{Cmd: "/settings", Args: "", Desc: "настройки бота (логирование, отключение ответов)", Section: "Админ: настройки и логи", NeedAny: []Role{RoleAdmin}}, handleSettingsShow, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequirePrivateWithOpenDM("Команда /settings доступна только в личных сообщениях с ботом."))
 	reg.Alias("settings", "/settings")
 }
 
