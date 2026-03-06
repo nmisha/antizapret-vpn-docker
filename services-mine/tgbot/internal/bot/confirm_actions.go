@@ -115,7 +115,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 		return true
 
 	case "wgn:delete":
-		// payload: peerID (delete from /wgdel disambiguation)
+		// payload: peerID (delete from /wg_del disambiguation)
 		peerID := strings.TrimSpace(payload)
 		client, err := makeWgClientFromEnv()
 		if err != nil {

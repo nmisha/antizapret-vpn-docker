@@ -86,7 +86,7 @@ func handleWgStats(ctx *Ctx, arg string) {
 		return
 	}
 
-	// Admin may request stats for a specific user: /wgstats <name>
+	// Admin may request stats for a specific user: /wg_stats <name>
 	target := ctx.User
 	if strings.TrimSpace(arg) != "" && ctx.User.Has(RoleAdmin) {
 		u, ok, err := ctx.UsersStore.GetByName(arg)
