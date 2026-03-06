@@ -12,7 +12,9 @@ func RegisterAdminHandlers(reg *CommandRegistry) {
 	// help
 	reg.Command(CommandSpec{Cmd: "/start", Desc: "показать справку", Section: "Быстрый старт"}, handleHelp)
 	reg.Command(CommandSpec{Cmd: "/help", Desc: "показать эту справку", Section: "Быстрый старт"}, handleHelp)
+	reg.Command(CommandSpec{Cmd: "/clear", Desc: "очистить чат и показать справку", Section: "Быстрый старт"}, handleClearChat, RequirePrivate("Эта команда доступна только в личных сообщениях с ботом."))
 	reg.Alias("help", "/help")
+	reg.Alias("clear", "/clear")
 
 	// users/admin
 	reg.Command(CommandSpec{Cmd: "/users", Desc: "список пользователей и ролей", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUsers, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."))
@@ -82,6 +84,23 @@ func handleAdminMsgMenu(ctx *Ctx, _ string) {
 }
 
 func handleHelp(ctx *Ctx, _ string) {
+	replyHTML(ctx.Bot, ctx.ChatID, helpForUser(ctx.User))
+}
+
+func handleClearChat(ctx *Ctx, _ string) {
+	// Telegram API has deletion constraints (age/permissions). Do best-effort sweep in private chat.
+	const maxSweep = 1000
+	startID := ctx.MessageID
+	if startID <= 0 {
+		replyHTML(ctx.Bot, ctx.ChatID, helpForUser(ctx.User))
+		return
+	}
+
+	for msgID := startID; msgID > 0 && msgID >= startID-maxSweep; msgID-- {
+		del := tgbotapi.DeleteMessageConfig{ChatID: ctx.ChatID, MessageID: msgID}
+		_, _ = ctx.Bot.Request(del)
+	}
+
 	replyHTML(ctx.Bot, ctx.ChatID, helpForUser(ctx.User))
 }
 
