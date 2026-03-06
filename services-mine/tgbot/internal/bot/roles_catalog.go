@@ -16,8 +16,8 @@ func handleRolesCatalog(ctx *Ctx, _ string) {
 		{RoleServiceManager, "Сервисные команды (управление/обслуживание сервисов)."},
 		{RoleInfo, "Информационные команды."},
 		{RoleNetUser, "Сетевые утилиты: DNS resolve и др."},
-		{RoleWgStats, "Доступ к /wgstats (просмотр статистики WireGuard по своим профилям)."},
-		{RoleWgUserControl, "Доступ к /wgprofiles (UI: статистика/конфиг/QR по своим WireGuard-профилям)."},
+		{RoleWgStats, "Доступ к /wg_stats (просмотр статистики WireGuard по своим профилям)."},
+		{RoleWgUserControl, "Доступ к /wg_profiles (UI: статистика/конфиг/QR по своим WireGuard-профилям)."},
 		{RoleSupport, "Получает сообщения из /support (обращения пользователей)."},
 		{RoleAiUser, "Доступ к командам для выдачи учётных записей других сервисов (если настроено)."},
 	}

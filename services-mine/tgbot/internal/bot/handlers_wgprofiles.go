@@ -13,21 +13,18 @@ const (
 	wgCbPrefix = "wg:"
 )
 
-// /wgprofiles (WgUserControl) - user menu
+// /wg_profiles (WgUserControl) - user menu
 func RegisterWgProfilesHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/wgprofiles", Desc: "UI: мои WireGuard профили", Section: "WireGuard", NeedAny: []Role{RoleWgUserControl}}, handleWgProfiles,
+	reg.Command(CommandSpec{Cmd: "/wg_profiles", Desc: "UI: мои WireGuard профили", Section: "WireGuard", NeedAny: []Role{RoleWgUserControl}}, handleWgProfiles,
 		RequireRole(RoleWgUserControl, "Недостаточно прав. Нужна роль WgUserControl (или Admin)."),
 	)
-	reg.Alias("wgprofiles", "/wgprofiles")
-	// legacy/aliases
-	reg.AliasCommand("/wgprofile", "/wgprofiles", true, &CommandSpec{Cmd: "/wgprofile", Desc: "алиас /wgprofiles", Section: "WireGuard", NeedAny: []Role{RoleWgUserControl}})
-	reg.AliasCommand("/wg_profiles", "/wgprofiles", true, &CommandSpec{Cmd: "/wg_profiles", Desc: "алиас /wgprofiles", Section: "WireGuard", NeedAny: []Role{RoleWgUserControl}})
+	reg.Alias("wg_profiles", "/wg_profiles")
 
 	// admin menu
-	reg.Command(CommandSpec{Cmd: "/wgprofiles_admin", Desc: "UI: WireGuard профили (admin)", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgProfilesAdmin,
+	reg.Command(CommandSpec{Cmd: "/wg_profiles_admin", Desc: "UI: WireGuard профили (admin)", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgProfilesAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
-	reg.Alias("wgprofiles_admin", "/wgprofiles_admin")
+	reg.Alias("wg_profiles_admin", "/wg_profiles_admin")
 }
 
 func handleWgProfiles(ctx *Ctx, _ string) {

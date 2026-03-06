@@ -11,12 +11,12 @@ const wgNameCbPrefix = "wgn:"
 
 func RegisterWgNameCommands(reg *CommandRegistry) {
 	// Admin-only name-based actions with disambiguation
-	reg.Command(CommandSpec{Cmd: "/wgenable", Args: "<profile_name_or_prefix>", Desc: "включить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameEnable, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wgenable <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wgdisable", Args: "<profile_name_or_prefix>", Desc: "выключить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameDisable, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wgdisable <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wgconf", Args: "<profile_name_or_prefix>", Desc: "получить конфиг", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameConf, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wgconf <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wgqr", Args: "<profile_name_or_prefix>", Desc: "получить QR", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameQR, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wgqr <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wgdel", Args: "<profile_name_or_prefix>", Desc: "удалить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameDel, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wgdel <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wgrename", Args: "<old_name_or_prefix> <new_name>", Desc: "переименовать профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameRename, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wgrename <old_name_or_prefix> <new_name>"))
+	reg.Command(CommandSpec{Cmd: "/wg_enable", Args: "<profile_name_or_prefix>", Desc: "включить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameEnable, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_enable <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_disable", Args: "<profile_name_or_prefix>", Desc: "выключить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameDisable, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_disable <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_conf", Args: "<profile_name_or_prefix>", Desc: "получить конфиг", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameConf, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_conf <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_qr", Args: "<profile_name_or_prefix>", Desc: "получить QR", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameQR, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_qr <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_del", Args: "<profile_name_or_prefix>", Desc: "удалить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameDel, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_del <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_rename", Args: "<old_name_or_prefix> <new_name>", Desc: "переименовать профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameRename, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_rename <old_name_or_prefix> <new_name>"))
 }
 
 func handleWgNameEnable(ctx *Ctx, arg string)  { wgNameAction(ctx, "enable", arg, "") }
@@ -28,7 +28,7 @@ func handleWgNameDel(ctx *Ctx, arg string)     { wgNameAction(ctx, "delete", arg
 func handleWgNameRename(ctx *Ctx, arg string) {
 	fields := strings.Fields(arg)
 	if len(fields) < 2 {
-		reply(ctx.Bot, ctx.ChatID, "Формат: /wgrename <old_name_or_prefix> <new_name>")
+		reply(ctx.Bot, ctx.ChatID, "Формат: /wg_rename <old_name_or_prefix> <new_name>")
 		return
 	}
 	old := fields[0]
