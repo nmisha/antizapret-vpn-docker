@@ -52,7 +52,7 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 		}
 		// отправляем сразу, без подтверждения
 		text := strings.TrimSpace(fullText)
-		sendBroadcast(ctx, text)
+		sendBroadcast(ctx, text, ctx.MessageEntities)
 		clearConv(ctx.ChatID, ctx.TgID)
 		return true
 
@@ -63,7 +63,7 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 		}
 		// отправляем сразу, без подтверждения
 		text := strings.TrimSpace(fullText)
-		sendAdminMessageToUser(ctx, st.TargetID, st.TargetName, text)
+		sendAdminMessageToUser(ctx, st.TargetID, st.TargetName, text, ctx.MessageEntities)
 		clearConv(ctx.ChatID, ctx.TgID)
 		return true
 
@@ -105,7 +105,7 @@ func forwardSupport(ctx *Ctx, text string) {
 	// We call internal helper to avoid duplicating logic.
 	_ = text
 	// handlers_support.go now exposes sendSupportMessage
-	sendSupportMessage(ctx, text)
+	sendSupportMessage(ctx, text, ctx.MessageEntities)
 }
 
 // Helpers for quick formatting.
