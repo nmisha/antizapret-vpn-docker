@@ -1,7 +1,8 @@
 services:
   https:
     restart: unless-stopped
-    image: xtrime/antizapret-vpn-https:5.0.1
+    # image: xtrime/antizapret-vpn-https:5.0.1
+    image: nmisha/antizapret-vpn-https:5.0.1
     build: 
       context: .
       x-bake:
