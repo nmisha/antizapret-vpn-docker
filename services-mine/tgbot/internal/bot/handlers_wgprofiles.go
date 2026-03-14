@@ -83,10 +83,10 @@ func sendWgProfilesList(ctx *Ctx, peers []wgEasyPeer, pickPrefix string) {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, (len(peers)+1)/2)
 	for i := 0; i < len(peers); i += 2 {
 		row := []tgbotapi.InlineKeyboardButton{
-			tgbotapi.NewInlineKeyboardButtonData(peers[i].Name, pickPrefix+peers[i].ID),
+			tgbotapi.NewInlineKeyboardButtonData(peers[i].Name, pickPrefix+string(peers[i].ID)),
 		}
 		if i+1 < len(peers) {
-			row = append(row, tgbotapi.NewInlineKeyboardButtonData(peers[i+1].Name, pickPrefix+peers[i+1].ID))
+			row = append(row, tgbotapi.NewInlineKeyboardButtonData(peers[i+1].Name, pickPrefix+string(peers[i+1].ID)))
 		}
 		rows = append(rows, row)
 	}
@@ -248,7 +248,7 @@ func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 	caption := "WireGuard QR"
 	if peers, listErr := client.listPeers(); listErr == nil {
 		for _, p := range peers {
-			if p.ID == peerID && strings.TrimSpace(p.Name) != "" {
+			if string(p.ID) == peerID && strings.TrimSpace(p.Name) != "" {
 				caption = p.Name
 				break
 			}
@@ -265,7 +265,7 @@ func sendWgStatsForPeerID(ctx *Ctx, client *wgEasyClient, peerID string) {
 		return
 	}
 	for _, p := range peers {
-		if p.ID == peerID {
+		if string(p.ID) == peerID {
 			msg := formatWgPeersStats([]wgEasyPeer{p})
 			replyHTML(ctx.Bot, ctx.ChatID, truncate(msg, 3800))
 			return

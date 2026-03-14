@@ -7,8 +7,32 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 )
+
+type wgEasyID string
+
+func (id *wgEasyID) UnmarshalJSON(data []byte) error {
+	if bytes.Equal(data, []byte("null")) {
+		*id = ""
+		return nil
+	}
+
+	var s string
+	if err := json.Unmarshal(data, &s); err == nil {
+		*id = wgEasyID(s)
+		return nil
+	}
+
+	var n int64
+	if err := json.Unmarshal(data, &n); err == nil {
+		*id = wgEasyID(strconv.FormatInt(n, 10))
+		return nil
+	}
+
+	return fmt.Errorf("unsupported wg-easy id: %s", string(data))
+}
 
 type wgEasyClient struct {
 	BaseURL  string
@@ -47,7 +71,7 @@ func (c *wgEasyClient) newReq(method, path string, body io.Reader) (*http.Reques
 }
 
 type wgEasyPeer struct {
-	ID                  string   `json:"id"`
+	ID                  wgEasyID `json:"id"`
 	Name                string   `json:"name"`
 	Enabled             bool     `json:"enabled"`
 	LatestHandshake     string   `json:"latestHandshakeAt"`
