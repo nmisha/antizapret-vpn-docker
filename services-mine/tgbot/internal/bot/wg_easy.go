@@ -2,6 +2,7 @@ package bot
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,16 +12,18 @@ import (
 
 type wgEasyClient struct {
 	BaseURL  string
+	Username string
 	Password string
 	http     *http.Client
 }
 
-func newWgEasyClient(host, port, password string) (*wgEasyClient, error) {
+func newWgEasyClient(host, port, username, password string) (*wgEasyClient, error) {
 	if host == "" || port == "" || password == "" {
 		return nil, fmt.Errorf("WG_HOST, WG_PORT, WG_PASSWORD required")
 	}
 	return &wgEasyClient{
 		BaseURL:  fmt.Sprintf("http://%s:%s", host, port),
+		Username: username,
 		Password: password,
 		http: &http.Client{
 			Timeout: 25 * time.Second,
@@ -33,23 +36,49 @@ func (c *wgEasyClient) newReq(method, path string, body io.Reader) (*http.Reques
 	if err != nil {
 		return nil, err
 	}
-	// wg-easy v2 supports password via Authorization header (see Server.js)
-	req.Header.Set("Authorization", c.Password)
+	if c.Username != "" {
+		token := base64.StdEncoding.EncodeToString([]byte(c.Username + ":" + c.Password))
+		req.Header.Set("Authorization", "Basic "+token)
+	} else {
+		// Backward-compatible fallback for older wg-easy deployments.
+		req.Header.Set("Authorization", c.Password)
+	}
 	return req, nil
 }
 
 type wgEasyPeer struct {
-	ID                  string `json:"id"`
-	Name                string `json:"name"`
-	Enabled             bool   `json:"enabled"`
-	LatestHandshake     string `json:"latestHandshakeAt"`
-	TransferRx          int64  `json:"transferRx"`
-	TransferTx          int64  `json:"transferTx"`
-	Address             string `json:"address"`
-	CreatedAt           string `json:"createdAt"`
-	UpdatedAt           string `json:"updatedAt"`
-	PublicKey           string `json:"publicKey"`
-	PersistentKeepalive string `json:"persistentKeepalive"`
+	ID                  string   `json:"id"`
+	Name                string   `json:"name"`
+	Enabled             bool     `json:"enabled"`
+	LatestHandshake     string   `json:"latestHandshakeAt"`
+	TransferRx          int64    `json:"transferRx"`
+	TransferTx          int64    `json:"transferTx"`
+	Address             string   `json:"address"`
+	CreatedAt           string   `json:"createdAt"`
+	UpdatedAt           string   `json:"updatedAt"`
+	PublicKey           string   `json:"publicKey"`
+	PersistentKeepalive int      `json:"persistentKeepalive"`
+	ExpiresAt           any      `json:"expiresAt"`
+	IPv4Address         string   `json:"ipv4Address"`
+	IPv6Address         string   `json:"ipv6Address"`
+	PreUp               string   `json:"preUp"`
+	PostUp              string   `json:"postUp"`
+	PreDown             string   `json:"preDown"`
+	PostDown            string   `json:"postDown"`
+	AllowedIPs          []string `json:"allowedIps"`
+	ServerAllowedIPs    []string `json:"serverAllowedIps"`
+	FirewallIPs         []string `json:"firewallIps"`
+	MTU                 int      `json:"mtu"`
+	JC                  *int     `json:"jC"`
+	JMin                *int     `json:"jMin"`
+	JMax                *int     `json:"jMax"`
+	I1                  *string  `json:"i1"`
+	I2                  *string  `json:"i2"`
+	I3                  *string  `json:"i3"`
+	I4                  *string  `json:"i4"`
+	I5                  *string  `json:"i5"`
+	ServerEndpoint      *string  `json:"serverEndpoint"`
+	DNS                 []string `json:"dns"`
 }
 
 func (p wgEasyPeer) latestHandshakeTime() time.Time {
@@ -69,7 +98,7 @@ func (p wgEasyPeer) latestHandshakeTime() time.Time {
 }
 
 func (c *wgEasyClient) listPeers() ([]wgEasyPeer, error) {
-	req, err := c.newReq("GET", "/api/wireguard/client", nil)
+	req, err := c.newReq("GET", "/api/client", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +119,7 @@ func (c *wgEasyClient) listPeers() ([]wgEasyPeer, error) {
 }
 
 func (c *wgEasyClient) getConfiguration(clientID string) ([]byte, string, error) {
-	req, err := c.newReq("GET", "/api/wireguard/client/"+clientID+"/configuration", nil)
+	req, err := c.newReq("GET", "/api/client/"+clientID+"/configuration", nil)
 	if err != nil {
 		return nil, "", err
 	}
@@ -126,7 +155,7 @@ func (c *wgEasyClient) getConfiguration(clientID string) ([]byte, string, error)
 }
 
 func (c *wgEasyClient) getQRCodeSVG(clientID string) ([]byte, error) {
-	req, err := c.newReq("GET", "/api/wireguard/client/"+clientID+"/qrcode.svg", nil)
+	req, err := c.newReq("GET", "/api/client/"+clientID+"/qrcode.svg", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -143,7 +172,7 @@ func (c *wgEasyClient) getQRCodeSVG(clientID string) ([]byte, error) {
 }
 
 func (c *wgEasyClient) enableClient(clientID string) error {
-	req, err := c.newReq("POST", "/api/wireguard/client/"+clientID+"/enable", nil)
+	req, err := c.newReq("POST", "/api/client/"+clientID+"/enable", nil)
 	if err != nil {
 		return err
 	}
@@ -160,7 +189,7 @@ func (c *wgEasyClient) enableClient(clientID string) error {
 }
 
 func (c *wgEasyClient) disableClient(clientID string) error {
-	req, err := c.newReq("POST", "/api/wireguard/client/"+clientID+"/disable", nil)
+	req, err := c.newReq("POST", "/api/client/"+clientID+"/disable", nil)
 	if err != nil {
 		return err
 	}
@@ -177,8 +206,11 @@ func (c *wgEasyClient) disableClient(clientID string) error {
 }
 
 func (c *wgEasyClient) createClient(name string) error {
-	body, _ := json.Marshal(map[string]string{"name": name})
-	req, err := c.newReq("POST", "/api/wireguard/client", bytes.NewReader(body))
+	body, _ := json.Marshal(map[string]any{
+		"name":      name,
+		"expiresAt": nil,
+	})
+	req, err := c.newReq("POST", "/api/client", bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -196,7 +228,7 @@ func (c *wgEasyClient) createClient(name string) error {
 }
 
 func (c *wgEasyClient) deleteClient(clientID string) error {
-	req, err := c.newReq("DELETE", "/api/wireguard/client/"+clientID, nil)
+	req, err := c.newReq("DELETE", "/api/client/"+clientID, nil)
 	if err != nil {
 		return err
 	}
@@ -213,8 +245,37 @@ func (c *wgEasyClient) deleteClient(clientID string) error {
 }
 
 func (c *wgEasyClient) renameClient(clientID, newName string) error {
-	body, _ := json.Marshal(map[string]string{"name": newName})
-	req, err := c.newReq("PUT", "/api/wireguard/client/"+clientID+"/name", bytes.NewReader(body))
+	peer, err := c.getPeer(clientID)
+	if err != nil {
+		return err
+	}
+	body, _ := json.Marshal(map[string]any{
+		"name":                newName,
+		"enabled":             peer.Enabled,
+		"expiresAt":           peer.ExpiresAt,
+		"ipv4Address":         peer.IPv4Address,
+		"ipv6Address":         peer.IPv6Address,
+		"preUp":               peer.PreUp,
+		"postUp":              peer.PostUp,
+		"preDown":             peer.PreDown,
+		"postDown":            peer.PostDown,
+		"allowedIps":          peer.AllowedIPs,
+		"serverAllowedIps":    peer.ServerAllowedIPs,
+		"firewallIps":         peer.FirewallIPs,
+		"mtu":                 peer.MTU,
+		"jC":                  peer.JC,
+		"jMin":                peer.JMin,
+		"jMax":                peer.JMax,
+		"i1":                  peer.I1,
+		"i2":                  peer.I2,
+		"i3":                  peer.I3,
+		"i4":                  peer.I4,
+		"i5":                  peer.I5,
+		"persistentKeepalive": peer.PersistentKeepalive,
+		"serverEndpoint":      peer.ServerEndpoint,
+		"dns":                 peer.DNS,
+	})
+	req, err := c.newReq("POST", "/api/client/"+clientID, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}
@@ -229,4 +290,25 @@ func (c *wgEasyClient) renameClient(clientID, newName string) error {
 		return fmt.Errorf("rename client failed: %s: %s", resp.Status, string(b))
 	}
 	return nil
+}
+
+func (c *wgEasyClient) getPeer(clientID string) (*wgEasyPeer, error) {
+	req, err := c.newReq("GET", "/api/client/"+clientID, nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return nil, fmt.Errorf("get client failed: %s: %s", resp.Status, string(b))
+	}
+	var peer wgEasyPeer
+	if err := json.NewDecoder(resp.Body).Decode(&peer); err != nil {
+		return nil, err
+	}
+	return &peer, nil
 }
