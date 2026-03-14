@@ -58,7 +58,7 @@ func wgNameAction(ctx *Ctx, action string, query string, extra string) {
 		return
 	}
 	if len(matches) == 1 {
-		performWgPeerAction(ctx, client, action, matches[0].ID, extra)
+		performWgPeerAction(ctx, client, action, string(matches[0].ID), extra)
 		return
 	}
 
@@ -66,7 +66,7 @@ func wgNameAction(ctx *Ctx, action string, query string, extra string) {
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(matches)+1)
 	extraEnc := url.QueryEscape(extra)
 	for _, p := range matches {
-		cb := wgNameCbPrefix + action + ":" + p.ID
+		cb := wgNameCbPrefix + action + ":" + string(p.ID)
 		if extra != "" {
 			cb += ":" + extraEnc
 		}
