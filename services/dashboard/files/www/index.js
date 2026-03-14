@@ -6,6 +6,7 @@ let contentWrapper = document.getElementById('contentWrapper');
 
 let allTabs = [];
 let allContents = [];
+let allIframes = [];
 let serviceHashes = [];
 
 function activateTab(index) {
@@ -13,6 +14,11 @@ function activateTab(index) {
     allContents.forEach(cont => cont.classList.remove('active'));
 
     if (index >= 0 && index < allTabs.length) {
+        let iframeEl = allIframes[index];
+        if (iframeEl && !iframeEl.src) {
+            iframeEl.src = iframeEl.dataset.src;
+        }
+
         allTabs[index].classList.add('active');
         allContents[index].classList.add('active');
         window.location.hash = serviceHashes[index];
@@ -37,7 +43,8 @@ function createTab(serviceName, serviceUrl, hashValue) {
     let contentEl = document.createElement('div');
     contentEl.className = 'content-container';
     let iframeEl = document.createElement('iframe');
-    iframeEl.src = serviceUrl;
+    iframeEl.dataset.src = serviceUrl;
+    iframeEl.loading = 'lazy';
     contentEl.appendChild(iframeEl);
 
     tabContainer.appendChild(tabEl);
@@ -45,6 +52,7 @@ function createTab(serviceName, serviceUrl, hashValue) {
 
     allTabs.push(tabEl);
     allContents.push(contentEl);
+    allIframes.push(iframeEl);
 }
 
 
