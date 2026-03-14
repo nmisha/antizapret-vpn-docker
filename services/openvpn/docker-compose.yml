@@ -8,7 +8,7 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
-    image: xtrime/antizapret-vpn-openvpn:6.0.6
+    image: xtrime/antizapret-vpn-openvpn:6.1.0
     build:
       context: .
       x-bake:
@@ -39,7 +39,7 @@ services:
       placement:
         constraints: [ node.labels.location == local ]
     environment:
-      - OBFUSCATE_TYPE=0
+      - OBFUSCATE_TYPE=2
       - |
         ROUTES=
         openvpn:10.1.165.0/24;
