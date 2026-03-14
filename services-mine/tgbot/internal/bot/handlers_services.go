@@ -102,11 +102,12 @@ func handleWgStats(ctx *Ctx, arg string) {
 	}
 	host := envTrim("WG_HOST")
 	port := envTrim("WG_PORT")
+	username := envTrim("WG_USERNAME")
 	pass := envTrim("WG_PASSWORD")
 
-	client, err := newWgEasyClient(host, port, pass)
+	client, err := newWgEasyClient(host, port, username, pass)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не заданы переменные окружения WireGuard. Нужно: WG_HOST, WG_PORT, WG_PASSWORD")
+		reply(ctx.Bot, ctx.ChatID, "Не заданы переменные окружения WireGuard. Нужно: WG_HOST, WG_PORT, WG_PASSWORD. Для wg-easy v15 обычно также нужен WG_USERNAME")
 		return
 	}
 
@@ -133,11 +134,12 @@ func handleWgStatsAdmin(ctx *Ctx, _ string) {
 	}
 	host := envTrim("WG_HOST")
 	port := envTrim("WG_PORT")
+	username := envTrim("WG_USERNAME")
 	pass := envTrim("WG_PASSWORD")
 
-	client, err := newWgEasyClient(host, port, pass)
+	client, err := newWgEasyClient(host, port, username, pass)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не заданы переменные окружения WireGuard. Нужно: WG_HOST, WG_PORT, WG_PASSWORD")
+		reply(ctx.Bot, ctx.ChatID, "Не заданы переменные окружения WireGuard. Нужно: WG_HOST, WG_PORT, WG_PASSWORD. Для wg-easy v15 обычно также нужен WG_USERNAME")
 		return
 	}
 

@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:6.0.5
+    image: nmisha/antizapret-vpn-tgbot:6.0.6
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
@@ -50,12 +50,13 @@ services:
 
       WG_HOST: "wireguard.antizapret"
       WG_PORT: "51821"
+      WG_USERNAME: "admin"
       WG_PASSWORD: "password"
 
       NET_DNS_SERVER: "adguard.antizapret" #"antizapret_coredns"
 
 
-# curl -u "admin:ADMIN_PASSWORD" "http://<wg-easy-host>:51821/api/wireguard/client"
+# curl -u "admin:ADMIN_PASSWORD" "http://<wg-easy-host>:51821/api/client"
 
 
     volumes:
@@ -93,4 +94,3 @@ services:
     #   - V4_FILE=blacklist-v4.txt
     #   - V6_URL=https://raw.githubusercontent.com/C24Be/AS_Network_List/refs/heads/main/blacklists/blacklist-v6.txt
     #   - V6_FILE=blacklist-v6.txt
-
