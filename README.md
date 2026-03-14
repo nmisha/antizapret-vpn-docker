@@ -41,6 +41,7 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
     - [Legacy clients support](#legacy-clients-support)
   - [Amnezia Wireguard](#amnezia-wireguard)
     - [Enable Amnezia Wireguard Kernel Extension](#enable-amnezia-wireguard-kernel-extension)
+    - [AmneziaWG Parameters](#amneziawg-parameters)
     - [Amnezia Wireguard Block Size](#amnezia-wireguard-block-size)
     - [VPN / Hosting block](#vpn--hosting-block)
   - [Extra information](#extra-information)
@@ -144,9 +145,10 @@ Some of the sites, which use geoip to block users, will be proxied through **for
 1. [Primary]: start swarm `docker compose config | docker run --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret `
 
 ## After installation
-1. Make sure Secure DNS is disabled in your browser settings. 
+1. If you use  openvpn client on your microtic router and having issues with UDP connection, try to reduce [OBFUSCATE_TYPE](#openvpn) env variable from default `2` (strong) to `1` (light) or `0` (off).
+2. Make sure Secure DNS is disabled in your browser settings. 
    In chrome: Navigate to Settings > Privacy and security > Security, scroll to the "Advanced" section, and toggle off "Use secure DNS"
-2. Install DKMS modules for openvpn and/or amnezia wireguard (if you use them): 
+3. Install DKMS modules for openvpn and/or amnezia wireguard (if you use them): 
     - [Enable OpenVPN Data Channel Offload (DCO)](#enable-openvpn-data-channel-offload-dco)
     - [Enable Amnezia Wireguard Kernel Extension](#enable-amnezia-wireguard-kernel-extension)
 
@@ -415,59 +417,62 @@ For Windows clients, use [AntizapretSOCKS5](https://github.com/danayer/Antizapre
 
 You can define these variables in docker-compose.override.yml file for your needs:
 
-Antizapret:
+### Antizapret:
 Consists of two containers: az-local and az-world. This is VPN exit nodes.
 - `DNS=adguard` - Upstream DNS for resolving blocked sites (adguard by default)
 - `AZ_SUBNET=14.16.0.0/14` Subnet for virtual addresses for blocked hosts.
 - `ROUTES` - list of VPN containers and their virtual addresses. Used for iperf3 server.
 - `DOALL_DISABLED=` - skip run on az-world node.
 
-Adguard: 
+### Adguard: 
 - `ROUTES` - list of VPN containers and their virtual addresses. Used for unique client addresses in adguard logs
 - `ADGUARDHOME_PORT=3000`
 - `ADGUARDHOME_USERNAME=admin`
 - `ADGUARDHOME_PASSWORD=`
 - `ADGUARDHOME_PASSWORD_HASH=` - hashed password, taken from the AdGuardHome.yaml file after the first run using `ADGUARDHOME_PASSWORD`. Dollar sign `$` in hash must be escaped with another dollar sign: `$$`
 
-CoreDNS: 
+### CoreDNS: 
 - None
 
-Filebrowser:
+### Filebrowser:
 - `FILEBROWSER_PORT=admin`
 - `FILEBROWSER_PASSWORD=password`
 
-Proxy:
+### Proxy:
 - `PROXY_DOMAIN=` - create letsencrypt https certificate for domain. If not set host ip is used for self-signed certificate.
 - `PROXY_EMAIL=` - email for letsecnrypt certificate.
 - `SOCKS_EXTERNAL_IFACES` - comma-separated list of external network interfaces for the SOCKS proxy (e.g. `eth0,eth1`). If omitted, interfaces are auto-detected; falls back to `eth0` when none are found
 
-Openvpn
+### Openvpn
 - `ROUTES`
-- `OBFUSCATE_TYPE=0` - custom obfuscation level of openvpn protocol.
+- `OBFUSCATE_TYPE=2` - custom obfuscation level of openvpn protocol.
    0 - disable.Act as regular openvpn client, support by all clients.
-   1 - light obfuscation, works with microtics
-   2 - strong obfuscation, works with some clients: openvpn gui client, asuswrt client...
+   1 - light obfuscation, works with microtic routers
+   2 - strong obfuscation, works with most of the clients: openvpn official gui client, asus routers, keenetic routers, openwrt routers.
 - `AZ_SUBNET=14.16.0.0/14` - subnet for virtual blocked ips.
 
-Openvpn-ui
+### Openvpn-ui
 - `OPENVPN_ADMIN_USERNAME=` - replace default username with your username
 - `OPENVPN_ADMIN_PASSWORD=` - replace default password with your password
 - `OPENVPN_EXTERNAL_IP` - external ip of your server, by default detected automatically
 - `OPENVPN_DNS=14.16.0.1` - DNS address for clients. Must be in `ANTIZAPRET_SUBNET`
 - `OPENVPN_LOCAL_IP_RANGE=10.1.165.0` - subnet for ovpn clients. Subnet can be viewed in adguard journal or in ovpn-ui panel
 
-Wireguard/Wireguard Amnezia
+### Wireguard/Wireguard Amnezia
 - `ROUTES` 
-- `WIREGUARD_PASSWORD=` - password for admin panel
-- `WIREGUARD_PASSWORD_HASH=` - [hashed password](https://github.com/wg-easy/wg-easy/blob/v14.0.0/How_to_generate_an_bcrypt_hash.md) for admin panel
+- `WIREGUARD_PASSWORD=` - password for admin panel (used during initial setup only, change password via web UI afterwards)
+- `WIREGUARD_USERNAME=admin` - username for admin panel (used during initial setup only)
 - `AZ_SUBNET=14.16.0.0/14` - subnet for virtual blocked ips.
 - `WG_DEFAULT_DNS=14.16.0.1` - DNS address for clients. Must be in `ANTIZAPRET_SUBNET`
 - `WG_PERSISTENT_KEEPALIVE=25`
 - `PORT=51821` - admin panel port
+- `INSECURE=true` - allow HTTP access to admin panel
+- `DISABLE_IPV6=true` - disable IPv6 support
 - `WG_PORT=51820` - wireguard server port
-- `WG_DEVICE=eth0`
+- `EXPERIMENTAL_AWG=true` - enable AmneziaWG support (wireguard-amnezia only)
+- `OVERRIDE_AUTO_AWG=awg`- environment variable to force the tunnel type: `awg` to always use AmneziaWG, `wg` to always use standard WireGuard; by default it’s unset and automatic detection is used, useful to override auto-selection and lock the mode.
 
-Dante SOCKS5 Proxy
+### SOCKS5 Proxy
 - `SOCKS_USERNAME` - username for SOCKS5 authentication (omit to disable authentication)
 - `SOCKS_PASSWORD` - password for SOCKS5 authentication (omit to disable authentication)
 
@@ -505,20 +510,31 @@ Kernel extensions can be installed only on <u>a host machine</u>, not in a conta
 
 #### Ubuntu 24.04
 ```bash
-sudo apt install -y openvpn-dco-dkms
-```
-
-#### Ubuntu 20.04, 22.04
-```bash
+sudo rm -f /etc/apt/sources.list.d/openvpn.list
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 noble main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
 sudo apt update
-sudo apt upgrade
-echo "#### Please reboot your system after upgrade ###" && sleep 100
-deb=openvpn-dco-dkms_0.0+git20231103-1_all.deb
-sudo apt install -y efivar dkms linux-headers-$(uname -r)
-wget http://archive.ubuntu.com/ubuntu/pool/universe/o/openvpn-dco-dkms/$deb
-sudo dpkg -i $deb
+sudo apt install -y ovpn-dkms
 ```
-
+#### Ubuntu 22.04
+```bash
+sudo rm -f /etc/apt/sources.list.d/openvpn.list
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 jammy main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
+sudo apt update
+sudo apt install -y ovpn-dkms
+```
+#### Ubuntu 20.04
+```bash
+sudo rm -f /etc/apt/sources.list.d/openvpn.list
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 focal main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
+sudo apt update
+sudo apt install -y ovpn-dkms
+```
 ### Legacy clients support
 If your clients do not have GCM ciphers support you can use legacy CBC ciphers.
 DCO is incompatible with legacy ciphers and will be disabled. This is also increase CPU load.
@@ -548,6 +564,32 @@ https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#
 8. restart server or `docker compose restart wireguard-amnezia`
 9. check the list of kernel modules `dkms status`, 
    and check that bunch of `[kworker/X:X-wg-crypt-wg0]` processes are now running.
+   
+### AmneziaWG Parameters
+
+Parameter descriptions can be found in the [AmneziaWG documentation](https://docs.amnezia.org/documentation/amnezia-wg) and on the kernel module page.
+
+All parameters **except I1–I5** will be set automatically at first startup. For instructions on configuring I1–I5, refer to the AmneziaWG documentation.
+
+- If a parameter is **not set**, it will not be included in the configuration.
+- If **all AmneziaWG-specific parameters are absent**, AmneziaWG is fully compatible with standard WireGuard.
+
+## Parameter Compatibility Table
+
+| Parameter | Can differ between server and client | Configurable on server | Configurable on client |
+|-----------|-------------------------------------|----------------------|----------------------|
+| Jc        | ✅ Yes                               | ✅ Yes               | ✅ Yes               |
+| Jmin      | ✅ Yes                               | ✅ Yes               | ✅ Yes               |
+| Jmax      | ✅ Yes                               | ✅ Yes               | ✅ Yes               |
+| S1–S4     | ❌ No, must match                    | ✅ Yes               | ❌ No (copied from server) |
+| H1–H4     | ❌ No, must match                    | ✅ Yes               | ❌ No (copied from server) |
+| I1–I5     | ✅ Yes                               | ✅ Yes               | ✅ Yes               |
+
+## Notes
+
+- Parameters Jc, Jmin, Jmax, I1–I5 can be configured independently on server and client if needed.
+- Parameters S1–S4 and H1–H4 **must match** between server and client; client copies them automatically from the server.
+- Use I1–I5 only if you need advanced customization. Otherwise, default automatic values are sufficient.
 
 ### Amnezia Wireguard Block Size
 Amnezia adds random packets to change signature of wireguard protocol and bypass DPI. 
@@ -557,17 +599,17 @@ Large junk packets can help to bypass DPI, but some firewalls can block them as 
 Use env variables to change their size if you have issues with amnezia connection:
 
 ```
-Jc=3
-Jmin=20
-Jmax=100
+JC=3
+JMIN=20
+JMAX=100
 ```
 or
 ```
-Jc=2
-Jmin=10
-Jmax=20
+JC=2
+JMIN=10
+JMAX=20
 ```
-Example part of docker-compose.override.yml with JMIN and JMAX:
+Example part of docker-compose.override.yml with JC, JMIN and JMAX:
 ```yml
   wireguard-amnezia:
     environment:
@@ -641,7 +683,6 @@ iperf3 server is included in antizapret-vpn container.
 - [ProstoVPN](https://antizapret.prostovpn.org) — the original project
 - [AntiZapret VPN Container](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/) — source code of the LXD-based container
 - [AntiZapret PAC Generator](https://bitbucket.org/anticensority/antizapret-pac-generator-light/src/master/) — proxy auto-configuration generator to bypass censorship of Russian Federation
-- [Amnezia WireGuard VPN](https://github.com/w0rng/amnezia-wg-easy) — used for Amnezia Wireguard integration
 - [WireGuard VPN](https://github.com/wg-easy/wg-easy) — used for Wireguard integration
 - [OpenVPN](https://github.com/d3vilh/openvpn-ui) - used for OpenVPN integration
 - [AdGuardHome](https://github.com/AdguardTeam/AdGuardHome) - DNS resolver
