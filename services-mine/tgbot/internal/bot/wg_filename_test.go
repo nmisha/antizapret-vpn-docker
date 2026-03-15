@@ -24,9 +24,9 @@ func TestNormalizeWgConfigFilename(t *testing.T) {
 			want: "OlgaPhone1.conf",
 		},
 		{
-			name: "returns fallback when only two segments exist",
+			name: "drops first segment and uses second when only two segments exist",
 			raw:  "User_Phone1",
-			want: "wg.conf",
+			want: "Phone1.conf",
 		},
 		{
 			name: "returns fallback when no valid chars remain",

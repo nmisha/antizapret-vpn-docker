@@ -29,7 +29,11 @@ func normalizeWgConfigFilename(raw string) string {
 		return normalized + wgConfigFilenameExt
 	}
 	if len(segments) == 2 {
-		return "wg" + wgConfigFilenameExt
+		normalized := buildWgFilenameFromSingleSegment(filterWgConfigFilenameChars(segments[1]), maxBaseLen)
+		if normalized == "" {
+			return "wg" + wgConfigFilenameExt
+		}
+		return normalized + wgConfigFilenameExt
 	}
 
 	segments = segments[1:]
