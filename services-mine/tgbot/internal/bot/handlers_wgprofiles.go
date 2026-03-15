@@ -224,7 +224,7 @@ func sendWgConfigAsFile(ctx *Ctx, client *wgEasyClient, peerID string) {
 		reply(ctx.Bot, ctx.ChatID, "Не удалось получить конфигурацию:\n"+truncate(err.Error(), 3500))
 		return
 	}
-	doc := tgbotapi.NewDocument(ctx.ChatID, tgbotapi.FileBytes{Name: filename, Bytes: data})
+	doc := tgbotapi.NewDocument(ctx.ChatID, tgbotapi.FileBytes{Name: normalizeWgConfigFilename(filename), Bytes: data})
 	doc.Caption = "WireGuard profile configuration"
 	_, err = ctx.Bot.Send(doc)
 	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
