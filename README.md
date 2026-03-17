@@ -145,7 +145,10 @@ Some of the sites, which use geoip to block users, will be proxied through **for
 1. [Primary]: start swarm `docker compose config | docker run --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret `
 
 ## After installation
-1. If you use  openvpn client on your microtic router and having issues with UDP connection, try to reduce [OBFUSCATE_TYPE](#openvpn) env variable from default `2` (strong) to `1` (light) or `0` (off).
+1. By default, an openvpn container uses light obfuscation of UDP packets.  
+    It works on most clients (including routers) but can be blocked by providers.   
+    If you're having issues with ovpn connection see [OBFUSCATE_TYPE](#openvpn) env. 
+    Try to change it from default `1` (light) to `2` (strong) or `0` (off).
 2. Make sure Secure DNS is disabled in your browser settings. 
    In chrome: Navigate to Settings > Privacy and security > Security, scroll to the "Advanced" section, and toggle off "Use secure DNS"
 3. Install DKMS modules for openvpn and/or amnezia wireguard (if you use them): 
@@ -445,10 +448,10 @@ Consists of two containers: az-local and az-world. This is VPN exit nodes.
 
 ### Openvpn
 - `ROUTES`
-- `OBFUSCATE_TYPE=2` - custom obfuscation level of openvpn protocol.
-   0 - disable.Act as regular openvpn client, support by all clients.
-   1 - light obfuscation, works with microtic routers
-   2 - strong obfuscation, works with most of the clients: openvpn official gui client, asus routers, keenetic routers, openwrt routers.
+- `OBFUSCATE_TYPE=1` - custom obfuscation level of openvpn protocol.
+   - 0 - disable. Regular openvpn client mode, supported by all clients.
+   - 1 - light obfuscation. Works with microtic and old keenetic routers
+   - 2 - strong obfuscation. Works with most of the clients: openvpn official gui client, asus routers, new keenetic routers, openwrt routers.
 - `AZ_SUBNET=14.16.0.0/14` - subnet for virtual blocked ips.
 
 ### Openvpn-ui
