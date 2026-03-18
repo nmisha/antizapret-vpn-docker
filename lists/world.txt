@@ -99,6 +99,8 @@ posthog.com
 sentry.dev
 sentry.io
 statsigapi.net
+turn.cloudflare.com
+stun.cloudflare.com
 
 # Microsoft / Azure / Xbox / Unity
 bing.com
@@ -106,13 +108,21 @@ bing.net
 bingapis.com
 in.appcenter.ms
 live.com
-microsoft.com
+www.microsoft.com
 msn.com
 office.com
 oneclient.sfx.ms
 picassostaticassetsstg.azureedge.net
 studiostaticassetsprod.azureedge.net
+xgpuweb.gssv-play-prod.xboxlive.com
 xsts.auth.xboxlive.com
+windowsupdate.microsoft.com
+update.microsoft.com
+windowsupdate.com
+download.windowsupdate.com
+download.microsoft.com
+wustat.windows.com
+ntservicepack.microsoft.com
 
 # Misc / Other
 4pda.to
@@ -148,6 +158,7 @@ myqrcode.com
 vpci.yves-rocher.com
 wunderground.com
 weather.com
+ru-board.com
 
 # Security / AV / Networking Vendors
 arkoselabs.com
@@ -233,10 +244,14 @@ spotify.com
 #twitch
 ttvnw.net
 
-#netflix
+#video
 netflix.com
 nflxso.net
 nflxvideo.net
+
+hdrezka.me
+rezka.ag
+hdrezka.ac
 
 # Games / Gaming Platforms
 brawlstarsgame.com
@@ -459,10 +474,4 @@ ctfassets.net
 cdn.tagdeliver.com
 
 #Fastly
-fastly.net
 fastly.com
-fastly-edge.com
-fastly-terrarium.com
-fastly.io
-fastlylabs.com
-fastlylb.net
