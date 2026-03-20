@@ -171,3 +171,6 @@ facetime-apple-com.we.apple-dns.net
 #CDN
 cdn.oninvest.com
 cdn.confiant-integrations.net
+
+#dev
+externals.io
