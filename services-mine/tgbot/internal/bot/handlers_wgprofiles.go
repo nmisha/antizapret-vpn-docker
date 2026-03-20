@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"bytes"
 	"fmt"
 	"html"
 	"sort"
@@ -237,8 +238,14 @@ func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 		return
 	}
 
-	// Generate PNG QR from WireGuard config so Telegram renders it as an image in chat.
-	pngData, err := qrcode.Encode(string(confData), qrcode.Medium, 512)
+	qrPayload := normalizeWgQRPayload(confData)
+	if qrPayload == "" {
+		reply(ctx.Bot, ctx.ChatID, "Failed to generate QR:\nempty WireGuard configuration")
+		return
+	}
+
+	// Generate a larger QR so Telegram photo compression is less likely to break scanning/import.
+	pngData, err := qrcode.Encode(qrPayload, qrcode.High, 2048)
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Failed to generate QR:\n"+truncate(err.Error(), 3500))
 		return
@@ -258,6 +265,14 @@ func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 	_, err = ctx.Bot.Send(photo)
 	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
+
+func normalizeWgQRPayload(confData []byte) string {
+	trimmed := bytes.TrimPrefix(confData, []byte{0xEF, 0xBB, 0xBF})
+	payload := strings.ReplaceAll(string(trimmed), "\r\n", "\n")
+	payload = strings.TrimSpace(payload)
+	return payload
+}
+
 func sendWgStatsForPeerID(ctx *Ctx, client *wgEasyClient, peerID string) {
 	peers, err := client.listPeers()
 	if err != nil {
