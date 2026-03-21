@@ -24,12 +24,14 @@ const (
 )
 
 type User struct {
-	TelegramID    int64         `json:"telegram_id"`
-	Name          string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
-	WgProfilesRaw []string      `json:"wg_profiles,omitempty"`
-	RolesRaw      []string      `json:"roles"` // persisted canonical role names
-	Roles         map[Role]bool `json:"-"`     // runtime
-	WgProfiles    []string      `json:"-"`     // normalized (lower-case) wg profile prefixes/names
+	TelegramID      int64         `json:"telegram_id"`
+	Name            string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
+	WgProfilesRaw   []string      `json:"wg_profiles,omitempty"`
+	OvpnProfilesRaw []string      `json:"ovpn_profiles,omitempty"`
+	RolesRaw        []string      `json:"roles"` // persisted canonical role names
+	Roles           map[Role]bool `json:"-"`     // runtime
+	WgProfiles      []string      `json:"-"`     // normalized (lower-case) wg profile prefixes/names
+	OvpnProfiles    []string      `json:"-"`     // normalized (lower-case) ovpn profile prefixes/names
 }
 
 // Admin includes permissions of all other roles.
@@ -138,6 +140,17 @@ func normalizeUser(u User) (User, error) {
 		u.WgProfiles = append(u.WgProfiles, pp)
 	}
 	sort.Strings(u.WgProfiles)
+
+	u.OvpnProfilesRaw = uniqueStringsCaseInsensitive(u.OvpnProfilesRaw)
+	u.OvpnProfiles = make([]string, 0, len(u.OvpnProfilesRaw))
+	for _, p := range u.OvpnProfilesRaw {
+		pp := strings.ToLower(strings.TrimSpace(p))
+		if pp == "" {
+			continue
+		}
+		u.OvpnProfiles = append(u.OvpnProfiles, pp)
+	}
+	sort.Strings(u.OvpnProfiles)
 
 	return u, nil
 }
