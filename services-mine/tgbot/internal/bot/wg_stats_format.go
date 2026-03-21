@@ -52,7 +52,7 @@ func formatWgPeersStats(peers []wgEasyPeer) string {
 		return ti.After(tj)
 	})
 
-	lines := make([]string, 0, len(peers)*6)
+	lines := make([]string, 0, len(peers)*7)
 	for idx, p := range peers {
 		if idx > 0 {
 			lines = append(lines, "") // blank line between profiles
@@ -86,11 +86,66 @@ func formatWgPeersStats(peers []wgEasyPeer) string {
 			fmt.Sprintf("<b>Profile: %s</b>", nameEsc),
 			fmt.Sprintf("Last Handshake: %s%s", lastStr, statusSuffix),
 			fmt.Sprintf("Enabled: %s", yesNo(p.Enabled)),
+			fmt.Sprintf("Expires: %s", formatWgExpiry(p.ExpiresAt)),
 			fmt.Sprintf("TX: %s", humanMBGB(p.TransferTx)),
 			fmt.Sprintf("RX: %s", humanMBGB(p.TransferRx)),
 		)
 	}
 	return strings.Join(lines, "\n")
+}
+
+func formatWgExpiry(v any) string {
+	if v == nil {
+		return "—"
+	}
+
+	switch x := v.(type) {
+	case string:
+		s := strings.TrimSpace(x)
+		if s == "" {
+			return "—"
+		}
+		if t, ok := parseWgExpiryTime(s); ok {
+			return t.Local().Format("2006-01-02 15:04:05")
+		}
+		return html.EscapeString(s)
+	case float64:
+		if x <= 0 {
+			return "—"
+		}
+		return time.Unix(int64(x), 0).Local().Format("2006-01-02 15:04:05")
+	case int64:
+		if x <= 0 {
+			return "—"
+		}
+		return time.Unix(x, 0).Local().Format("2006-01-02 15:04:05")
+	case jsonNumberLike:
+		if n, err := x.Int64(); err == nil && n > 0 {
+			return time.Unix(n, 0).Local().Format("2006-01-02 15:04:05")
+		}
+		return "—"
+	default:
+		return html.EscapeString(fmt.Sprint(v))
+	}
+}
+
+type jsonNumberLike interface {
+	Int64() (int64, error)
+}
+
+func parseWgExpiryTime(s string) (time.Time, bool) {
+	layouts := []string{
+		time.RFC3339,
+		time.RFC3339Nano,
+		"2006-01-02 15:04:05",
+		"2006-01-02",
+	}
+	for _, layout := range layouts {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, true
+		}
+	}
+	return time.Time{}, false
 }
 
 func humanSince(d time.Duration) string {
