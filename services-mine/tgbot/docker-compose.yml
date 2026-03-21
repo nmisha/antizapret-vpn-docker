@@ -53,6 +53,11 @@ services:
       WG_USERNAME: "admin"
       WG_PASSWORD: "password"
 
+      OVPN_HOST: "openvpn-ui.antizapret"
+      OVPN_PORT: "8080"
+      OVPN_USERNAME: "admin"
+      OVPN_PASSWORD: "password"
+
       NET_DNS_SERVER: "adguard.antizapret" #"antizapret_coredns"
 
 

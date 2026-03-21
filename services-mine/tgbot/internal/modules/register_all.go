@@ -12,6 +12,7 @@ func RegisterAll(reg *bot.CommandRegistry) {
 	bot.RegisterDomainHandlers(reg)
 	bot.RegisterServiceHandlers(reg)
 	bot.RegisterWgProfilesHandlers(reg)
+	bot.RegisterOvpnProfilesHandlers(reg)
 	bot.RegisterWgNameCommands(reg)
 	bot.RegisterNetHandlers(reg)
 	bot.RegisterSupportHandlers(reg)
