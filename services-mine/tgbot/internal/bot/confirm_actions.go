@@ -236,7 +236,7 @@ func handleWgToAwgMigration(ctx *Ctx, payload string, admin bool) {
 		}
 	}
 
-	res, err := migratePeerBetweenClients(sourceClient, targetClient, peerID)
+	res, err := migratePeerBetweenClients(sourceClient, targetClient, peerID, "WG", "AWG")
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Миграция в AWG не удалась:\n"+truncate(err.Error(), 3500))
 		return
@@ -274,7 +274,7 @@ func handleAwgToWgMigration(ctx *Ctx, payload string, admin bool) {
 		}
 	}
 
-	res, err := migratePeerBetweenClients(sourceClient, targetClient, peerID)
+	res, err := migratePeerBetweenClients(sourceClient, targetClient, peerID, "AWG", "WG")
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Миграция в WG не удалась:\n"+truncate(err.Error(), 3500))
 		return
