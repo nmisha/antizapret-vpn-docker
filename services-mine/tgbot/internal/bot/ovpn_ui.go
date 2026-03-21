@@ -25,13 +25,14 @@ type ovpnProfile struct {
 }
 
 type ovpnSessionClient struct {
-	CommonName     string
-	RealAddress    string
-	VirtualAddress string
-	BytesReceived  uint64
-	BytesSent      uint64
-	ConnectedSince string
-	Username       string
+	CommonName      string
+	RealAddress     string
+	VirtualAddress  string
+	BytesReceived   uint64
+	BytesSent       uint64
+	ConnectedSince  string
+	ConnectedSinceT string
+	Username        string
 }
 
 type ovpnSessionStatus struct {

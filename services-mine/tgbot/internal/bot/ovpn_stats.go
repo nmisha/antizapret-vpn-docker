@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"html"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -61,9 +63,9 @@ func handleOvpnStats(ctx *Ctx, arg string) {
 		return
 	}
 
-	filtered := filterOvpnSessionsByUserPrefixes(sessions.ClientList, target.WgProfiles)
+	filtered := filterOvpnSessionsByUserPrefixes(sessions.ClientList, target.OvpnProfiles)
 	if len(filtered) == 0 {
-		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одной OpenVPN-сессии по вашим правилам из users.json (wg_profiles).")
+		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одной OpenVPN-сессии по вашим правилам из users.json (ovpn_profiles).")
 		return
 	}
 	replyHTML(ctx.Bot, ctx.ChatID, truncate(formatOvpnSessionsStats(filtered), 3800))
@@ -147,7 +149,7 @@ func formatOvpnSessionsStats(clients []ovpnSessionClient) string {
 		}
 		lines = append(lines,
 			fmt.Sprintf("<b>Profile: %s</b>", html.EscapeString(strings.TrimSpace(c.CommonName))),
-			fmt.Sprintf("Connected Since: %s", html.EscapeString(strings.TrimSpace(c.ConnectedSince))),
+			fmt.Sprintf("Connected Since: %s", formatOvpnConnectedSince(c)),
 			fmt.Sprintf("Virtual IP: %s", html.EscapeString(strings.TrimSpace(c.VirtualAddress))),
 			fmt.Sprintf("Real Address: %s", html.EscapeString(strings.TrimSpace(c.RealAddress))),
 			fmt.Sprintf("TX: %s", humanBytesIEC(uint64ToInt64(c.BytesSent))),
@@ -183,6 +185,44 @@ func uint64ToInt64(v uint64) int64 {
 		return int64(^uint64(0) >> 1)
 	}
 	return int64(v)
+}
+
+func formatOvpnConnectedSince(c ovpnSessionClient) string {
+	base := html.EscapeString(strings.TrimSpace(c.ConnectedSince))
+	if ts := strings.TrimSpace(c.ConnectedSinceT); ts != "" {
+		if unix, err := strconv.ParseInt(ts, 10, 64); err == nil && unix > 0 {
+			started := time.Unix(unix, 0)
+			d := time.Since(started)
+			if d < 0 {
+				d = 0
+			}
+			return fmt.Sprintf("%s (%s)", base, formatOvpnSessionAge(d))
+		}
+	}
+	return base
+}
+
+func formatOvpnSessionAge(d time.Duration) string {
+	if d < time.Minute {
+		return fmt.Sprintf("%dс", int(d.Seconds()))
+	}
+	if d < time.Hour {
+		return fmt.Sprintf("%dм", int(d.Minutes()))
+	}
+	if d < 24*time.Hour {
+		h := int(d / time.Hour)
+		m := int((d % time.Hour) / time.Minute)
+		if m == 0 {
+			return fmt.Sprintf("%dч", h)
+		}
+		return fmt.Sprintf("%dч %dм", h, m)
+	}
+	days := int(d / (24 * time.Hour))
+	hours := int((d % (24 * time.Hour)) / time.Hour)
+	if hours == 0 {
+		return fmt.Sprintf("%dд", days)
+	}
+	return fmt.Sprintf("%dд %dч", days, hours)
 }
 
 func sendOvpnProfileActionsWithStats(ctx *Ctx, profileName, scope string) {

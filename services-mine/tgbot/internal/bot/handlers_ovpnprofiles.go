@@ -35,9 +35,9 @@ func handleOvpnProfiles(ctx *Ctx, _ string) {
 		reply(ctx.Bot, ctx.ChatID, "Не удалось получить список OpenVPN профилей:\n"+truncate(err.Error(), 3500))
 		return
 	}
-	filtered := filterOvpnProfilesByUserPrefixes(profiles, ctx.User.WgProfiles)
+	filtered := filterOvpnProfilesByUserPrefixes(profiles, ctx.User.OvpnProfiles)
 	if len(filtered) == 0 {
-		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одного OpenVPN профиля по вашим правилам из users.json (wg_profiles).")
+		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одного OpenVPN профиля по вашим правилам из users.json (ovpn_profiles).")
 		return
 	}
 	sendOvpnProfilesList(ctx, filtered, "ovpn:u:p:")
@@ -124,7 +124,7 @@ func getOvpnProfilesForScope(ctx *Ctx, scope wgAdminScope) ([]ovpnProfile, error
 	case wgScopeAll:
 		return profiles, nil
 	case wgScopeMy:
-		return filterOvpnProfilesByUserPrefixes(profiles, ctx.User.WgProfiles), nil
+		return filterOvpnProfilesByUserPrefixes(profiles, ctx.User.OvpnProfiles), nil
 	case wgScopeUser:
 		u, ok, err := ctx.UsersStore.GetByName(scope.UserName)
 		if err != nil {
@@ -133,7 +133,7 @@ func getOvpnProfilesForScope(ctx *Ctx, scope wgAdminScope) ([]ovpnProfile, error
 		if !ok {
 			return nil, fmt.Errorf("пользователь не найден: %s", scope.UserName)
 		}
-		return filterOvpnProfilesByUserPrefixes(profiles, u.WgProfiles), nil
+		return filterOvpnProfilesByUserPrefixes(profiles, u.OvpnProfiles), nil
 	default:
 		return nil, fmt.Errorf("unknown scope")
 	}
