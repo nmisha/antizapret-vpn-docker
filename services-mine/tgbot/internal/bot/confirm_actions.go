@@ -72,6 +72,28 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 		reply(ctx.Bot, ctx.ChatID, "OK: deleted")
 		return true
 
+	case "awg:delete":
+		peerID := strings.TrimSpace(payload)
+		if !ctx.User.Has(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
+			return true
+		}
+		client, err := makeAwgClientFromEnv()
+		if err != nil {
+			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return true
+		}
+		if _, err := validateAwgAdminPeerAccess(ctx, peerID); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			return true
+		}
+		if err := client.deleteClient(peerID); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Не удалось удалить:\n"+truncate(err.Error(), 3500))
+			return true
+		}
+		reply(ctx.Bot, ctx.ChatID, "OK: deleted")
+		return true
+
 	case "domain:del":
 		d := strings.TrimSpace(payload)
 		if d == "" {
@@ -129,6 +151,24 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 			return true
 		}
 		client, err := makeWgClientFromEnv()
+		if err != nil {
+			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return true
+		}
+		if err := client.deleteClient(peerID); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Не удалось удалить:\n"+truncate(err.Error(), 3500))
+			return true
+		}
+		reply(ctx.Bot, ctx.ChatID, "OK: deleted")
+		return true
+
+	case "awgn:delete":
+		peerID := strings.TrimSpace(payload)
+		if !ctx.User.Has(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
+			return true
+		}
+		client, err := makeAwgClientFromEnv()
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, err.Error())
 			return true

@@ -171,6 +171,11 @@ func Run(register func(reg *CommandRegistry)) error {
 			continue
 		}
 
+		// pending awg admin actions (rename/add)
+		if handleAwgPendingIfAny(ctx, text) {
+			continue
+		}
+
 		// pending admin accounts ui actions
 		if handleAccAdminPendingIfAny(ctx, text) {
 			continue

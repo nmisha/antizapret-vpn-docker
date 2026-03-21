@@ -134,10 +134,22 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
+	if strings.HasPrefix(data, awgNameCbPrefix) {
+		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
+		handleAwgNameCallback(ctx, data)
+		return
+	}
+
 	// wg profiles callbacks
 	if strings.HasPrefix(data, wgCbPrefix) {
 		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
 		handleWgCallback(ctx, data)
+		return
+	}
+
+	if strings.HasPrefix(data, awgCbPrefix) {
+		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
+		handleAwgCallback(ctx, data)
 		return
 	}
 

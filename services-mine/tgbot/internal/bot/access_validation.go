@@ -79,6 +79,54 @@ func validateWgAdminAddAccess(ctx *Ctx) error {
 	return nil
 }
 
+func validateAwgUserPeerAccess(ctx *Ctx, client *wgEasyClient, peerID string) (wgEasyPeer, error) {
+	if !ctx.User.Has(RoleAwgUserControl) && !ctx.User.Has(RoleAdmin) {
+		return wgEasyPeer{}, fmt.Errorf("недостаточно прав")
+	}
+	peers, err := client.listPeers()
+	if err != nil {
+		return wgEasyPeer{}, err
+	}
+	peer, ok := findWgPeerByID(peers, peerID)
+	if !ok {
+		return wgEasyPeer{}, fmt.Errorf("профиль больше не найден")
+	}
+	if !canAccessWgPeerByPrefixes(peer, ctx.User.WgProfiles) && !ctx.User.Has(RoleAdmin) {
+		return wgEasyPeer{}, fmt.Errorf("доступ к профилю отозван")
+	}
+	return peer, nil
+}
+
+func validateAwgAdminPeerAccess(ctx *Ctx, peerID string) (wgEasyPeer, error) {
+	if !ctx.User.Has(RoleAdmin) {
+		return wgEasyPeer{}, fmt.Errorf("недостаточно прав")
+	}
+	scope, ok := getAwgAdminScope(ctx.TgID)
+	if !ok || scope.Mode == "" {
+		return wgEasyPeer{}, fmt.Errorf("кнопка устарела, открой список профилей заново")
+	}
+	peers, err := getAwgPeersForScope(ctx, scope)
+	if err != nil {
+		return wgEasyPeer{}, err
+	}
+	peer, ok := findWgPeerByID(peers, peerID)
+	if !ok {
+		return wgEasyPeer{}, fmt.Errorf("профиль больше не доступен в текущем scope")
+	}
+	return peer, nil
+}
+
+func validateAwgAdminAddAccess(ctx *Ctx) error {
+	if !ctx.User.Has(RoleAdmin) {
+		return fmt.Errorf("недостаточно прав")
+	}
+	scope, ok := getAwgAdminScope(ctx.TgID)
+	if !ok || scope.Mode == "" {
+		return fmt.Errorf("кнопка устарела, открой список профилей заново")
+	}
+	return nil
+}
+
 func canAccessOvpnProfileByPrefixes(profileName string, prefixes []string) bool {
 	name := strings.ToLower(strings.TrimSpace(profileName))
 	if name == "" || len(prefixes) == 0 {
