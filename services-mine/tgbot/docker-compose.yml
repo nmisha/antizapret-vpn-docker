@@ -53,6 +53,11 @@ services:
       WG_USERNAME: "admin"
       WG_PASSWORD: "password"
 
+      AWG_HOST: "wireguard-amnezia.antizapret"
+      AWG_PORT: "51821"
+      AWG_USERNAME: "admin"
+      AWG_PASSWORD: "password"
+
       OVPN_HOST: "openvpn-ui.antizapret"
       OVPN_PORT: "8080"
       OVPN_USERNAME: "admin"
