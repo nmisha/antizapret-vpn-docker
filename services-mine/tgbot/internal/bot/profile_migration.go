@@ -3,6 +3,7 @@ package bot
 import (
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 )
 
@@ -39,18 +40,70 @@ func isIPv4AddressFree(peers []wgEasyPeer, ipv4 string) bool {
 	return true
 }
 
-func sameIPv4SubnetGuess(a, b string) bool {
-	ipA := net.ParseIP(strings.TrimSpace(a))
-	ipB := net.ParseIP(strings.TrimSpace(b))
-	if ipA == nil || ipB == nil {
-		return false
+func lastIPv4Octet(ip string) (byte, bool) {
+	parsed := net.ParseIP(strings.TrimSpace(ip))
+	if parsed == nil {
+		return 0, false
 	}
-	ipA = ipA.To4()
-	ipB = ipB.To4()
-	if ipA == nil || ipB == nil {
-		return false
+	ipv4 := parsed.To4()
+	if ipv4 == nil {
+		return 0, false
 	}
-	return ipA[0] == ipB[0] && ipA[1] == ipB[1] && ipA[2] == ipB[2]
+	return ipv4[3], true
+}
+
+func replaceLastIPv4Octet(ip string, octet byte) (string, bool) {
+	parsed := net.ParseIP(strings.TrimSpace(ip))
+	if parsed == nil {
+		return "", false
+	}
+	ipv4 := parsed.To4()
+	if ipv4 == nil {
+		return "", false
+	}
+	ipv4[3] = octet
+	return ipv4.String(), true
+}
+
+func preserveIPv4HostPart(sourceIPv4, targetIPv4 string, targetPeers []wgEasyPeer) (string, bool) {
+	last, ok := lastIPv4Octet(sourceIPv4)
+	if !ok {
+		return "", false
+	}
+	candidate, ok := replaceLastIPv4Octet(targetIPv4, last)
+	if !ok {
+		return "", false
+	}
+	if candidate == strings.TrimSpace(targetIPv4) {
+		return candidate, true
+	}
+	if !isIPv4AddressFree(targetPeers, candidate) {
+		return "", false
+	}
+	return candidate, true
+}
+
+func normalizeExpiresAt(v any) any {
+	switch x := v.(type) {
+	case string:
+		s := strings.TrimSpace(x)
+		if s == "" {
+			return nil
+		}
+		return s
+	case float64:
+		if x <= 0 {
+			return nil
+		}
+		return strconv.FormatInt(int64(x), 10)
+	case int64:
+		if x <= 0 {
+			return nil
+		}
+		return strconv.FormatInt(x, 10)
+	default:
+		return v
+	}
 }
 
 type migrationResult struct {
@@ -99,17 +152,14 @@ func migratePeerBetweenClients(sourceClient, targetClient *wgEasyClient, sourceP
 		return nil, fmt.Errorf("созданный целевой профиль %q не найден", sourcePeer.Name)
 	}
 
-	desiredIPv4 := strings.TrimSpace(sourcePeer.IPv4Address)
 	ipPreserved := false
-	if desiredIPv4 != "" &&
-		isIPv4AddressFree(targetPeers, desiredIPv4) &&
-		sameIPv4SubnetGuess(desiredIPv4, createdPeer.IPv4Address) {
+	if desiredIPv4, ok := preserveIPv4HostPart(sourcePeer.IPv4Address, createdPeer.IPv4Address, targetPeers); ok {
 		createdPeer.IPv4Address = desiredIPv4
 		ipPreserved = true
 	}
 
 	createdPeer.Enabled = sourcePeer.Enabled
-	createdPeer.ExpiresAt = sourcePeer.ExpiresAt
+	createdPeer.ExpiresAt = normalizeExpiresAt(sourcePeer.ExpiresAt)
 
 	if err := targetClient.updateClient(string(createdPeer.ID), &createdPeer); err != nil {
 		return nil, fmt.Errorf("не удалось настроить целевой профиль: %w", err)
