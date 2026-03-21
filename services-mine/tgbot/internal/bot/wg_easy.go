@@ -251,30 +251,9 @@ func (c *wgEasyClient) createClient(name string) error {
 	return nil
 }
 
-func (c *wgEasyClient) deleteClient(clientID string) error {
-	req, err := c.newReq("DELETE", "/api/client/"+clientID, nil)
-	if err != nil {
-		return err
-	}
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("delete client failed: %s: %s", resp.Status, string(b))
-	}
-	return nil
-}
-
-func (c *wgEasyClient) renameClient(clientID, newName string) error {
-	peer, err := c.getPeer(clientID)
-	if err != nil {
-		return err
-	}
+func (c *wgEasyClient) updateClient(clientID string, peer *wgEasyPeer) error {
 	body, _ := json.Marshal(map[string]any{
-		"name":                newName,
+		"name":                peer.Name,
 		"enabled":             peer.Enabled,
 		"expiresAt":           peer.ExpiresAt,
 		"ipv4Address":         peer.IPv4Address,
@@ -311,9 +290,35 @@ func (c *wgEasyClient) renameClient(clientID, newName string) error {
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-		return fmt.Errorf("rename client failed: %s: %s", resp.Status, string(b))
+		return fmt.Errorf("update client failed: %s: %s", resp.Status, string(b))
 	}
 	return nil
+}
+
+func (c *wgEasyClient) deleteClient(clientID string) error {
+	req, err := c.newReq("DELETE", "/api/client/"+clientID, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		return fmt.Errorf("delete client failed: %s: %s", resp.Status, string(b))
+	}
+	return nil
+}
+
+func (c *wgEasyClient) renameClient(clientID, newName string) error {
+	peer, err := c.getPeer(clientID)
+	if err != nil {
+		return err
+	}
+	peer.Name = newName
+	return c.updateClient(clientID, peer)
 }
 
 func (c *wgEasyClient) getPeer(clientID string) (*wgEasyPeer, error) {
