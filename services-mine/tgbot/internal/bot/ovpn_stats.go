@@ -65,7 +65,7 @@ func handleOvpnStats(ctx *Ctx, arg string) {
 
 	filtered := filterOvpnSessionsByUserPrefixes(sessions.ClientList, target.OvpnProfiles)
 	if len(filtered) == 0 {
-		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одной OpenVPN-сессии по вашим правилам из users.json (ovpn_profiles).")
+		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одной OpenVPN-сессии по вашим профилям.")
 		return
 	}
 	replyHTML(ctx.Bot, ctx.ChatID, truncate(formatOvpnSessionsStats(filtered), 3800))

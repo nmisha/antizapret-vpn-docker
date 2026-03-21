@@ -37,7 +37,7 @@ func handleOvpnProfiles(ctx *Ctx, _ string) {
 	}
 	filtered := filterOvpnProfilesByUserPrefixes(profiles, ctx.User.OvpnProfiles)
 	if len(filtered) == 0 {
-		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одного OpenVPN профиля по вашим правилам из users.json (ovpn_profiles).")
+		reply(ctx.Bot, ctx.ChatID, "Не найдено ни одного OpenVPN профиля по вашим правилам.")
 		return
 	}
 	sendOvpnProfilesList(ctx, filtered, "ovpn:u:p:")
