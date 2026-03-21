@@ -20,6 +20,13 @@ var (
 	ovpnLoginFormCheck = regexp.MustCompile(`(?i)<form[^>]+action="[^"]*/login"`)
 )
 
+var ovpnReservedCertificateRoutes = map[string]struct{}{
+	"restart": {},
+	"revoke":  {},
+	"renew":   {},
+	"burn":    {},
+}
+
 type ovpnProfile struct {
 	Name string
 }
@@ -110,6 +117,9 @@ func (c *ovpnUIClient) listProfiles() ([]ovpnProfile, error) {
 		}
 		name = strings.TrimSpace(name)
 		if name == "" || strings.EqualFold(name, "server") {
+			continue
+		}
+		if _, reserved := ovpnReservedCertificateRoutes[strings.ToLower(name)]; reserved {
 			continue
 		}
 		key := strings.ToLower(name)
