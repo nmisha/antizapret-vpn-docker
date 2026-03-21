@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"net"
 	"strings"
 )
 
@@ -38,6 +39,20 @@ func isIPv4AddressFree(peers []wgEasyPeer, ipv4 string) bool {
 	return true
 }
 
+func sameIPv4SubnetGuess(a, b string) bool {
+	ipA := net.ParseIP(strings.TrimSpace(a))
+	ipB := net.ParseIP(strings.TrimSpace(b))
+	if ipA == nil || ipB == nil {
+		return false
+	}
+	ipA = ipA.To4()
+	ipB = ipB.To4()
+	if ipA == nil || ipB == nil {
+		return false
+	}
+	return ipA[0] == ipB[0] && ipA[1] == ipB[1] && ipA[2] == ipB[2]
+}
+
 type migrationResult struct {
 	SourceName       string
 	TargetName       string
@@ -71,9 +86,6 @@ func migratePeerBetweenClients(sourceClient, targetClient *wgEasyClient, sourceP
 		}
 	}
 
-	desiredIPv4 := strings.TrimSpace(sourcePeer.IPv4Address)
-	canPreserveIP := desiredIPv4 != "" && isIPv4AddressFree(targetPeers, desiredIPv4)
-
 	if err := targetClient.createClient(sourcePeer.Name); err != nil {
 		return nil, fmt.Errorf("не удалось создать целевой профиль: %w", err)
 	}
@@ -87,8 +99,11 @@ func migratePeerBetweenClients(sourceClient, targetClient *wgEasyClient, sourceP
 		return nil, fmt.Errorf("созданный целевой профиль %q не найден", sourcePeer.Name)
 	}
 
+	desiredIPv4 := strings.TrimSpace(sourcePeer.IPv4Address)
 	ipPreserved := false
-	if canPreserveIP {
+	if desiredIPv4 != "" &&
+		isIPv4AddressFree(targetPeers, desiredIPv4) &&
+		sameIPv4SubnetGuess(desiredIPv4, createdPeer.IPv4Address) {
 		createdPeer.IPv4Address = desiredIPv4
 		ipPreserved = true
 	}
