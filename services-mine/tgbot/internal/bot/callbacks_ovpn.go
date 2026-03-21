@@ -10,7 +10,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 
 	if strings.HasPrefix(data, "ovpn:u:p:") {
 		profileName := strings.TrimPrefix(data, "ovpn:u:p:")
-		sendOvpnProfileActions(ctx, profileName, "ovpn:u")
+		sendOvpnProfileActionsWithStats(ctx, profileName, "ovpn:u")
 		return
 	}
 	if strings.HasPrefix(data, "ovpn:u:act:") {
@@ -27,6 +27,8 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 			return
 		}
 		switch act {
+		case "stats":
+			sendOvpnStatsForProfile(ctx, client, profileName)
 		case "conf":
 			sendOvpnConfigAsFile(ctx, client, profileName)
 		default:
@@ -86,7 +88,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 	}
 	if strings.HasPrefix(data, "ovpn:a:p:") {
 		profileName := strings.TrimPrefix(data, "ovpn:a:p:")
-		sendOvpnProfileActions(ctx, profileName, "ovpn:a")
+		sendOvpnProfileActionsWithStats(ctx, profileName, "ovpn:a")
 		return
 	}
 	if strings.HasPrefix(data, "ovpn:a:act:") {
@@ -103,6 +105,8 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 			return
 		}
 		switch act {
+		case "stats":
+			sendOvpnStatsForProfile(ctx, client, profileName)
 		case "conf":
 			sendOvpnConfigAsFile(ctx, client, profileName)
 		default:

@@ -14,6 +14,7 @@ func handleRolesCatalog(ctx *Ctx, _ string) {
 		{RoleInfo, "Информационные команды."},
 		{RoleNetUser, "Сетевые утилиты: DNS resolve и другие."},
 		{RoleWgStats, "Доступ к /wg_stats для просмотра статистики WireGuard по своим профилям."},
+		{RoleOvpnStats, "Доступ к /ovpn_stats для просмотра статистики OpenVPN по своим профилям."},
 		{RoleWgUserControl, "Доступ к /wg_profiles: статистика, конфиг и QR по своим WireGuard-профилям."},
 		{RoleOvpnUserControl, "Доступ к /ovpn_profiles: выдача OpenVPN-профилей."},
 		{RoleSupport, "Получает сообщения из /support."},

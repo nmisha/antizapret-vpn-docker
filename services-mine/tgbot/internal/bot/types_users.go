@@ -14,6 +14,7 @@ const (
 	RoleServiceManager  Role = "ServiceManager" // renamed from Manager
 	RoleInfo            Role = "Info"
 	RoleWgStats         Role = "WgStats"
+	RoleOvpnStats       Role = "OvpnStats"
 	RoleWgUserControl   Role = "WgUserControl"
 	RoleOvpnUserControl Role = "OvpnUserControl"
 	RoleSupport         Role = "Support"
@@ -63,6 +64,8 @@ func normalizeRoleString(s string) (Role, error) {
 		return RoleInfo, nil
 	case strings.ToLower(string(RoleWgStats)):
 		return RoleWgStats, nil
+	case strings.ToLower(string(RoleOvpnStats)):
+		return RoleOvpnStats, nil
 	case strings.ToLower(string(RoleWgUserControl)):
 		return RoleWgUserControl, nil
 	case strings.ToLower(string(RoleOvpnUserControl)):

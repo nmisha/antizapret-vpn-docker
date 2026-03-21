@@ -1,6 +1,7 @@
 package bot
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -21,6 +22,26 @@ var (
 
 type ovpnProfile struct {
 	Name string
+}
+
+type ovpnSessionClient struct {
+	CommonName     string
+	RealAddress    string
+	VirtualAddress string
+	BytesReceived  uint64
+	BytesSent      uint64
+	ConnectedSince string
+	Username       string
+}
+
+type ovpnSessionStatus struct {
+	ClientList []ovpnSessionClient
+}
+
+type ovpnAPIResponse struct {
+	Status  string            `json:"status"`
+	Message string            `json:"message"`
+	Data    ovpnSessionStatus `json:"data"`
 }
 
 type ovpnUIClient struct {
@@ -163,6 +184,39 @@ func (c *ovpnUIClient) getCertificatesPage() (string, error) {
 		return "", fmt.Errorf("OpenVPN UI login failed or session not established")
 	}
 	return string(body), nil
+}
+
+func (c *ovpnUIClient) listSessions() (*ovpnSessionStatus, error) {
+	if err := c.ensureSession(); err != nil {
+		return nil, err
+	}
+	req, err := http.NewRequest(http.MethodGet, c.BaseURL+"/api/v1/session/", nil)
+	if err != nil {
+		return nil, err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("session api failed: %s: %s", resp.Status, string(body))
+	}
+	var data ovpnAPIResponse
+	if err := json.Unmarshal(body, &data); err != nil {
+		return nil, err
+	}
+	if strings.ToLower(strings.TrimSpace(data.Status)) != "success" {
+		if strings.TrimSpace(data.Message) != "" {
+			return nil, fmt.Errorf("session api error: %s", data.Message)
+		}
+		return nil, fmt.Errorf("session api returned status %q", data.Status)
+	}
+	return &data.Data, nil
 }
 
 func (c *ovpnUIClient) ensureSession() error {
