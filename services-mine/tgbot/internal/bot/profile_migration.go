@@ -5,6 +5,16 @@ import (
 	"strings"
 )
 
+func precheckMigrationClients(sourceClient, targetClient *wgEasyClient, sourceLabel, targetLabel string) error {
+	if _, err := sourceClient.listPeers(); err != nil {
+		return fmt.Errorf("%s недоступен: %w", sourceLabel, err)
+	}
+	if _, err := targetClient.listPeers(); err != nil {
+		return fmt.Errorf("%s недоступен: %w", targetLabel, err)
+	}
+	return nil
+}
+
 func findPeerByExactName(peers []wgEasyPeer, name string) (wgEasyPeer, bool) {
 	want := strings.ToLower(strings.TrimSpace(name))
 	for _, p := range peers {
@@ -36,7 +46,11 @@ type migrationResult struct {
 	ExpiresPreserved bool
 }
 
-func migratePeerBetweenClients(sourceClient, targetClient *wgEasyClient, sourcePeerID string) (*migrationResult, error) {
+func migratePeerBetweenClients(sourceClient, targetClient *wgEasyClient, sourcePeerID string, sourceLabel, targetLabel string) (*migrationResult, error) {
+	if err := precheckMigrationClients(sourceClient, targetClient, sourceLabel, targetLabel); err != nil {
+		return nil, err
+	}
+
 	sourcePeer, err := sourceClient.getPeer(sourcePeerID)
 	if err != nil {
 		return nil, fmt.Errorf("не удалось получить исходный профиль: %w", err)
