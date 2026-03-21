@@ -9,28 +9,29 @@ import (
 type Role string
 
 const (
-	RoleDomainEditor   Role = "DomainEditor"
-	RoleDomainManager  Role = "DomainManager"
-	RoleServiceManager Role = "ServiceManager" // renamed from Manager
-	RoleInfo           Role = "Info"
-	RoleWgStats        Role = "WgStats"
-	RoleWgUserControl  Role = "WgUserControl"
-	RoleSupport        Role = "Support"
-	RoleAdmin          Role = "Admin"
-	RoleAiUser         Role = "AiUser"
-	RoleNetUser        Role = "NetUser"
+	RoleDomainEditor    Role = "DomainEditor"
+	RoleDomainManager   Role = "DomainManager"
+	RoleServiceManager  Role = "ServiceManager" // renamed from Manager
+	RoleInfo            Role = "Info"
+	RoleWgStats         Role = "WgStats"
+	RoleWgUserControl   Role = "WgUserControl"
+	RoleOvpnUserControl Role = "OvpnUserControl"
+	RoleSupport         Role = "Support"
+	RoleAdmin           Role = "Admin"
+	RoleAiUser          Role = "AiUser"
+	RoleNetUser         Role = "NetUser"
 )
 
 type User struct {
 	TelegramID    int64         `json:"telegram_id"`
 	Name          string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
 	WgProfilesRaw []string      `json:"wg_profiles,omitempty"`
-	RolesRaw      []string      `json:"roles"` // persisted (canonical)
+	RolesRaw      []string      `json:"roles"` // persisted canonical role names
 	Roles         map[Role]bool `json:"-"`     // runtime
 	WgProfiles    []string      `json:"-"`     // normalized (lower-case) wg profile prefixes/names
 }
 
-// Admin включает возможности всех ролей
+// Admin includes permissions of all other roles.
 func (u User) Has(role Role) bool {
 	if u.Roles[RoleAdmin] {
 		return true
@@ -38,7 +39,7 @@ func (u User) Has(role Role) bool {
 	return u.Roles[role]
 }
 
-// HasExact checks whether the role is explicitly assigned (without Admin override).
+// HasExact checks whether the role is explicitly assigned without Admin override.
 func (u User) HasExact(role Role) bool {
 	return u.Roles[role]
 }
@@ -54,7 +55,7 @@ func normalizeRoleString(s string) (Role, error) {
 		return RoleDomainEditor, nil
 	case strings.ToLower(string(RoleDomainManager)):
 		return RoleDomainManager, nil
-	case "manager": // backward compatibility
+	case "manager":
 		return RoleServiceManager, nil
 	case strings.ToLower(string(RoleServiceManager)):
 		return RoleServiceManager, nil
@@ -64,6 +65,8 @@ func normalizeRoleString(s string) (Role, error) {
 		return RoleWgStats, nil
 	case strings.ToLower(string(RoleWgUserControl)):
 		return RoleWgUserControl, nil
+	case strings.ToLower(string(RoleOvpnUserControl)):
+		return RoleOvpnUserControl, nil
 	case strings.ToLower(string(RoleSupport)):
 		return RoleSupport, nil
 	case strings.ToLower(string(RoleAdmin)):
@@ -122,7 +125,6 @@ func normalizeUser(u User) (User, error) {
 	canon = uniqueStringsCaseInsensitive(canon)
 	u.RolesRaw = canon
 
-	// WireGuard profile prefixes/names (case-insensitive)
 	u.WgProfilesRaw = uniqueStringsCaseInsensitive(u.WgProfilesRaw)
 	u.WgProfiles = make([]string, 0, len(u.WgProfilesRaw))
 	for _, p := range u.WgProfilesRaw {
