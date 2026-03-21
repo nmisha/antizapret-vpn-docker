@@ -266,7 +266,7 @@ func (c *ovpnUIClient) ensureSession() error {
 	if loginResp.StatusCode < 200 || loginResp.StatusCode >= 400 {
 		return fmt.Errorf("login failed: %s: %s", loginResp.Status, string(loginBody))
 	}
-	if ovpnLoginFormCheck.Match(loginBody) && !strings.Contains(strings.ToLower(string(loginBody)), "successfully logged in") {
+	if strings.Contains(strings.ToLower(loginResp.Request.URL.Path), "/login") && ovpnLoginFormCheck.Match(loginBody) {
 		return fmt.Errorf("OpenVPN UI authentication rejected")
 	}
 	return nil
