@@ -18,6 +18,15 @@ func handleWgCallback(ctx *Ctx, data string) {
 
 	if strings.HasPrefix(data, "wg:u:p:") {
 		peerID := strings.TrimPrefix(data, "wg:u:p:")
+		client, err := makeWgClientFromEnv()
+		if err != nil {
+			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return
+		}
+		if _, err := validateWgUserPeerAccess(ctx, client, peerID); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+			return
+		}
 		sendUserProfileActions(ctx, peerID)
 		return
 	}
@@ -32,6 +41,10 @@ func handleWgCallback(ctx *Ctx, data string) {
 		client, err := makeWgClientFromEnv()
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return
+		}
+		if _, err := validateWgUserPeerAccess(ctx, client, peerID); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
 			return
 		}
 		switch act {
@@ -108,6 +121,15 @@ func handleWgCallback(ctx *Ctx, data string) {
 
 	if strings.HasPrefix(data, "wg:a:p:") {
 		peerID := strings.TrimPrefix(data, "wg:a:p:")
+		client, err := makeWgClientFromEnv()
+		if err != nil {
+			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return
+		}
+		if _, err := validateWgAdminPeerAccess(ctx, client, peerID); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			return
+		}
 		sendAdminProfileActions(ctx, peerID)
 		return
 	}
@@ -129,6 +151,17 @@ func handleWgCallback(ctx *Ctx, data string) {
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, err.Error())
 			return
+		}
+		if act == "add" {
+			if err := validateWgAdminAddAccess(ctx); err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				return
+			}
+		} else {
+			if _, err := validateWgAdminPeerAccess(ctx, client, peerID); err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				return
+			}
 		}
 
 		switch act {

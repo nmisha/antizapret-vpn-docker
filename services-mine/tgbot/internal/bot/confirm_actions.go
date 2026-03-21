@@ -23,8 +23,8 @@ func sendConfirm(ctx *Ctx, prompt string, kind string, payload string) {
 	cb := confirmCbPrefix + kind + ":" + url.QueryEscape(payload)
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("✅ Удалить", cb),
-			tgbotapi.NewInlineKeyboardButtonData("✖ Отмена", "ui:cancel"),
+			tgbotapi.NewInlineKeyboardButtonData("Delete", cb),
+			tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
 		),
 	)
 	m := tgbotapi.NewMessage(ctx.ChatID, prompt)
@@ -37,26 +37,32 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 	if !strings.HasPrefix(data, confirmCbPrefix) {
 		return false
 	}
+
 	rest := strings.TrimPrefix(data, confirmCbPrefix)
-	// kind itself may contain ':' (e.g. "domain:del").
-	// payload is URL-escaped, so ':' inside payload will be encoded and won't
-	// interfere with splitting.
 	idx := strings.LastIndex(rest, ":")
 	if idx <= 0 || idx >= len(rest)-1 {
 		reply(ctx.Bot, ctx.ChatID, "Некорректный запрос подтверждения.")
 		return true
 	}
+
 	kind := rest[:idx]
 	payloadEsc := rest[idx+1:]
 	payload, _ := url.QueryUnescape(payloadEsc)
 
 	switch kind {
 	case "wg:delete":
-		// payload: peerID
 		peerID := strings.TrimSpace(payload)
+		if !ctx.User.Has(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
+			return true
+		}
 		client, err := makeWgClientFromEnv()
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return true
+		}
+		if _, err := validateWgAdminPeerAccess(ctx, client, peerID); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
 			return true
 		}
 		if err := client.deleteClient(peerID); err != nil {
@@ -67,13 +73,11 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 		return true
 
 	case "domain:del":
-		// payload: normalizedDomain
 		d := strings.TrimSpace(payload)
 		if d == "" {
 			reply(ctx.Bot, ctx.ChatID, "Пустой домен.")
 			return true
 		}
-		// DomainManager/Admin can delete from any section
 		if ctx.User.Has(RoleDomainManager) || ctx.User.Has(RoleAdmin) {
 			sections, err := ctx.Domains.DelDomainAny(d)
 			if err != nil {
@@ -91,6 +95,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 			reply(ctx.Bot, ctx.ChatID, "Удалено из секций #"+strings.Join(sections, ", #")+": "+d)
 			return true
 		}
+
 		removed, err := ctx.Domains.DelDomain(ctx.User.Name, d)
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения: "+err.Error())
@@ -104,8 +109,11 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 		return true
 
 	case "acc:del":
-		// payload: account name
 		name := strings.TrimSpace(payload)
+		if !ctx.User.Has(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
+			return true
+		}
 		msg, err := ctx.Accounts.DeleteByName(name)
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
@@ -115,8 +123,11 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 		return true
 
 	case "wgn:delete":
-		// payload: peerID (delete from /wg_del disambiguation)
 		peerID := strings.TrimSpace(payload)
+		if !ctx.User.Has(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
+			return true
+		}
 		client, err := makeWgClientFromEnv()
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, err.Error())
@@ -128,6 +139,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: deleted")
 		return true
+
 	default:
 		reply(ctx.Bot, ctx.ChatID, fmt.Sprintf("Неизвестное подтверждение: %s", kind))
 		return true

@@ -10,6 +10,15 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 
 	if strings.HasPrefix(data, "ovpn:u:p:") {
 		profileName := strings.TrimPrefix(data, "ovpn:u:p:")
+		client, err := newOvpnUIClientFromEnv()
+		if err != nil {
+			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return
+		}
+		if _, err := validateOvpnUserProfileAccess(ctx, client, profileName); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+			return
+		}
 		sendOvpnProfileActionsWithStats(ctx, profileName, "ovpn:u")
 		return
 	}
@@ -24,6 +33,10 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		client, err := newOvpnUIClientFromEnv()
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return
+		}
+		if _, err := validateOvpnUserProfileAccess(ctx, client, profileName); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
 			return
 		}
 		switch act {
@@ -88,6 +101,15 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 	}
 	if strings.HasPrefix(data, "ovpn:a:p:") {
 		profileName := strings.TrimPrefix(data, "ovpn:a:p:")
+		client, err := newOvpnUIClientFromEnv()
+		if err != nil {
+			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return
+		}
+		if _, err := validateOvpnAdminProfileAccess(ctx, client, profileName); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			return
+		}
 		sendOvpnProfileActionsWithStats(ctx, profileName, "ovpn:a")
 		return
 	}
@@ -102,6 +124,10 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		client, err := newOvpnUIClientFromEnv()
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, err.Error())
+			return
+		}
+		if _, err := validateOvpnAdminProfileAccess(ctx, client, profileName); err != nil {
+			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
 			return
 		}
 		switch act {

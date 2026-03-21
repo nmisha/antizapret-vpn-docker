@@ -1,8 +1,6 @@
 package bot
 
-import (
-	"strings"
-)
+import "strings"
 
 // handleAccAdminPendingIfAny processes admin input for the accounts UI.
 // Returns true if message consumed.
@@ -12,6 +10,10 @@ func handleAccAdminPendingIfAny(ctx *Ctx, text string) bool {
 		return false
 	}
 
+	if !ctx.User.Has(RoleAdmin) {
+		reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
+		return true
+	}
 	if ctx.Accounts == nil {
 		reply(ctx.Bot, ctx.ChatID, "AccountsStore не настроен.")
 		return true
@@ -25,7 +27,6 @@ func handleAccAdminPendingIfAny(ctx *Ctx, text string) bool {
 
 	switch p.Kind {
 	case accAdminAdd:
-		// <name>;<login>;<password>
 		parts := strings.SplitN(s, ";", 3)
 		if len(parts) < 3 {
 			reply(ctx.Bot, ctx.ChatID, "Формат: <name>;<login>;<password>")
@@ -44,8 +45,7 @@ func handleAccAdminPendingIfAny(ctx *Ctx, text string) bool {
 		return true
 
 	case accAdminRename:
-		newName := s
-		msg, err := ctx.Accounts.Rename(p.Name, newName)
+		msg, err := ctx.Accounts.Rename(p.Name, s)
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
 			return true
@@ -55,7 +55,6 @@ func handleAccAdminPendingIfAny(ctx *Ctx, text string) bool {
 		return true
 
 	case accAdminSetLogin, accAdminSetPass:
-		// Load current, then upsert with changed field
 		list, err := ctx.Accounts.List()
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, "Ошибка чтения accounts.json: "+err.Error())
@@ -88,6 +87,7 @@ func handleAccAdminPendingIfAny(ctx *Ctx, text string) bool {
 		reply(ctx.Bot, ctx.ChatID, msg)
 		showAccountsAdminList(ctx)
 		return true
+
 	default:
 		reply(ctx.Bot, ctx.ChatID, "Неизвестное ожидаемое действие.")
 		return true

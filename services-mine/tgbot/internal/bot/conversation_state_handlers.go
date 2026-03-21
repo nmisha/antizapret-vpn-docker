@@ -15,7 +15,6 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 		return false
 	}
 
-	// allow cancel from anywhere
 	if strings.EqualFold(cmd, "/cancel") {
 		clearConv(ctx.ChatID, ctx.TgID)
 		reply(ctx.Bot, ctx.ChatID, "Ок, отменил.")
@@ -24,9 +23,8 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 
 	switch st.Mode {
 	case ConvNetDNSAwaitDomain:
-		// Expect a non-command message with a domain.
 		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {
-			reply(ctx.Bot, ctx.ChatID, "Введи домен обычным сообщением (или /cancel).")
+			reply(ctx.Bot, ctx.ChatID, "Введи домен обычным сообщением или /cancel.")
 			return true
 		}
 		domain := strings.TrimSpace(fullText)
@@ -35,41 +33,50 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 		return true
 
 	case ConvSupportAwaitText:
-		// Expect a non-command message.
 		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {
-			reply(ctx.Bot, ctx.ChatID, "Напиши текст обращения обычным сообщением (или /cancel).")
+			reply(ctx.Bot, ctx.ChatID, "Напиши текст обращения обычным сообщением или /cancel.")
 			return true
 		}
-		// Forward support request
 		forwardSupport(ctx, strings.TrimSpace(fullText))
 		clearConv(ctx.ChatID, ctx.TgID)
 		return true
 
 	case ConvAdminBroadcastText:
-		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {
-			reply(ctx.Bot, ctx.ChatID, "Напиши текст рассылки обычным сообщением (или /cancel).")
+		if !ctx.User.Has(RoleAdmin) {
+			clearConv(ctx.ChatID, ctx.TgID)
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
 			return true
 		}
-		// отправляем сразу, без подтверждения
-		text := strings.TrimSpace(fullText)
-		sendBroadcast(ctx, text, ctx.MessageEntities)
+		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {
+			reply(ctx.Bot, ctx.ChatID, "Напиши текст рассылки обычным сообщением или /cancel.")
+			return true
+		}
+		sendBroadcast(ctx, strings.TrimSpace(fullText), ctx.MessageEntities)
 		clearConv(ctx.ChatID, ctx.TgID)
 		return true
 
 	case ConvAdminMsgAwaitText:
-		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {
-			reply(ctx.Bot, ctx.ChatID, "Напиши текст сообщения обычным сообщением (или /cancel).")
+		if !ctx.User.Has(RoleAdmin) {
+			clearConv(ctx.ChatID, ctx.TgID)
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
 			return true
 		}
-		// отправляем сразу, без подтверждения
-		text := strings.TrimSpace(fullText)
-		sendAdminMessageToUser(ctx, st.TargetID, st.TargetName, text, ctx.MessageEntities)
+		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {
+			reply(ctx.Bot, ctx.ChatID, "Напиши текст сообщения обычным сообщением или /cancel.")
+			return true
+		}
+		sendAdminMessageToUser(ctx, st.TargetID, st.TargetName, strings.TrimSpace(fullText), ctx.MessageEntities)
 		clearConv(ctx.ChatID, ctx.TgID)
 		return true
 
 	case ConvAdminMsgSearchUser:
+		if !ctx.User.Has(RoleAdmin) {
+			clearConv(ctx.ChatID, ctx.TgID)
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
+			return true
+		}
 		if strings.HasPrefix(strings.TrimSpace(fullText), "/") {
-			reply(ctx.Bot, ctx.ChatID, "Напиши часть имени пользователя обычным текстом (или /cancel).")
+			reply(ctx.Bot, ctx.ChatID, "Напиши часть имени пользователя обычным сообщением или /cancel.")
 			return true
 		}
 		prefix := strings.TrimSpace(fullText)
@@ -81,7 +88,6 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 		return true
 	}
 
-	// Unknown state — reset.
 	clearConv(ctx.ChatID, ctx.TgID)
 	reply(ctx.Bot, ctx.ChatID, "Сбросил состояние диалога. Попробуй ещё раз.")
 	return true
@@ -90,10 +96,10 @@ func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
 func supportStartUI(ctx *Ctx) {
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("✖ Отмена", "ui:cancel"),
+			tgbotapi.NewInlineKeyboardButtonData("Отмена", "ui:cancel"),
 		),
 	)
-	msg := tgbotapi.NewMessage(ctx.ChatID, "🆘 Напиши обращение в поддержку обычным сообщением.\n\nМожно из группы — я передам, откуда пришло.\n\n/cancel — отмена")
+	msg := tgbotapi.NewMessage(ctx.ChatID, "Напиши обращение в поддержку обычным сообщением.\n\nМожно из группы, я передам, откуда оно пришло.\n\n/cancel - отмена")
 	msg.ReplyMarkup = kb
 	_, err := ctx.Bot.Send(msg)
 	logSendErrorIfEnabled(ctx.ChatID, err, "send message", msg.Text)
@@ -101,14 +107,10 @@ func supportStartUI(ctx *Ctx) {
 
 // forwardSupport keeps the existing logic of sending to all Support-role users.
 func forwardSupport(ctx *Ctx, text string) {
-	// Reuse existing implementation in handlers_support.go, but without parsing args.
-	// We call internal helper to avoid duplicating logic.
 	_ = text
-	// handlers_support.go now exposes sendSupportMessage
 	sendSupportMessage(ctx, text, ctx.MessageEntities)
 }
 
-// Helpers for quick formatting.
 func previewBox(title, body string) string {
 	if body == "" {
 		body = "(пусто)"
