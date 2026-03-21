@@ -54,6 +54,12 @@ func handleWgCallback(ctx *Ctx, data string) {
 			sendWgConfigAsFile(ctx, client, peerID)
 		case "qr":
 			sendWgQRCode(ctx, client, peerID)
+		case "migrate_awg":
+			if !ctx.User.Has(RoleAwgUserControl) {
+				reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль AwgUserControl.")
+				return
+			}
+			sendConfirm(ctx, "Мигрировать профиль в AWG? Целевой профиль с тем же именем будет удалён и пересоздан, исходный WG-профиль будет удалён.", "wg:u:migrate:awg", peerID)
 		default:
 			reply(ctx.Bot, ctx.ChatID, "Неизвестное действие.")
 		}
@@ -171,6 +177,12 @@ func handleWgCallback(ctx *Ctx, data string) {
 			sendWgConfigAsFile(ctx, client, peerID)
 		case "qr":
 			sendWgQRCode(ctx, client, peerID)
+		case "migrate_awg":
+			if !ctx.User.Has(RoleAwgUserControl) {
+				reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль AwgUserControl.")
+				return
+			}
+			sendConfirm(ctx, "Мигрировать профиль в AWG? Целевой профиль с тем же именем будет удалён и пересоздан, исходный WG-профиль будет удалён.", "wg:a:migrate:awg", peerID)
 		case "enable":
 			if err := client.enableClient(peerID); err != nil {
 				reply(ctx.Bot, ctx.ChatID, "Не удалось включить:\n"+truncate(err.Error(), 3500))

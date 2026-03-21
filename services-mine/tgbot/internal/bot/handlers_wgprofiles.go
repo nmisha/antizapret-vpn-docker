@@ -176,7 +176,7 @@ func getPeersForScope(ctx *Ctx, scope wgAdminScope) ([]wgEasyPeer, error) {
 
 // send admin profile actions menu for a selected profile
 func sendAdminProfileActions(ctx *Ctx, peerID string) {
-	kb := tgbotapi.NewInlineKeyboardMarkup(
+	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Stat", "wg:a:act:stats:"+peerID),
 			tgbotapi.NewInlineKeyboardButtonData("Profile", "wg:a:act:conf:"+peerID),
@@ -190,11 +190,17 @@ func sendAdminProfileActions(ctx *Ctx, peerID string) {
 			tgbotapi.NewInlineKeyboardButtonData("Rename", "wg:a:act:rename:"+peerID),
 			tgbotapi.NewInlineKeyboardButtonData("Delete", "wg:a:act:delete:"+peerID),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("➕ Add profile", "wg:a:act:add:"),
-			tgbotapi.NewInlineKeyboardButtonData("Back", "wg:a:back"),
-		),
-	)
+	}
+	if ctx.User.Has(RoleAwgUserControl) {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Migrate to AWG", "wg:a:act:migrate_awg:"+peerID),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Add profile", "wg:a:act:add:"),
+		tgbotapi.NewInlineKeyboardButtonData("Back", "wg:a:back"),
+	))
+	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Select action:")
 	m.ReplyMarkup = kb
 	_, err := ctx.Bot.Send(m)
@@ -203,16 +209,22 @@ func sendAdminProfileActions(ctx *Ctx, peerID string) {
 
 // send user profile actions menu for a selected profile
 func sendUserProfileActions(ctx *Ctx, peerID string) {
-	kb := tgbotapi.NewInlineKeyboardMarkup(
+	rows := [][]tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Stat", "wg:u:act:stats:"+peerID),
 			tgbotapi.NewInlineKeyboardButtonData("Profile", "wg:u:act:conf:"+peerID),
 			tgbotapi.NewInlineKeyboardButtonData("QR", "wg:u:act:qr:"+peerID),
 		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
-		),
-	)
+	}
+	if ctx.User.Has(RoleAwgUserControl) {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Migrate to AWG", "wg:u:act:migrate_awg:"+peerID),
+		))
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
+	))
+	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Select action:")
 	m.ReplyMarkup = kb
 	_, err := ctx.Bot.Send(m)
