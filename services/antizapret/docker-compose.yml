@@ -44,3 +44,9 @@ services:
       - DNS=adguard
       - CLIENT
       - DOALL_DISABLED
+      - |
+        IPS_URL=
+        https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/ips.txt;
+      - |
+        IPS_WORLD_URL=
+        https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/ips-world.txt;

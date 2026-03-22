@@ -48,10 +48,6 @@ COPY --from=builder-compose2swarm /app/compose2swarm /usr/bin/compose2swarm
 COPY . /
 
 RUN <<-"EOF" bash -ex
-    for list in antizapret/config/*-dist.txt; do
-        sed -E '/^(#.*)?[[:space:]]*$/d' $list | sort | uniq | sponge $list
-    done
-
     for list in antizapret/config/*-custom.txt; do rm -f $list; done
 
     ln -sf /root/antizapret/doall.sh /usr/bin/doall

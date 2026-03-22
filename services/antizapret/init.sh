@@ -18,6 +18,8 @@ DOCKER_SUBNET=${DOCKER_SUBNET}
 DNS=${DNS:-"127.0.0.1"}
 CLIENT=${CLIENT:-"az-local"}
 DOALL_DISABLED=${DOALL_DISABLED:-""}
+IPS_URL='${IPS_URL:-""}'
+IPS_WORLD_URL='${IPS_WORLD_URL:-""}'
 AZ_SUBNET=${AZ_SUBNET:-"14.16.0.0/15"}
 LC_ALL=C.UTF-8
 EOF
@@ -44,11 +46,8 @@ done
 
 /routes.sh &
 
-# output systemd logs to docker logs since container boot
-
 postrun 'while true; do /opt/api/app; done'
 postrun 'while true; do /usr/bin/doall; sleep 6h; done'
 postrun 'while true; do /usr/bin/iperf3 -s -1; done'
 
-# systemd init
 exec /usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET"
