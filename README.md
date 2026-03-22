@@ -474,6 +474,7 @@ Consists of two containers: az-local and az-world. This is VPN exit nodes.
 - `WG_PORT=51820` - wireguard server port
 - `EXPERIMENTAL_AWG=true` - enable AmneziaWG support (wireguard-amnezia only)
 - `OVERRIDE_AUTO_AWG=awg`- environment variable to force the tunnel type: `awg` to always use AmneziaWG, `wg` to always use standard WireGuard; by default it’s unset and automatic detection is used, useful to override auto-selection and lock the mode.
+- `BGP_ENABLE=false` - start bird BGP server. Server will push routes to clients (some routers). Clients will receive route updates without updating wg/awg config.
 
 ### SOCKS5 Proxy
 - `SOCKS_USERNAME` - username for SOCKS5 authentication (omit to disable authentication)

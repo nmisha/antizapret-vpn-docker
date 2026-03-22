@@ -30,7 +30,6 @@ echo "route" $(ip route show scope link src $(ifconfig eth0 | awk '/inet /{print
 
 export AZ_WG=${WG_DEFAULT_ADDRESS/"x"/"0"}/24
 export WG_GW=${WG_DEFAULT_ADDRESS/"x"/"1"}
-envsubst < /bird.conf.template  > /etc/bird.conf
 
 # Compute allowed IPs
 if [ -z "$WG_ALLOWED_IPS" ]; then
@@ -234,6 +233,9 @@ else
     ) &
 fi
 
-/usr/sbin/bird -p
-/usr/sbin/bird -d &
+if [[ "${BGP_ENABLE:-false}" == "true" ]]; then
+  envsubst < /bird.conf.template  > /etc/bird.conf
+  /usr/sbin/bird -p
+  /usr/sbin/bird -d &
+fi
 exec /usr/bin/dumb-init node server/index.mjs
