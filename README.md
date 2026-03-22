@@ -119,7 +119,7 @@ For example, YouTube works best if exit node is close to client and other servic
 Docker swarm is used to build unified network between containers.
 
 Its recommended to use local server as manager/primary node for VPN's, DNS and az-local containers.
-Foreign server - as secondary/worker node for az-world container.
+Foreign server – as secondary/worker node for az-world container.
 
 Most of the domains will be proxied through **local** server for maximum speed and performance. 
 Some of the sites, which use geoip to block users, will be proxied through **foreign** server.
@@ -141,7 +141,6 @@ Some of the sites, which use geoip to block users, will be proxied through **for
     vspy2m6w4tf7uv4ywgdnzttvr     az-world   Ready     Active                          29.0.1
     ```
 1. [Primary] Add labels for nodes `docker node update --label-add location=local az-local && docker node update --label-add location=world az-world`
-1. [Primary, Secondary]: create config folders on **both nodes**: ```docker compose pull; docker compose up -d; sleep 60; docker compose down;```
 1. [Primary]: start swarm `docker compose config | docker run --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret `
 
 ## After installation
