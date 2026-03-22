@@ -54,5 +54,7 @@ if [ "$SERVER_COUNTRY" = "RU" ]; then
       ' /opt/adguardhome/conf/AdGuardHome.yaml
 fi
 
+sed -i 's/antizapret-vpn-docker\/v5/antizapret-vpn-docker\/v6/g' /opt/adguardhome/conf/AdGuardHome.yaml
+
 touch "$INIT_FILE"
 exec /opt/adguardhome/AdGuardHome "$@"
