@@ -14,9 +14,8 @@ import (
 )
 
 type Route struct {
-	Hostname   string `json:"hostname"`
-	IpExternal net.IP `json:"ip_external"`
-	IpInternal net.IP `json:"ip_internal"`
+	Hostname string `json:"hostname"`
+	Ip       net.IP `json:"ip"`
 }
 
 func main() {
@@ -39,7 +38,6 @@ func main() {
 		select {
 		case <-time.After(*interval):
 			if updateDns(routes) {
-				fmt.Println("DNS updated, writing to file...")
 				if jsonData, err := json.MarshalIndent(routes, "", "  "); err == nil {
 					os.WriteFile(*outputPath, []byte(jsonData), 0644)
 				}
@@ -69,17 +67,10 @@ func parseRoutes(routesStr string) map[string]Route {
 		kv := strings.SplitN(part, ":", 2)
 		if len(kv) == 2 {
 			key := strings.TrimSpace(kv[0])
-			value := strings.TrimSpace(kv[1])
 			routes[key] = Route{
-				Hostname:   key,
-				IpInternal: net.ParseIP(value),
+				Hostname: key,
 			}
 		}
-	}
-
-	fmt.Println("Parsed Routes:")
-	for key, value := range routes {
-		fmt.Printf("  %s: %s\n", key, value)
 	}
 
 	return routes
@@ -88,14 +79,11 @@ func parseRoutes(routesStr string) map[string]Route {
 func updateDns(routes map[string]Route) bool {
 	changed := false
 	for key, route := range routes {
-		// DNS Query
-		fmt.Printf("Querying DNS for %s (internal IP: %s)\n", key, route.IpInternal)
 		if ip, err := net.LookupIP(route.Hostname); err != nil {
-			fmt.Printf("DNS lookup failed for %s: %v\n", route.Hostname, err)
 		} else {
-			if !route.IpExternal.Equal(ip[0]) {
-				fmt.Printf("External IP for %s changed: %s -> %s\n", route.Hostname, route.IpExternal, ip[0])
-				route.IpExternal = ip[0]
+			if !route.Ip.Equal(ip[0]) {
+				fmt.Printf("IP changed for %s: %s -> %s\n", route.Hostname, route.Ip, ip[0])
+				route.Ip = ip[0]
 				routes[key] = route
 				changed = true
 			}

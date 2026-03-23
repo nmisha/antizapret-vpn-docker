@@ -5,8 +5,9 @@ rm -f "$INIT_FILE"
 
 cp -n /root/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
 
-CONFIG_FILES="/root/antizapret/result/* /root/antizapret/config/custom/*"
-cat $CONFIG_FILES 2>/dev/null | md5sum | cut -d' ' -f1 > /.config_md5
+CONFIG_LOCAL=$(curl -s "http://az-local.antizapret/config-md5/" || echo "")
+CONFIG_WORLD=$(curl -s "http://az-world.antizapret/config-md5/" || echo "")
+echo "$CONFIG_LOCAL $CONFIG_WORLD" > /.config_md5
 
 ADGUARDHOME_PORT=${ADGUARDHOME_PORT:-"3000"}
 ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
