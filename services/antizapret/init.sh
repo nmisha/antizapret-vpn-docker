@@ -27,6 +27,8 @@ source /etc/default/antizapret
 # autoload vars when logging in into shell with 'bash -l'
 ln -sf /etc/default/antizapret /etc/profile.d/antizapret.sh
 
+DNS_FILE="/root/antizapret/result/dns.txt"
+
 
 # creating custom hosts files if they have not yet been initialized
 for file in $(echo {exclude,include}-{hosts,ips,ips-world}-custom.txt); do
@@ -44,7 +46,8 @@ for eth in $(ip link | grep -oE "eth[0-9]"); do
     iptables -t nat -A POSTROUTING -o "$eth" -j MASQUERADE
 done
 
-/routes.sh &
+/usr/bin/dns-watcher --output "$DNS_FILE" --interval 5s &
+/routes.sh --dns-file "$DNS_FILE" &
 
 postrun 'while true; do /opt/api/app; done'
 postrun 'while true; do /usr/bin/doall; sleep 6h; done'
