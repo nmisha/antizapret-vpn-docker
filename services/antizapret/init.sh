@@ -36,7 +36,7 @@ for file in $(echo {exclude,include}-{hosts,ips,ips-world}-custom.txt); do
     [ ! -f $path ] && touch $path
 done
 
-( cat /root/antizapret/result/* /root/antizapret/config/custom/* | md5sum ) > /.config_md5
+( cat /root/antizapret/result/* /root/antizapret/config/custom/* 2>/dev/null | md5sum ) > /.config_md5
 
 # Prepare iptables for dnsmap.py
 iptables -t nat -N dnsmap
