@@ -347,6 +347,7 @@ veeam.com
 we.tl
 windsurf.com
 zencdn.net
+xdaforums.com
 
 # Xerox
 xerox.co.uk
