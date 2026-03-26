@@ -20,7 +20,7 @@ services:
     init: true
     healthcheck:
       test: (/opt/app/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
-      interval: 5s
+      interval: 10s
       timeout: 1s
       start_period: 5s
       start_interval: 1s

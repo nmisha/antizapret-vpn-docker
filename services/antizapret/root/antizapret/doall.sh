@@ -14,6 +14,7 @@ if [ -n "$DOALL_DISABLED" ]; then
     exit 0
 fi
 
+echo "run download.sh" && ./download.sh || exit 1
 echo "run parse.sh" && ./parse.sh || exit 2
 
 echo "Rules updated"
