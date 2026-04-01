@@ -272,6 +272,15 @@ supercell.com
 wbagora.com
 wbgames.com
 wbinsights.com
+brawlstars.com
+brawlstarsgame.com
+supercell.com
+supercell.net
+supercellgames.com
+supercellid.com
+supercellstore.com
+gamesfirsthelsinki.com
+helpshift.com
 
 # DevTools / Tech / IT Vendors
 analog.com
