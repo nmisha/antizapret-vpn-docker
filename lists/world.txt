@@ -252,6 +252,8 @@ nflxvideo.net
 hdrezka.me
 rezka.ag
 hdrezka.ac
+voidboost.cc
+voidboost.in
 
 # Games / Gaming Platforms
 brawlstarsgame.com
