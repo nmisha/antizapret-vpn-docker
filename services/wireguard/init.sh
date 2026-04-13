@@ -77,6 +77,16 @@ fi
 unset PASSWORD
 unset PASSWORD_HASH
 
+build_forward_allow_rules() {
+    local cidr
+    while IFS= read -r cidr; do
+        [ -z "$cidr" ] && continue
+        printf 'iptables -A wg0_allowed_destinations -d %s -j ACCEPT;\n' "$cidr"
+    done < <(echo "$WG_ALLOWED_IPS" | tr ',' '\n' | awk '{gsub(/^[[:space:]]+|[[:space:]]+$/, ""); if (length) print}')
+}
+
+FORWARD_ALLOW_RULES="$(build_forward_allow_rules)"
+
 CUSTOM_POST_UP=$(tr '\n' ' ' << EOF
 iptables -t nat -N masq_not_local;
 iptables -t nat -A POSTROUTING -s ${WG_IPV4_CIDR} -j masq_not_local;
@@ -85,7 +95,10 @@ iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -p udp --dport 53 -j RETUR
 iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -j MASQUERADE;
 iptables -t nat -A masq_not_local -d ${AZ_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -j MASQUERADE;
-iptables -A FORWARD -i wg0 -j ACCEPT;
+iptables -N wg0_allowed_destinations;
+iptables -I FORWARD 1 -i wg0 -j wg0_allowed_destinations;
+iptables -A wg0_allowed_destinations -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT;
+${FORWARD_ALLOW_RULES}iptables -A wg0_allowed_destinations -j DROP;
 iptables -A FORWARD -o wg0 -j ACCEPT;
 EOF
 )
@@ -94,7 +107,9 @@ CUSTOM_POST_DOWN=$(tr '\n' ' ' << EOF
 iptables -t nat -D POSTROUTING -s ${WG_IPV4_CIDR} -j masq_not_local;
 iptables -t nat -F masq_not_local;
 iptables -t nat -X masq_not_local;
-iptables -D FORWARD -i wg0 -j ACCEPT;
+iptables -D FORWARD -i wg0 -j wg0_allowed_destinations;
+iptables -F wg0_allowed_destinations;
+iptables -X wg0_allowed_destinations;
 iptables -D FORWARD -o wg0 -j ACCEPT;
 EOF
 )
