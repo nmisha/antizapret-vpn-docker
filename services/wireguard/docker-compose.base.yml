@@ -43,6 +43,8 @@ services:
       placement:
         constraints: [ node.labels.location == local ]
     environment:
+      - WG_ENABLE_DEST_FILTER=false
+
       - PORT=51821
       - INSECURE=true
       - DISABLE_IPV6=true
