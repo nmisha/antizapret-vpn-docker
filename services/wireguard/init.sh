@@ -83,7 +83,7 @@ build_forward_allow_rules() {
     while IFS= read -r cidr; do
         [ -z "$cidr" ] && continue
         printf 'iptables -A wg0_allowed_destinations -d %s -j ACCEPT;\n' "$cidr"
-    done < <(echo "$WG_ALLOWED_IPS" | tr ',' '\n' | awk '{gsub(/^[[:space:]]+|[[:space:]]+$/, ""); if (length) print}')
+    done < <(printf '%s\n' "$WG_ALLOWED_IPS" | tr ',' '\n' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//' | sed '/^$/d')
 }
 
 build_post_up_filter_rules() {
