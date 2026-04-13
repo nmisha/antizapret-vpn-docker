@@ -7,6 +7,7 @@ fi
 export WG_DEFAULT_ADDRESS=${WG_DEFAULT_ADDRESS:-"10.1.166.x"}
 export WG_PORT=${WG_PORT:-51820}
 export AZ_SUBNET=${AZ_SUBNET:-"14.16.0.0/14"}
+export WG_ENABLE_DEST_FILTER=${WG_ENABLE_DEST_FILTER:-"false"}
 WG_DEFAULT_DNS_VALUE="${WG_DEFAULT_DNS:-14.16.0.1}"
 
 CONFIG_FILES="/opt/antizapret/result/ips*"
@@ -85,7 +86,34 @@ build_forward_allow_rules() {
     done < <(echo "$WG_ALLOWED_IPS" | tr ',' '\n' | awk '{gsub(/^[[:space:]]+|[[:space:]]+$/, ""); if (length) print}')
 }
 
-FORWARD_ALLOW_RULES="$(build_forward_allow_rules)"
+build_post_up_filter_rules() {
+    if [ "$WG_ENABLE_DEST_FILTER" != "true" ]; then
+        return
+    fi
+
+    cat << EOF
+iptables -N wg0_allowed_destinations 2>/dev/null || true;
+iptables -F wg0_allowed_destinations;
+iptables -C FORWARD -i wg0 -j wg0_allowed_destinations 2>/dev/null || iptables -I FORWARD 1 -i wg0 -j wg0_allowed_destinations;
+iptables -A wg0_allowed_destinations -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT;
+$(build_forward_allow_rules)iptables -A wg0_allowed_destinations -j DROP;
+EOF
+}
+
+build_post_down_filter_rules() {
+    if [ "$WG_ENABLE_DEST_FILTER" != "true" ]; then
+        return
+    fi
+
+    cat << EOF
+iptables -D FORWARD -i wg0 -j wg0_allowed_destinations 2>/dev/null || true;
+iptables -F wg0_allowed_destinations 2>/dev/null || true;
+iptables -X wg0_allowed_destinations 2>/dev/null || true;
+EOF
+}
+
+POST_UP_FILTER_RULES="$(build_post_up_filter_rules)"
+POST_DOWN_FILTER_RULES="$(build_post_down_filter_rules)"
 
 CUSTOM_POST_UP=$(tr '\n' ' ' << EOF
 iptables -t nat -N masq_not_local;
@@ -95,10 +123,7 @@ iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -p udp --dport 53 -j RETUR
 iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -j MASQUERADE;
 iptables -t nat -A masq_not_local -d ${AZ_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -j MASQUERADE;
-iptables -N wg0_allowed_destinations;
-iptables -I FORWARD 1 -i wg0 -j wg0_allowed_destinations;
-iptables -A wg0_allowed_destinations -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT;
-${FORWARD_ALLOW_RULES}iptables -A wg0_allowed_destinations -j DROP;
+${POST_UP_FILTER_RULES}
 iptables -A FORWARD -o wg0 -j ACCEPT;
 EOF
 )
@@ -107,9 +132,7 @@ CUSTOM_POST_DOWN=$(tr '\n' ' ' << EOF
 iptables -t nat -D POSTROUTING -s ${WG_IPV4_CIDR} -j masq_not_local;
 iptables -t nat -F masq_not_local;
 iptables -t nat -X masq_not_local;
-iptables -D FORWARD -i wg0 -j wg0_allowed_destinations;
-iptables -F wg0_allowed_destinations;
-iptables -X wg0_allowed_destinations;
+${POST_DOWN_FILTER_RULES}
 iptables -D FORWARD -o wg0 -j ACCEPT;
 EOF
 )
