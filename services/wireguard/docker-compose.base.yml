@@ -3,7 +3,7 @@ services:
     init: true
     restart: unless-stopped
     # image: xtrime/antizapret-vpn-wireguard:6.2.2
-    image: nmisha/antizapret-vpn-wireguard:6.2.2@sha256:3b0c6b9a1a7d1ca4139993a389951afe850d45251e63fb9e0158acb0eaeb32e1
+    image: nmisha/antizapret-vpn-wireguard:6.2.2@sha256:970809eca20ca4dc151017dfafc4bd333af92e79eb44e5db8d7db7ee3f471c92
     build:
       context: .
       args:
