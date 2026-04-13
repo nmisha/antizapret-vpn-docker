@@ -41,8 +41,6 @@ services:
       placement:
         constraints: [ node.labels.location == local ]
     environment:
-      - OPENVPN_ENABLE_DEST_FILTER=false
-
       - OBFUSCATE_TYPE=1
       - |
         ROUTES=

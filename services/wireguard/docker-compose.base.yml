@@ -3,7 +3,6 @@ services:
     init: true
     restart: unless-stopped
     image: xtrime/antizapret-vpn-wireguard:6.2.2
-    # image: nmisha/antizapret-vpn-wireguard:6.2.2@sha256:970809eca20ca4dc151017dfafc4bd333af92e79eb44e5db8d7db7ee3f471c92
     build:
       context: .
       args:
@@ -43,8 +42,6 @@ services:
       placement:
         constraints: [ node.labels.location == local ]
     environment:
-      - WG_ENABLE_DEST_FILTER=false
-
       - PORT=51821
       - INSECURE=true
       - DISABLE_IPV6=true
