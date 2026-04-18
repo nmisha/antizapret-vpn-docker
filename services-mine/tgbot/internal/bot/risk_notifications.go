@@ -173,15 +173,15 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 	lines := []string{
 		html.EscapeString(title),
 		"",
-		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(evt.ProfileName)),
-		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
-		fmt.Sprintf("Риск-скор: <b>%d</b>", evt.Risk),
-		fmt.Sprintf("Причина: %s", html.EscapeString(nonEmptyString(evt.Reason, "domain risk match"))),
+		fmt.Sprintf("Profile: <b>%s</b>", html.EscapeString(evt.ProfileName)),
+		fmt.Sprintf("Type: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
+		fmt.Sprintf("Risk Score: <b>%d</b>", evt.Risk),
+		fmt.Sprintf("Reason: %s", html.EscapeString(nonEmptyString(evt.Reason, "domain risk match"))),
 	}
 	if evt.Score15m > 0 || evt.Score24h > 0 {
 		lines = append(lines,
-			fmt.Sprintf("Скор за 15 минут: <b>%d</b>", evt.Score15m),
-			fmt.Sprintf("Скор за 24 часа: <b>%d</b>", evt.Score24h),
+			fmt.Sprintf("Score 15m: <b>%d</b>", evt.Score15m),
+			fmt.Sprintf("Score 24h: <b>%d</b>", evt.Score24h),
 		)
 	}
 	if len(evt.Domains) > 0 {
@@ -191,13 +191,13 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 		}
 	}
 	if evt.TriggeredWindow != "" {
-		lines = append(lines, fmt.Sprintf("Окно срабатывания: <code>%s</code>", html.EscapeString(evt.TriggeredWindow)))
+		lines = append(lines, fmt.Sprintf("Triggered window: <code>%s</code>", html.EscapeString(evt.TriggeredWindow)))
 	}
 	if evt.EstimatedBlockInSeconds > 0 {
 		lines = append(lines, fmt.Sprintf("При текущей динамике блокировка может наступить примерно через <b>%s</b>.", html.EscapeString(formatETASeconds(evt.EstimatedBlockInSeconds))))
 	}
 	if evt.ActionResult != "" {
-		lines = append(lines, fmt.Sprintf("Статус: %s", html.EscapeString(evt.ActionResult)))
+		lines = append(lines, fmt.Sprintf("Status: %s", html.EscapeString(evt.ActionResult)))
 	}
 	// lines = append(lines, "", "Если это ожидаемое поведение, свяжитесь с администратором.")
 	return strings.Join(lines, "\n")
@@ -215,30 +215,30 @@ func formatRiskAdminMessage(evt riskNotificationEvent, owners []User) string {
 	lines := []string{
 		"<b>DNS Guard alert</b>",
 		ownerLine,
-		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(evt.ProfileName)),
-		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
+		fmt.Sprintf("Profile: <b>%s</b>", html.EscapeString(evt.ProfileName)),
+		fmt.Sprintf("Type: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
 		fmt.Sprintf("IP: <code>%s</code>", html.EscapeString(nonEmptyString(evt.ProfileIP, "-"))),
-		fmt.Sprintf("Риск-скор: <b>%d</b>", evt.Risk),
-		fmt.Sprintf("Причина: %s", html.EscapeString(nonEmptyString(evt.Reason, "manual domain risk match"))),
-		fmt.Sprintf("Действие: <code>%s</code>", html.EscapeString(nonEmptyString(evt.Action, "notify"))),
+		fmt.Sprintf("Risk score: <b>%d</b>", evt.Risk),
+		fmt.Sprintf("Reason: %s", html.EscapeString(nonEmptyString(evt.Reason, "manual domain risk match"))),
+		fmt.Sprintf("Action: <code>%s</code>", html.EscapeString(nonEmptyString(evt.Action, "notify"))),
 	}
 	if evt.Score15m > 0 || evt.Score24h > 0 {
 		lines = append(lines,
-			fmt.Sprintf("Скор за 15 минут: <b>%d</b>", evt.Score15m),
-			fmt.Sprintf("Скор за 24 часа: <b>%d</b>", evt.Score24h),
+			fmt.Sprintf("Score 15m: <b>%d</b>", evt.Score15m),
+			fmt.Sprintf("Score 24h: <b>%d</b>", evt.Score24h),
 		)
 	}
 	if evt.TriggeredWindow != "" {
-		lines = append(lines, fmt.Sprintf("Окно срабатывания: <code>%s</code>", html.EscapeString(evt.TriggeredWindow)))
+		lines = append(lines, fmt.Sprintf("Triggered window: <code>%s</code>", html.EscapeString(evt.TriggeredWindow)))
 	}
 	if evt.EstimatedBlockInSeconds > 0 {
-		lines = append(lines, fmt.Sprintf("Оценка до блокировки: <b>%s</b>", html.EscapeString(formatETASeconds(evt.EstimatedBlockInSeconds))))
+		lines = append(lines, fmt.Sprintf("Estimated block ETA: <b>%s</b>", html.EscapeString(formatETASeconds(evt.EstimatedBlockInSeconds))))
 	}
 	if evt.ActionResult != "" {
-		lines = append(lines, fmt.Sprintf("Результат: <code>%s</code>", html.EscapeString(evt.ActionResult)))
+		lines = append(lines, fmt.Sprintf("Action result: <code>%s</code>", html.EscapeString(evt.ActionResult)))
 	}
 	// if evt.MatchedRule != "" {
-	// 	lines = append(lines, fmt.Sprintf("Правило: <code>%s</code>", html.EscapeString(evt.MatchedRule)))
+	// 	lines = append(lines, fmt.Sprintf("Rule: <code>%s</code>", html.EscapeString(evt.MatchedRule)))
 	// }
 	if len(evt.Domains) > 0 {
 		lines = append(lines, "Last domain:")
