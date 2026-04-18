@@ -1,8 +1,11 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -38,6 +41,48 @@ func writeNotificationEvent(dir string, evt NotificationEvent) error {
 		return fmt.Errorf("marshal notification: %w", err)
 	}
 	return os.WriteFile(path, b, 0644)
+}
+
+func deliverNotificationEvent(cfg Config, evt NotificationEvent) error {
+	if strings.TrimSpace(cfg.NotificationAPIURL) != "" {
+		if err := postNotificationEvent(cfg.NotificationAPIURL, cfg.NotificationAPIToken, evt); err != nil {
+			if strings.TrimSpace(cfg.NotificationInboxDir) == "" {
+				return err
+			}
+			if fileErr := writeNotificationEvent(cfg.NotificationInboxDir, evt); fileErr != nil {
+				return fmt.Errorf("notification api failed: %v; fallback file delivery failed: %w", err, fileErr)
+			}
+			return fmt.Errorf("notification api failed, wrote fallback file: %w", err)
+		}
+		return nil
+	}
+	return writeNotificationEvent(cfg.NotificationInboxDir, evt)
+}
+
+func postNotificationEvent(url, token string, evt NotificationEvent) error {
+	b, err := json.Marshal(evt)
+	if err != nil {
+		return fmt.Errorf("marshal notification: %w", err)
+	}
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(b))
+	if err != nil {
+		return fmt.Errorf("build notification request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	if strings.TrimSpace(token) != "" {
+		req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("send notification request: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		return fmt.Errorf("notification api status %d: %s", resp.StatusCode, strings.TrimSpace(string(body)))
+	}
+	return nil
 }
 
 func sanitizeFilename(s string) string {

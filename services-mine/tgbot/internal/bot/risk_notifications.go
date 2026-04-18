@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"io"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"sort"
@@ -60,6 +62,7 @@ func startRiskNotificationWorker(botAPI *tgbotapi.BotAPI, usersStore *UsersStore
 		log.Printf("risk notifications: create error dir failed: %v", err)
 		return
 	}
+	startRiskNotificationHTTPServer(botAPI, usersStore)
 	go func() {
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
@@ -68,6 +71,64 @@ func startRiskNotificationWorker(botAPI *tgbotapi.BotAPI, usersStore *UsersStore
 			<-ticker.C
 		}
 	}()
+}
+
+func startRiskNotificationHTTPServer(botAPI *tgbotapi.BotAPI, usersStore *UsersStore) {
+	addr := envTrim("RISK_NOTIFICATIONS_HTTP_ADDR")
+	if addr == "" {
+		return
+	}
+	token := envTrim("RISK_NOTIFICATIONS_HTTP_TOKEN")
+	mux := http.NewServeMux()
+	mux.HandleFunc("/risk-notifications", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if token != "" && !matchBearerToken(r.Header.Get("Authorization"), token) {
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = io.WriteString(w, "unauthorized")
+			return
+		}
+		defer r.Body.Close()
+		var evt riskNotificationEvent
+		if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&evt); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, "invalid json")
+			return
+		}
+		if strings.TrimSpace(evt.ProfileKind) == "" || strings.TrimSpace(evt.ProfileName) == "" || evt.Risk < 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = io.WriteString(w, "invalid event payload")
+			return
+		}
+		if err := deliverRiskNotification(botAPI, usersStore, evt); err != nil {
+			log.Printf("risk notifications: api deliver failed: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = io.WriteString(w, "delivery failed")
+			return
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = io.WriteString(w, "accepted")
+	})
+	go func() {
+		log.Printf("risk notifications: http server listening on %s", addr)
+		if err := http.ListenAndServe(addr, mux); err != nil {
+			log.Printf("risk notifications: http server stopped: %v", err)
+		}
+	}()
+}
+
+func matchBearerToken(headerValue, expected string) bool {
+	headerValue = strings.TrimSpace(headerValue)
+	expected = strings.TrimSpace(expected)
+	if expected == "" {
+		return true
+	}
+	if !strings.HasPrefix(strings.ToLower(headerValue), "bearer ") {
+		return false
+	}
+	return strings.TrimSpace(headerValue[len("Bearer "):]) == expected
 }
 
 func processRiskNotificationQueue(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, inboxDir, sentDir, errorDir string) {
