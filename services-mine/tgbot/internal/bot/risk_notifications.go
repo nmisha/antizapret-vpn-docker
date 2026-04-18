@@ -161,6 +161,10 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 	title := "Обнаружена подозрительная DNS-активность."
 	if evt.Action == "block" {
 		title = "Профиль заблокирован из-за опасной DNS-активности."
+	} else if evt.Action == "block_applied" {
+		title = "Блокировка профиля фактически применена."
+	} else if evt.Action == "block_failed" {
+		title = "Попытка блокировки профиля завершилась ошибкой."
 	} else if evt.Action == "block_pending" {
 		title = "Обнаружена опасная DNS-активность, профиль может быть заблокирован."
 	} else if evt.Risk >= 9 {

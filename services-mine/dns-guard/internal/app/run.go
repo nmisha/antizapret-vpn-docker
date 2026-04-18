@@ -299,34 +299,56 @@ func ipAllowed(ipStr string, nets []*net.IPNet) bool {
 	return false
 }
 
-func maybeBlockProfile(ref ProfileRef, cfg Config, ps *ProfileRiskState) error {
+func maybeBlockProfile(ref ProfileRef, cfg Config, ps *ProfileRiskState) (string, error) {
 	switch ref.Kind {
 	case "wg":
 		if !cfg.WG.Enabled || !cfg.WG.Block {
-			return nil
+			return "", nil
 		}
 		if ps.LastBlockAt != "" {
-			return nil
+			return "", nil
 		}
 		if err := disableWGProfile(ref, cfg.WG); err != nil {
-			return err
+			return "", err
 		}
 		ps.LastBlockAt = time.Now().UTC().Format(time.RFC3339)
-		return nil
+		return "wg profile disabled", nil
 	case "awg":
 		if !cfg.AWG.Enabled || !cfg.AWG.Block {
-			return nil
+			return "", nil
 		}
 		if ps.LastBlockAt != "" {
-			return nil
+			return "", nil
 		}
 		if err := disableWGProfile(ref, cfg.AWG); err != nil {
-			return err
+			return "", err
 		}
 		ps.LastBlockAt = time.Now().UTC().Format(time.RFC3339)
-		return nil
+		return "awg profile disabled", nil
+	case "ovpn":
+		if !cfg.OVPN.Enabled || !cfg.OVPN.Block {
+			return "", nil
+		}
+		if ps.LastBlockAt != "" {
+			return "", nil
+		}
+		if err := revokeOVPNProfile(ref, cfg.OVPN); err != nil {
+			return "", err
+		}
+		writeDebugLog(cfg, "ovpn_revoked profile=%s ip=%s", ref.Name, ref.IP)
+		ps.LastBlockAt = time.Now().UTC().Format(time.RFC3339)
+		if cfg.OVPN.RestartServer {
+			if err := restartOVPNServer(cfg.OVPN); err != nil {
+				log.Printf("ovpn restart after revoke failed for %s: %v", ref.Name, err)
+				writeDebugLog(cfg, "ovpn_restart_failed profile=%s ip=%s err=%q", ref.Name, ref.IP, err.Error())
+				return fmt.Sprintf("ovpn certificate revoked; server restart failed: %v", err), nil
+			}
+			writeDebugLog(cfg, "ovpn_restarted profile=%s ip=%s", ref.Name, ref.IP)
+			return "ovpn certificate revoked; server restarted with SIGUSR1", nil
+		}
+		return "ovpn certificate revoked", nil
 	default:
-		return nil
+		return "", nil
 	}
 }
 
@@ -336,6 +358,8 @@ func canScheduleBlock(kind string, cfg Config) bool {
 		return cfg.WG.Enabled && cfg.WG.Block
 	case "awg":
 		return cfg.AWG.Enabled && cfg.AWG.Block
+	case "ovpn":
+		return cfg.OVPN.Enabled && cfg.OVPN.Block
 	default:
 		return false
 	}
@@ -580,8 +604,19 @@ func processPendingBlocks(cfg Config, state *State, now time.Time) bool {
 			changed = true
 			continue
 		}
-		if err := maybeBlockProfile(ref, cfg, &ps); err != nil {
+		actionResult := ""
+		action := "block_applied"
+		if result, err := maybeBlockProfile(ref, cfg, &ps); err != nil {
 			log.Printf("block profile %s failed: %v", profileKey, err)
+			action = "block_failed"
+			actionResult = err.Error()
+		} else {
+			actionResult = strings.TrimSpace(result)
+		}
+		if evt := buildAppliedBlockNotification(ref, ps, action, actionResult); evt != nil {
+			if err := deliverNotificationEvent(cfg, *evt); err != nil {
+				log.Printf("deliver applied block notification warning: %v", err)
+			}
 		}
 		ps.PendingBlockAt = ""
 		ps.PendingBlockWindow = ""
@@ -606,6 +641,33 @@ func pendingProfileRef(profileKey string, ps ProfileRiskState) (ProfileRef, bool
 		ID:   ps.LastProfileID,
 		IP:   ps.LastProfileIP,
 	}, true
+}
+
+func buildAppliedBlockNotification(ref ProfileRef, ps ProfileRiskState, action, actionResult string) *NotificationEvent {
+	action = strings.TrimSpace(action)
+	actionResult = strings.TrimSpace(actionResult)
+	if action == "" {
+		return nil
+	}
+	domains := []string{}
+	if d := strings.TrimSpace(ps.LastMatchedDomain); d != "" {
+		domains = append(domains, d)
+	}
+	return &NotificationEvent{
+		ID:              fmt.Sprintf("%s-%s-%s-%d", action, ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
+		Type:            "risk_notification",
+		ProfileKind:     ref.Kind,
+		ProfileName:     ref.Name,
+		ProfileIP:       ref.IP,
+		Risk:            ps.PendingBlockScore,
+		TriggeredWindow: ps.PendingBlockWindow,
+		Reason:          nonEmpty(ps.LastMatchedReason, "manual domain risk match"),
+		Domains:         domains,
+		MatchedRule:     ps.LastMatchedDomain,
+		DetectedAt:      time.Now().UTC().Format(time.RFC3339),
+		Action:          action,
+		ActionResult:    actionResult,
+	}
 }
 
 func nonEmpty(v, fallback string) string {
