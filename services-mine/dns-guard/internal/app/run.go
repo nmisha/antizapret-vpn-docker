@@ -20,7 +20,7 @@ func Run() error {
 		log.Printf("dns-guard disabled by config")
 		return nil
 	}
-	rules, err := loadRules()
+	rules, err := loadRules(cfg)
 	if err != nil {
 		return err
 	}
@@ -39,8 +39,8 @@ func Run() error {
 	if err := saveState(cfg.StatePath, state); err != nil {
 		return err
 	}
-	log.Printf("dns-guard started: querylog=%s rules=%d notify=%s notify_score=%d block15m=%d block24h=%d",
-		cfg.QueryLogPath, len(rules), notifyTarget, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h)
+	log.Printf("dns-guard started: querylog=%s rules=%d enabled_rules=%d notify=%s notify_score=%d block15m=%d block24h=%d min_rule_risk=%d max_rule_risk=%d",
+		cfg.QueryLogPath, len(rules), countEnabledRules(rules), notifyTarget, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.MinRuleRisk, cfg.MaxRuleRisk)
 	pollTicker := time.NewTicker(time.Duration(cfg.PollIntervalSeconds) * time.Second)
 	blockTicker := time.NewTicker(1 * time.Second)
 	defer pollTicker.Stop()
@@ -55,15 +55,14 @@ func Run() error {
 				}
 			}
 		case <-pollTicker.C:
-			if freshRules, err := loadRules(); err != nil {
+			if freshRules, err := loadRules(cfg); err != nil {
 				log.Printf("dns-guard reload rules error: %v", err)
 			} else {
 				prevSig := rulesSignature(rules)
 				nextSig := rulesSignature(freshRules)
 				rules = freshRules
-				if prevSig != nextSig {
-					log.Printf("dns-guard rules reloaded: rules=%d", len(rules))
-				}
+				log.Printf("dns-guard rules reloaded: rules=%d enabled_rules=%d changed=%t min_rule_risk=%d max_rule_risk=%d",
+					len(rules), countEnabledRules(rules), prevSig != nextSig, cfg.MinRuleRisk, cfg.MaxRuleRisk)
 			}
 			if err := runOnce(cfg, rules, state, time.Now().UTC()); err != nil {
 				log.Printf("dns-guard cycle error: %v", err)
@@ -89,30 +88,40 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 		}
 	}
 	readResult, err := processNewEntries(cfg.QueryLogPath, state.Cursor, func(entry QueryLogEntry) error {
+		defer advanceCursorEvent(entry, &state.Cursor)
+
 		ip := strings.TrimSpace(entry.IP)
 		if ip == "" {
+			incrementSkippedEvent(state, "empty_ip")
 			return nil
 		}
 		if _, ok := ignoreIPs[ip]; ok {
+			incrementSkippedEvent(state, "ignored_ip")
 			return nil
 		}
 		if !ipAllowed(ip, allowedSubnets) {
+			incrementSkippedEvent(state, "ip_not_allowed")
 			return nil
 		}
 		rule, matched := matchRule(entry.QH, rules)
 		if !matched {
+			incrementSkippedEvent(state, "rule_not_matched")
 			return nil
 		}
 		if shouldSkipEvent(entry, state.Cursor) {
+			incrementSkippedEvent(state, "duplicate_event")
 			return nil
 		}
 
 		ref, err := resolveProfile(ip, cfg)
 		if err != nil {
 			log.Printf("resolve profile for %s failed: %v", ip, err)
+			incrementSkippedEvent(state, "resolve_error")
 			return nil
 		}
 		if ref.Name == "" {
+			log.Printf("dns-guard matched rule=%s domain=%s but profile was not resolved for ip=%s kind=%s", rule.domain, normalizeDomain(entry.QH), ip, ref.Kind)
+			incrementSkippedEvent(state, "profile_not_found")
 			return nil
 		}
 
@@ -143,20 +152,20 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 				estimatedBlockInSeconds = estimateTimeToBlockSeconds(ps, cycleNow, cfg)
 			}
 			evt := NotificationEvent{
-				ID:           fmt.Sprintf("risk-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
-				Type:         "risk_notification",
-				ProfileKind:  ref.Kind,
-				ProfileName:  ref.Name,
-				ProfileIP:    ref.IP,
-				Risk:         effectiveScore,
-				Score15m:     score15m,
-				Score24h:     score24h,
+				ID:                      fmt.Sprintf("risk-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
+				Type:                    "risk_notification",
+				ProfileKind:             ref.Kind,
+				ProfileName:             ref.Name,
+				ProfileIP:               ref.IP,
+				Risk:                    effectiveScore,
+				Score15m:                score15m,
+				Score24h:                score24h,
 				EstimatedBlockInSeconds: estimatedBlockInSeconds,
-				Reason:       nonEmpty(rule.reason, "manual domain risk match"),
-				Domains:      []string{normalizeDomain(entry.QH)},
-				MatchedRule:  rule.domain,
-				DetectedAt:   nonEmpty(entry.T, time.Now().UTC().Format(time.RFC3339)),
-				Action:       "notify",
+				Reason:                  nonEmpty(rule.reason, "manual domain risk match"),
+				Domains:                 []string{normalizeDomain(entry.QH)},
+				MatchedRule:             rule.domain,
+				DetectedAt:              nonEmpty(entry.T, time.Now().UTC().Format(time.RFC3339)),
+				Action:                  "notify",
 			}
 			if err := deliverNotificationEvent(cfg, evt); err != nil {
 				log.Printf("deliver notification event warning: %v", err)
@@ -172,21 +181,21 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 		if blockWindow != "" && ps.LastBlockAt == "" && ps.PendingBlockAt == "" {
 			scheduledAt := cycleNow.Add(time.Duration(cfg.BlockDelaySeconds) * time.Second).UTC()
 			evt := NotificationEvent{
-				ID:               fmt.Sprintf("block-pending-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
-				Type:             "risk_notification",
-				ProfileKind:      ref.Kind,
-				ProfileName:      ref.Name,
-				ProfileIP:        ref.IP,
-				Risk:             blockScore,
-				Score15m:         score15m,
-				Score24h:         score24h,
-				TriggeredWindow:  blockWindow,
-				Reason:           nonEmpty(rule.reason, "manual domain risk match"),
-				Domains:          []string{normalizeDomain(entry.QH)},
-				MatchedRule:      rule.domain,
-				DetectedAt:       nonEmpty(entry.T, time.Now().UTC().Format(time.RFC3339)),
-				Action:           "block_pending",
-				ActionResult:     fmt.Sprintf("block scheduled in %ds", cfg.BlockDelaySeconds),
+				ID:              fmt.Sprintf("block-pending-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
+				Type:            "risk_notification",
+				ProfileKind:     ref.Kind,
+				ProfileName:     ref.Name,
+				ProfileIP:       ref.IP,
+				Risk:            blockScore,
+				Score15m:        score15m,
+				Score24h:        score24h,
+				TriggeredWindow: blockWindow,
+				Reason:          nonEmpty(rule.reason, "manual domain risk match"),
+				Domains:         []string{normalizeDomain(entry.QH)},
+				MatchedRule:     rule.domain,
+				DetectedAt:      nonEmpty(entry.T, time.Now().UTC().Format(time.RFC3339)),
+				Action:          "block_pending",
+				ActionResult:    fmt.Sprintf("block scheduled in %ds", cfg.BlockDelaySeconds),
 			}
 			if err := deliverNotificationEvent(cfg, evt); err != nil {
 				log.Printf("deliver block warning warning: %v", err)
@@ -198,7 +207,6 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 		}
 
 		state.Profiles[profileKey] = ps
-		advanceCursorEvent(entry, &state.Cursor)
 		return nil
 	})
 	if err != nil {
@@ -277,8 +285,8 @@ func shouldNotifyScore(ps ProfileRiskState, score int, cooldownSeconds int) bool
 	if score <= 0 {
 		return false
 	}
-	if score <= ps.LastNotifiedScore {
-		return false
+	if score > ps.LastNotifiedScore {
+		return true
 	}
 	if ps.LastNotifyAt == "" {
 		return true
@@ -426,6 +434,17 @@ func cleanupState(state *State, now time.Time) {
 			delete(state.Profiles, key)
 		}
 	}
+}
+
+func incrementSkippedEvent(state *State, reason string) {
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		reason = "unknown"
+	}
+	if state.SkippedEvents == nil {
+		state.SkippedEvents = map[string]int{}
+	}
+	state.SkippedEvents[reason]++
 }
 
 func syncCursorToEOF(path string, state *State) error {

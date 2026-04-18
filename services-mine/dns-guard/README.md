@@ -56,6 +56,8 @@ Main fields in `config-mine/dns-guard/config.json`:
 - `querylog_path`: path to AdGuard `querylog.json`
 - `state_path`: path to `state.json`
 - `notification_cooldown_seconds`: cooldown for repeated score notifications
+- `min_rule_risk`: lower clamp for `risk` loaded from rules file
+- `max_rule_risk`: upper clamp for `risk` loaded from rules file
 - `score_notify_at`: notification threshold
 - `predict_block_eta`: include estimated time to block in notifications
 - `score_block_at_15m`: blocking threshold for 15-minute window
@@ -78,6 +80,7 @@ Each rule has:
 - `domain`
 - `match`: `exact` or `suffix`
 - `risk`: integer score added for each matched event
+- effective rule risk is clamped to `min_rule_risk..max_rule_risk`
 - `reason`
 - `enabled`
 - `created_at`
