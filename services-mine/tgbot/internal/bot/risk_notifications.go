@@ -191,11 +191,13 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 	adminMsg := formatRiskAdminMessage(evt, owner, ownerFound)
 
 	if ownerFound && owner.TelegramID > 0 {
-		msg := tgbotapi.NewMessage(owner.TelegramID, userMsg)
-		msg.ParseMode = "HTML"
-		msg.DisableWebPagePreview = true
-		if _, err := botAPI.Send(msg); err != nil {
-			log.Printf("risk notifications: send user alert to %d failed: %v", owner.TelegramID, err)
+		if owner.GuardNotificationsEnabled() {
+			msg := tgbotapi.NewMessage(owner.TelegramID, userMsg)
+			msg.ParseMode = "HTML"
+			msg.DisableWebPagePreview = true
+			if _, err := botAPI.Send(msg); err != nil {
+				log.Printf("risk notifications: send user alert to %d failed: %v", owner.TelegramID, err)
+			}
 		}
 	}
 
@@ -204,6 +206,9 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 			continue
 		}
 		if ownerFound && admin.TelegramID == owner.TelegramID {
+			continue
+		}
+		if !admin.GuardNotificationsEnabled() {
 			continue
 		}
 		msg := tgbotapi.NewMessage(admin.TelegramID, adminMsg)
