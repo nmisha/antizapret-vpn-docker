@@ -31,18 +31,52 @@ type compiledRule struct {
 	enabled bool
 }
 
+type rulesFileSnapshot struct {
+	Path    string
+	Size    int64
+	ModTime time.Time
+}
+
+type rulesReloadResult struct {
+	Rules    []compiledRule
+	Snapshot rulesFileSnapshot
+	Changed  bool
+}
+
 func loadRules(cfg Config) ([]compiledRule, error) {
+	path := rulesPath()
+	rules, _, err := loadRulesFromPath(path, cfg)
+	return rules, err
+}
+
+func rulesPath() string {
 	path := strings.TrimSpace(os.Getenv("DNS_GUARD_RULES"))
 	if path == "" {
 		path = "/config/risk-domains.json"
 	}
+	return path
+}
+
+func statRulesFile(path string) (rulesFileSnapshot, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return rulesFileSnapshot{}, fmt.Errorf("stat rules: %w", err)
+	}
+	return rulesFileSnapshot{
+		Path:    path,
+		Size:    info.Size(),
+		ModTime: info.ModTime().UTC(),
+	}, nil
+}
+
+func loadRulesFromPath(path string, cfg Config) ([]compiledRule, rulesFileSnapshot, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read rules: %w", err)
+		return nil, rulesFileSnapshot{}, fmt.Errorf("read rules: %w", err)
 	}
 	var root RiskRulesFile
 	if err := json.Unmarshal(b, &root); err != nil {
-		return nil, fmt.Errorf("parse rules: %w", err)
+		return nil, rulesFileSnapshot{}, fmt.Errorf("parse rules: %w", err)
 	}
 	out := make([]compiledRule, 0, len(root.Rules))
 	for _, r := range root.Rules {
@@ -78,7 +112,35 @@ func loadRules(cfg Config) ([]compiledRule, error) {
 			})
 		}
 	}
-	return out, nil
+	snapshot, err := statRulesFile(path)
+	if err != nil {
+		return nil, rulesFileSnapshot{}, err
+	}
+	return out, snapshot, nil
+}
+
+func refreshRulesIfChanged(cfg Config, current []compiledRule, prev rulesFileSnapshot) (rulesReloadResult, error) {
+	path := rulesPath()
+	snapshot, err := statRulesFile(path)
+	if err != nil {
+		return rulesReloadResult{}, err
+	}
+	if prev.Path != "" && prev.Path == snapshot.Path && prev.Size == snapshot.Size && prev.ModTime.Equal(snapshot.ModTime) {
+		return rulesReloadResult{
+			Rules:    current,
+			Snapshot: prev,
+			Changed:  false,
+		}, nil
+	}
+	rules, loadedSnapshot, err := loadRulesFromPath(path, cfg)
+	if err != nil {
+		return rulesReloadResult{}, err
+	}
+	return rulesReloadResult{
+		Rules:    rules,
+		Snapshot: loadedSnapshot,
+		Changed:  true,
+	}, nil
 }
 
 func normalizeRuleDomains(r RiskRule) []string {

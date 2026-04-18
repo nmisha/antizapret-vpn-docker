@@ -25,6 +25,10 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	rulesSnapshot, err := statRulesFile(rulesPath())
+	if err != nil {
+		return err
+	}
 	state, err := loadState(cfg.StatePath)
 	if err != nil {
 		return err
@@ -52,10 +56,22 @@ func Run() error {
 				}
 			}
 		case <-pollTicker.C:
-			if freshRules, err := loadRules(cfg); err != nil {
+			if reloadResult, err := refreshRulesIfChanged(cfg, rules, rulesSnapshot); err != nil {
 				log.Printf("dns-guard reload rules error: %v", err)
 			} else {
-				rules = freshRules
+				rules = reloadResult.Rules
+				rulesSnapshot = reloadResult.Snapshot
+				if reloadResult.Changed {
+					log.Printf("dns-guard rules reloaded: rules=%d enabled_rules=%d", len(rules), countEnabledRules(rules))
+					writeDebugLog(cfg, "rules_reloaded path=%s size=%d mod_time=%s rules=%d enabled_rules=%d signature=%q",
+						reloadResult.Snapshot.Path,
+						reloadResult.Snapshot.Size,
+						reloadResult.Snapshot.ModTime.Format(time.RFC3339Nano),
+						len(rules),
+						countEnabledRules(rules),
+						truncateForLog(rulesSignature(rules), 512),
+					)
+				}
 			}
 			if err := runOnce(cfg, rules, state, time.Now().UTC()); err != nil {
 				log.Printf("dns-guard cycle error: %v", err)
