@@ -45,12 +45,13 @@ type GuardAPIConfig struct {
 }
 
 type OVPNAPIConfig struct {
-	Enabled  bool   `json:"enabled"`
-	Host     string `json:"host"`
-	Port     string `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	Block    bool   `json:"block"`
+	Enabled       bool   `json:"enabled"`
+	Host          string `json:"host"`
+	Port          string `json:"port"`
+	Username      string `json:"username"`
+	Password      string `json:"password"`
+	Block         bool   `json:"block"`
+	RestartServer bool   `json:"restart_server"`
 }
 
 type configFileSnapshot struct {
