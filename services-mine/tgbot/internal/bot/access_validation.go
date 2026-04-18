@@ -168,7 +168,7 @@ func validateOvpnAdminProfileAccess(ctx *Ctx, _ *ovpnUIClient, profileName strin
 		return ovpnProfile{}, fmt.Errorf("недостаточно прав")
 	}
 
-	scope, ok := getAdminScope(ctx.TgID)
+	scope, ok := getOvpnAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
 		return ovpnProfile{}, fmt.Errorf("кнопка устарела, открой список профилей заново")
 	}
@@ -190,7 +190,7 @@ func validateOvpnAdminAddAccess(ctx *Ctx) error {
 	if !ctx.User.Has(RoleAdmin) {
 		return fmt.Errorf("недостаточно прав")
 	}
-	scope, ok := getAdminScope(ctx.TgID)
+	scope, ok := getOvpnAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
 		return fmt.Errorf("кнопка устарела, открой список профилей заново")
 	}

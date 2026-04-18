@@ -60,7 +60,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		scope := strings.TrimPrefix(data, "ovpn:a:scope:")
 		switch scope {
 		case "my":
-			setAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeMy})
+			setOvpnAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeMy})
 			profiles, err := getOvpnProfilesForScope(ctx, wgAdminScope{Mode: wgScopeMy})
 			if err != nil {
 				reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
@@ -69,7 +69,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 			sendOvpnProfilesList(ctx, profiles, "ovpn:a:p:")
 			return
 		case "all":
-			setAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeAll})
+			setOvpnAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeAll})
 			profiles, err := getOvpnProfilesForScope(ctx, wgAdminScope{Mode: wgScopeAll})
 			if err != nil {
 				reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
@@ -87,7 +87,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 	}
 	if strings.HasPrefix(data, "ovpn:a:user:") {
 		name := strings.ToLower(strings.TrimSpace(strings.TrimPrefix(data, "ovpn:a:user:")))
-		setAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeUser, UserName: name})
+		setOvpnAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeUser, UserName: name})
 		profiles, err := getOvpnProfilesForScope(ctx, wgAdminScope{Mode: wgScopeUser, UserName: name})
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
@@ -97,7 +97,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		return
 	}
 	if data == "ovpn:a:back" {
-		clearAdminScope(ctx.TgID)
+		clearOvpnAdminScope(ctx.TgID)
 		handleOvpnProfilesAdmin(ctx, "")
 		return
 	}

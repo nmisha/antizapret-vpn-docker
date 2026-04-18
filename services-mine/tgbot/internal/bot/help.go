@@ -13,14 +13,13 @@ func htmlEscape(s string) string {
 
 func helpForUser(u User) string {
 	if gCmdRegistry == nil {
-		// fallback
-		return "📚 Справка недоступна (registry не инициализирован)."
+		return "Справка недоступна: registry не инициализирован."
 	}
 
 	blocks := gCmdRegistry.SectionsForUser(u)
 
 	var b strings.Builder
-	b.WriteString("📚 <b>Справка</b>\n")
+	b.WriteString("<b>Справка</b>\n")
 
 	for _, bl := range blocks {
 		if len(bl.Items) == 0 {
@@ -35,15 +34,15 @@ func helpForUser(u User) string {
 				line += " " + it.Args
 			}
 			if it.Desc != "" {
-				line += " — " + it.Desc
+				line += " - " + it.Desc
 			}
 			line = htmlEscape(line)
-			b.WriteString("• ")
+			b.WriteString("- ")
 			b.WriteString(line)
 			b.WriteString("\n")
 		}
 	}
 
-	b.WriteString("\n💡 Подсказка: команды и роли не зависят от регистра.\n")
+	b.WriteString("\nПодсказка: список команд зависит от ваших ролей.\n")
 	return b.String()
 }
