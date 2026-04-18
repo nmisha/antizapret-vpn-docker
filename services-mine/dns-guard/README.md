@@ -67,6 +67,7 @@ Main fields in `config-mine/dns-guard/config.json`:
 - `score_block_at_24h`: blocking threshold for 24-hour window
 - `block_delay_seconds`: delay between block warning and actual block
 - `ignore_ips`: IPs to ignore completely
+- `profile_whitelist`: profile names excluded from rule processing, grouped by type (`wg`, `ovpn`, `awg`)
 - `subnets`: monitored client subnets by profile type
 
 Delivery settings:
@@ -129,6 +130,7 @@ Tracked skipped-event reasons:
 - `duplicate_event`
 - `resolve_error`
 - `profile_not_found`
+- `profile_whitelisted`
 
 Skipped-event counters are reset every 36 hours.
 

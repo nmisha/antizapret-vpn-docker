@@ -27,6 +27,7 @@ type Config struct {
 	PredictBlockETA      bool                `json:"predict_block_eta"`
 	Subnets              map[string][]string `json:"subnets"`
 	IgnoreIPs            []string            `json:"ignore_ips"`
+	ProfileWhitelist     map[string][]string `json:"profile_whitelist"`
 	WG                   GuardAPIConfig      `json:"wg"`
 	AWG                  GuardAPIConfig      `json:"awg"`
 	OVPN                 OVPNAPIConfig       `json:"ovpn"`

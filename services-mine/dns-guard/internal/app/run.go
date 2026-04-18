@@ -134,6 +134,12 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 			incrementSkippedEvent(state, cfg, "profile_not_found")
 			return nil
 		}
+		if profileWhitelisted(ref, cfg.ProfileWhitelist) {
+			writeDebugLog(cfg, "profile_whitelisted kind=%s profile=%s ip=%s domain=%s qt=%s rule=%s",
+				ref.Kind, ref.Name, ref.IP, normalizeDomain(entry.QH), strings.ToUpper(strings.TrimSpace(entry.QT)), rule.domain)
+			incrementSkippedEvent(state, cfg, "profile_whitelisted")
+			return nil
+		}
 
 		profileKey := ref.Kind + ":" + strings.ToLower(strings.TrimSpace(ref.Name))
 		ps := state.Profiles[profileKey]
@@ -307,6 +313,20 @@ func canScheduleBlock(kind string, cfg Config) bool {
 	default:
 		return false
 	}
+}
+
+func profileWhitelisted(ref ProfileRef, whitelist map[string][]string) bool {
+	kind := strings.ToLower(strings.TrimSpace(ref.Kind))
+	name := strings.ToLower(strings.TrimSpace(ref.Name))
+	if kind == "" || name == "" || len(whitelist) == 0 {
+		return false
+	}
+	for _, candidate := range whitelist[kind] {
+		if strings.ToLower(strings.TrimSpace(candidate)) == name {
+			return true
+		}
+	}
+	return false
 }
 
 func shouldNotifyScore(ps ProfileRiskState, score int, cooldownSeconds int) bool {
