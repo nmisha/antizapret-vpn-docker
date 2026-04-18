@@ -94,7 +94,7 @@ func matchBearerToken(headerValue, expected string) bool {
 }
 
 func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, evt riskNotificationEvent) error {
-	owner, ownerFound, err := findNotificationOwner(usersStore, evt.ProfileKind, evt.ProfileName)
+	owners, err := findNotificationOwners(usersStore, evt.ProfileKind, evt.ProfileName)
 	if err != nil {
 		return err
 	}
@@ -104,16 +104,22 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 	}
 
 	userMsg := formatRiskUserMessage(evt)
-	adminMsg := formatRiskAdminMessage(evt, owner, ownerFound)
+	adminMsg := formatRiskAdminMessage(evt, owners)
 
-	if ownerFound && owner.TelegramID > 0 {
-		if owner.GuardNotificationsEnabled() {
-			msg := tgbotapi.NewMessage(owner.TelegramID, userMsg)
-			msg.ParseMode = "HTML"
-			msg.DisableWebPagePreview = true
-			if _, err := botAPI.Send(msg); err != nil {
-				log.Printf("risk notifications: send user alert to %d failed: %v", owner.TelegramID, err)
-			}
+	ownerIDs := make(map[int64]struct{}, len(owners))
+	for _, owner := range owners {
+		if owner.TelegramID <= 0 {
+			continue
+		}
+		ownerIDs[owner.TelegramID] = struct{}{}
+		if !owner.GuardNotificationsEnabled() {
+			continue
+		}
+		msg := tgbotapi.NewMessage(owner.TelegramID, userMsg)
+		msg.ParseMode = "HTML"
+		msg.DisableWebPagePreview = true
+		if _, err := botAPI.Send(msg); err != nil {
+			log.Printf("risk notifications: send user alert to %d failed: %v", owner.TelegramID, err)
 		}
 	}
 
@@ -121,7 +127,10 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 		if admin.TelegramID <= 0 {
 			continue
 		}
-		if ownerFound && admin.TelegramID == owner.TelegramID {
+		if _, ok := ownerIDs[admin.TelegramID]; ok {
+			continue
+		}
+		if !admin.GuardNotMeNotificationsEnabled() {
 			continue
 		}
 		if !admin.GuardNotificationsEnabled() {
@@ -137,14 +146,14 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 	return nil
 }
 
-func findNotificationOwner(usersStore *UsersStore, profileKind, profileName string) (User, bool, error) {
+func findNotificationOwners(usersStore *UsersStore, profileKind, profileName string) ([]User, error) {
 	switch strings.ToLower(strings.TrimSpace(profileKind)) {
 	case "wg", "awg":
-		return usersStore.FindByWGProfile(profileName)
+		return usersStore.FindAllByWGProfile(profileName)
 	case "ovpn":
-		return usersStore.FindByOvpnProfile(profileName)
+		return usersStore.FindAllByOvpnProfile(profileName)
 	default:
-		return User{}, false, nil
+		return nil, nil
 	}
 }
 
@@ -190,10 +199,14 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 	return strings.Join(lines, "\n")
 }
 
-func formatRiskAdminMessage(evt riskNotificationEvent, owner User, ownerFound bool) string {
-	ownerLine := "Пользователь: не найден"
-	if ownerFound {
-		ownerLine = fmt.Sprintf("Пользователь: <b>%s</b> (<code>%d</code>)", html.EscapeString(owner.Name), owner.TelegramID)
+func formatRiskAdminMessage(evt riskNotificationEvent, owners []User) string {
+	ownerLine := "Owners: not found"
+	if len(owners) > 0 {
+		parts := make([]string, 0, len(owners))
+		for _, owner := range owners {
+			parts = append(parts, fmt.Sprintf("<b>%s</b> (<code>%d</code>)", html.EscapeString(owner.Name), owner.TelegramID))
+		}
+		ownerLine = "Owners: " + strings.Join(parts, ", ")
 	}
 	lines := []string{
 		"<b>DNS Guard alert</b>",
@@ -268,3 +281,4 @@ func formatETASeconds(seconds int) string {
 	}
 	return fmt.Sprintf("%d h %d min", hours, minutes)
 }
+
