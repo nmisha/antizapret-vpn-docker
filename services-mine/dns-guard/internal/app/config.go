@@ -51,18 +51,46 @@ type OVPNAPIConfig struct {
 	Block    bool   `json:"block"`
 }
 
+type configFileSnapshot struct {
+	Path    string
+	Size    int64
+	ModTime time.Time
+}
+
 func loadConfig() (Config, error) {
+	path := configPath()
+	cfg, _, err := loadConfigFromPath(path)
+	return cfg, err
+}
+
+func configPath() string {
 	path := strings.TrimSpace(os.Getenv("DNS_GUARD_CONFIG"))
 	if path == "" {
 		path = "/config/config.json"
 	}
+	return path
+}
+
+func statConfigFile(path string) (configFileSnapshot, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return configFileSnapshot{}, fmt.Errorf("stat config: %w", err)
+	}
+	return configFileSnapshot{
+		Path:    path,
+		Size:    info.Size(),
+		ModTime: info.ModTime().UTC(),
+	}, nil
+}
+
+func loadConfigFromPath(path string) (Config, configFileSnapshot, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return Config{}, fmt.Errorf("read config: %w", err)
+		return Config{}, configFileSnapshot{}, fmt.Errorf("read config: %w", err)
 	}
 	var cfg Config
 	if err := json.Unmarshal(b, &cfg); err != nil {
-		return Config{}, fmt.Errorf("parse config: %w", err)
+		return Config{}, configFileSnapshot{}, fmt.Errorf("parse config: %w", err)
 	}
 	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_QUERYLOG")); v != "" {
 		cfg.QueryLogPath = v
@@ -124,9 +152,29 @@ func loadConfig() (Config, error) {
 		}
 	}
 	if cfg.QueryLogPath == "" || cfg.StatePath == "" || strings.TrimSpace(cfg.NotificationAPIURL) == "" {
-		return Config{}, fmt.Errorf("querylog_path, state_path and notification_api_url are required")
+		return Config{}, configFileSnapshot{}, fmt.Errorf("querylog_path, state_path and notification_api_url are required")
 	}
-	return cfg, nil
+	snapshot, err := statConfigFile(path)
+	if err != nil {
+		return Config{}, configFileSnapshot{}, err
+	}
+	return cfg, snapshot, nil
+}
+
+func refreshConfigIfChanged(current Config, prev configFileSnapshot) (Config, configFileSnapshot, bool, error) {
+	path := configPath()
+	snapshot, err := statConfigFile(path)
+	if err != nil {
+		return Config{}, configFileSnapshot{}, false, err
+	}
+	if prev.Path != "" && prev.Path == snapshot.Path && prev.Size == snapshot.Size && prev.ModTime.Equal(snapshot.ModTime) {
+		return current, prev, false, nil
+	}
+	cfg, loadedSnapshot, err := loadConfigFromPath(path)
+	if err != nil {
+		return Config{}, configFileSnapshot{}, false, err
+	}
+	return cfg, loadedSnapshot, true, nil
 }
 
 func overrideGuardAPIFromEnv(dst *GuardAPIConfig, prefix string) {

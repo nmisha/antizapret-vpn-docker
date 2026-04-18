@@ -17,6 +17,10 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	configSnapshot, err := statConfigFile(configPath())
+	if err != nil {
+		return err
+	}
 	if !cfg.Enabled {
 		log.Printf("dns-guard disabled by config")
 		return nil
@@ -50,12 +54,33 @@ func Run() error {
 	for {
 		select {
 		case <-blockTicker.C:
+			if !cfg.Enabled {
+				continue
+			}
 			if changed := processPendingBlocks(cfg, state, time.Now().UTC()); changed {
 				if err := saveState(cfg.StatePath, state); err != nil {
 					log.Printf("dns-guard save state error: %v", err)
 				}
 			}
 		case <-pollTicker.C:
+			if freshCfg, freshSnapshot, changed, err := refreshConfigIfChanged(cfg, configSnapshot); err != nil {
+				log.Printf("dns-guard reload config error: %v", err)
+			} else {
+				cfg = freshCfg
+				configSnapshot = freshSnapshot
+				if changed {
+					log.Printf("dns-guard config reloaded: notify_score=%d block15m=%d block24h=%d cooldown=%d debug=%t track_skipped=%t ignore_ips=%d whitelist=%d",
+						cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.NotificationCooldown,
+						cfg.DebugLogEnabled, cfg.TrackSkippedEvents, len(cfg.IgnoreIPs), countProfileWhitelist(cfg.ProfileWhitelist))
+					writeDebugLog(cfg, "config_reloaded path=%s size=%d mod_time=%s notify_score=%d block15m=%d block24h=%d cooldown=%d debug=%t track_skipped=%t ignore_ips=%d whitelist=%d",
+						configSnapshot.Path, configSnapshot.Size, configSnapshot.ModTime.Format(time.RFC3339Nano),
+						cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.NotificationCooldown,
+						cfg.DebugLogEnabled, cfg.TrackSkippedEvents, len(cfg.IgnoreIPs), countProfileWhitelist(cfg.ProfileWhitelist))
+				}
+			}
+			if !cfg.Enabled {
+				continue
+			}
 			if reloadResult, err := refreshRulesIfChanged(cfg, rules, rulesSnapshot); err != nil {
 				log.Printf("dns-guard reload rules error: %v", err)
 			} else {
@@ -327,6 +352,14 @@ func profileWhitelisted(ref ProfileRef, whitelist map[string][]string) bool {
 		}
 	}
 	return false
+}
+
+func countProfileWhitelist(whitelist map[string][]string) int {
+	total := 0
+	for _, profiles := range whitelist {
+		total += len(profiles)
+	}
+	return total
 }
 
 func shouldNotifyScore(ps ProfileRiskState, score int, cooldownSeconds int) bool {
