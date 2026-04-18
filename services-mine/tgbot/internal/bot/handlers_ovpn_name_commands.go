@@ -133,33 +133,13 @@ func handleOvpnNameCreate(ctx *Ctx, arg string) {
 	reply(ctx.Bot, ctx.ChatID, "OK: OpenVPN certificate created")
 }
 
-func handleOvpnNameConf(ctx *Ctx, arg string) {
-	ovpnNameAction(ctx, "conf", arg)
-}
-
-func handleOvpnNameStatsProfile(ctx *Ctx, arg string) {
-	ovpnNameAction(ctx, "stats", arg)
-}
-
-func handleOvpnNameScore(ctx *Ctx, arg string) {
-	ovpnNameAction(ctx, "score", arg)
-}
-
-func handleOvpnNameRevoke(ctx *Ctx, arg string) {
-	ovpnNameAction(ctx, "revoke", arg)
-}
-
-func handleOvpnNameBurn(ctx *Ctx, arg string) {
-	ovpnNameAction(ctx, "burn", arg)
-}
-
-func handleOvpnNameRestart(ctx *Ctx, arg string) {
-	ovpnNameAction(ctx, "restart", arg)
-}
-
-func handleOvpnNameRestartContainer(ctx *Ctx, arg string) {
-	ovpnNameAction(ctx, "restart_container", arg)
-}
+func handleOvpnNameConf(ctx *Ctx, arg string) { ovpnNameAction(ctx, "conf", arg) }
+func handleOvpnNameStatsProfile(ctx *Ctx, arg string) { ovpnNameAction(ctx, "stats", arg) }
+func handleOvpnNameScore(ctx *Ctx, arg string) { ovpnNameAction(ctx, "score", arg) }
+func handleOvpnNameRevoke(ctx *Ctx, arg string) { ovpnNameAction(ctx, "revoke", arg) }
+func handleOvpnNameBurn(ctx *Ctx, arg string) { ovpnNameAction(ctx, "burn", arg) }
+func handleOvpnNameRestart(ctx *Ctx, arg string) { ovpnNameAction(ctx, "restart", arg) }
+func handleOvpnNameRestartContainer(ctx *Ctx, arg string) { ovpnNameAction(ctx, "restart_container", arg) }
 
 func ovpnNameAction(ctx *Ctx, action string, query string) {
 	if !ctx.IsPrivate {
@@ -259,7 +239,7 @@ func performOvpnProfileAction(ctx *Ctx, client *ovpnUIClient, action string, pro
 		reply(ctx.Bot, ctx.ChatID, "OpenVPN server restarted (SIGUSR1). Активные клиентские сессии должны быть переинициализированы.")
 	case "restart_container":
 		if strings.TrimSpace(profile.RestartContainerURL) == "" {
-			reply(ctx.Bot, ctx.ChatID, "Restart container недоступен в текущем OpenVPN UI.")
+			reply(ctx.Bot, ctx.ChatID, "Для выбранного профиля это действие сейчас недоступно.")
 			return
 		}
 		if err := client.executeProfileAction(profile.RestartContainerURL); err != nil {
