@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"time"
 )
 
 type QueryLogEntry struct {
@@ -20,22 +21,35 @@ type QueryLogEntry struct {
 	} `json:"Result"`
 }
 
-func readNewEntries(path string, offset int64) ([]QueryLogEntry, int64, error) {
+type QueryLogReadResult struct {
+	Entries        []QueryLogEntry
+	NewOffset      int64
+	FileSize       int64
+	FileModTime    time.Time
+	ResetToStart   bool
+	UsedOffsetRead bool
+}
+
+func readNewEntries(path string, cursor CursorState) (QueryLogReadResult, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, offset, fmt.Errorf("open querylog: %w", err)
+		return QueryLogReadResult{}, fmt.Errorf("open querylog: %w", err)
 	}
 	defer f.Close()
 
 	info, err := f.Stat()
 	if err != nil {
-		return nil, offset, fmt.Errorf("stat querylog: %w", err)
+		return QueryLogReadResult{}, fmt.Errorf("stat querylog: %w", err)
 	}
-	if info.Size() < offset {
+
+	offset := cursor.Offset
+	reset := shouldResetCursor(info, cursor)
+	if info.Size() < offset || reset {
 		offset = 0
+		reset = true
 	}
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
-		return nil, offset, fmt.Errorf("seek querylog: %w", err)
+		return QueryLogReadResult{}, fmt.Errorf("seek querylog: %w", err)
 	}
 
 	entries := make([]QueryLogEntry, 0, 32)
@@ -52,13 +66,42 @@ func readNewEntries(path string, offset int64) ([]QueryLogEntry, int64, error) {
 			if err == io.EOF {
 				break
 			}
-			return nil, offset, fmt.Errorf("read querylog: %w", err)
+			return QueryLogReadResult{}, fmt.Errorf("read querylog: %w", err)
 		}
 	}
 
 	newOffset, err := f.Seek(0, io.SeekCurrent)
 	if err != nil {
-		return nil, offset, fmt.Errorf("get querylog offset: %w", err)
+		return QueryLogReadResult{}, fmt.Errorf("get querylog offset: %w", err)
 	}
-	return entries, newOffset, nil
+	return QueryLogReadResult{
+		Entries:        entries,
+		NewOffset:      newOffset,
+		FileSize:       info.Size(),
+		FileModTime:    info.ModTime().UTC(),
+		ResetToStart:   reset,
+		UsedOffsetRead: offset > 0 && !reset,
+	}, nil
+}
+
+func shouldResetCursor(info os.FileInfo, cursor CursorState) bool {
+	if cursor.Offset == 0 {
+		return false
+	}
+	if cursor.FileSize > 0 && info.Size() < cursor.FileSize {
+		return true
+	}
+	if cursor.FileModTime == "" {
+		return false
+	}
+	prevMod, err := time.Parse(time.RFC3339Nano, cursor.FileModTime)
+	if err != nil {
+		return false
+	}
+	// If the file timestamp moved backwards or changed while size also shrank,
+	// treat it as log rewrite/truncate and reread from start.
+	if info.ModTime().UTC().Before(prevMod) {
+		return true
+	}
+	return false
 }

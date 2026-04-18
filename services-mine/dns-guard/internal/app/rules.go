@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -108,4 +109,21 @@ func normalizeDomain(s string) string {
 	s = strings.TrimPrefix(s, ".")
 	s = strings.TrimSuffix(s, ".")
 	return s
+}
+
+func rulesSignature(rules []compiledRule) string {
+	if len(rules) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(rules))
+	for _, r := range rules {
+		parts = append(parts, strings.Join([]string{
+			r.domain,
+			r.match,
+			strconv.Itoa(r.risk),
+			r.reason,
+			strconv.FormatBool(r.enabled),
+		}, "|"))
+	}
+	return strings.Join(parts, "\n")
 }

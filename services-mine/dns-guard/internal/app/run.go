@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+const maxRecentEventKeys = 512
+
 func Run() error {
 	cfg, err := loadConfig()
 	if err != nil {
@@ -30,7 +32,12 @@ func Run() error {
 		if freshRules, err := loadRules(); err != nil {
 			log.Printf("dns-guard reload rules error: %v", err)
 		} else {
+			prevSig := rulesSignature(rules)
+			nextSig := rulesSignature(freshRules)
 			rules = freshRules
+			if prevSig != nextSig {
+				log.Printf("dns-guard rules reloaded: rules=%d", len(rules))
+			}
 		}
 		if err := runOnce(cfg, rules, state); err != nil {
 			log.Printf("dns-guard cycle error: %v", err)
@@ -43,12 +50,15 @@ func Run() error {
 }
 
 func runOnce(cfg Config, rules []compiledRule, state *State) error {
-	entries, newOffset, err := readNewEntries(cfg.QueryLogPath, state.Cursor.Offset)
+	readResult, err := readNewEntries(cfg.QueryLogPath, state.Cursor)
 	if err != nil {
 		return err
 	}
+	entries := readResult.Entries
 	if len(entries) == 0 {
-		state.Cursor.Offset = newOffset
+		state.Cursor.Offset = readResult.NewOffset
+		state.Cursor.FileSize = readResult.FileSize
+		state.Cursor.FileModTime = readResult.FileModTime.Format(time.RFC3339Nano)
 		return nil
 	}
 
@@ -77,6 +87,9 @@ func runOnce(cfg Config, rules []compiledRule, state *State) error {
 		}
 		rule, matched := matchRule(entry.QH, rules)
 		if !matched {
+			continue
+		}
+		if shouldSkipEvent(entry, state.Cursor) {
 			continue
 		}
 
@@ -134,9 +147,12 @@ func runOnce(cfg Config, rules []compiledRule, state *State) error {
 		}
 
 		state.Profiles[profileKey] = ps
+		advanceCursorEvent(entry, &state.Cursor)
 	}
 
-	state.Cursor.Offset = newOffset
+	state.Cursor.Offset = readResult.NewOffset
+	state.Cursor.FileSize = readResult.FileSize
+	state.Cursor.FileModTime = readResult.FileModTime.Format(time.RFC3339Nano)
 	return nil
 }
 
@@ -239,4 +255,96 @@ func truncateForLog(s string, maxLen int) string {
 		return s
 	}
 	return s[:maxLen]
+}
+
+func shouldSkipEvent(entry QueryLogEntry, cursor CursorState) bool {
+	eventTime := parseEventTime(entry.T)
+	lastSeen := parseEventTime(cursor.LastSeenTime)
+	if !lastSeen.IsZero() && eventTime.Before(lastSeen) {
+		return true
+	}
+	key := eventKey(entry)
+	if key == "" {
+		return false
+	}
+	if !eventTime.IsZero() && eventTime.Equal(lastSeen) && containsString(cursor.RecentEventKeys, key) {
+		return true
+	}
+	if lastSeen.IsZero() && containsString(cursor.RecentEventKeys, key) {
+		return true
+	}
+	return false
+}
+
+func advanceCursorEvent(entry QueryLogEntry, cursor *CursorState) {
+	eventTime := parseEventTime(entry.T)
+	key := eventKey(entry)
+	lastSeen := parseEventTime(cursor.LastSeenTime)
+
+	switch {
+	case !eventTime.IsZero() && (lastSeen.IsZero() || eventTime.After(lastSeen)):
+		cursor.LastSeenTime = eventTime.UTC().Format(time.RFC3339Nano)
+		cursor.RecentEventKeys = nil
+		if key != "" {
+			cursor.RecentEventKeys = append(cursor.RecentEventKeys, key)
+		}
+	case !eventTime.IsZero() && eventTime.Equal(lastSeen):
+		if key != "" {
+			cursor.RecentEventKeys = appendUniqueBounded(cursor.RecentEventKeys, key, maxRecentEventKeys)
+		}
+	default:
+		if key != "" {
+			cursor.RecentEventKeys = appendUniqueBounded(cursor.RecentEventKeys, key, maxRecentEventKeys)
+		}
+	}
+}
+
+func parseEventTime(v string) time.Time {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return time.Time{}
+	}
+	t, err := time.Parse(time.RFC3339Nano, v)
+	if err == nil {
+		return t.UTC()
+	}
+	t, err = time.Parse(time.RFC3339, v)
+	if err == nil {
+		return t.UTC()
+	}
+	return time.Time{}
+}
+
+func eventKey(entry QueryLogEntry) string {
+	t := strings.TrimSpace(entry.T)
+	ip := strings.TrimSpace(entry.IP)
+	qh := normalizeDomain(entry.QH)
+	qt := strings.TrimSpace(strings.ToUpper(entry.QT))
+	if t == "" && ip == "" && qh == "" && qt == "" {
+		return ""
+	}
+	return t + "|" + ip + "|" + qh + "|" + qt
+}
+
+func containsString(list []string, target string) bool {
+	for _, v := range list {
+		if v == target {
+			return true
+		}
+	}
+	return false
+}
+
+func appendUniqueBounded(list []string, value string, maxLen int) []string {
+	if value == "" {
+		return list
+	}
+	if containsString(list, value) {
+		return list
+	}
+	list = append(list, value)
+	if len(list) <= maxLen {
+		return list
+	}
+	return append([]string(nil), list[len(list)-maxLen:]...)
 }
