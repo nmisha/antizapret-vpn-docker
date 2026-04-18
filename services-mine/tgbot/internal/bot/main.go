@@ -177,6 +177,11 @@ func Run(register func(reg *CommandRegistry)) error {
 			continue
 		}
 
+		// pending ovpn admin actions (create certificate)
+		if handleOvpnPendingIfAny(ctx, text) {
+			continue
+		}
+
 		// pending admin accounts ui actions
 		if handleAccAdminPendingIfAny(ctx, text) {
 			continue

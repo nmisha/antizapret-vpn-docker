@@ -71,6 +71,11 @@ func sendOvpnProfilesList(ctx *Ctx, profiles []ovpnProfile, pickPrefix string) {
 		}
 		rows = append(rows, row)
 	}
+	if pickPrefix == "ovpn:a:p:" {
+		rows = append(rows, []tgbotapi.InlineKeyboardButton{
+			tgbotapi.NewInlineKeyboardButtonData("Add certificate", "ovpn:a:act:add:"),
+		})
+	}
 	rows = append(rows, []tgbotapi.InlineKeyboardButton{
 		tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
 	})

@@ -23,6 +23,7 @@ var (
 	ovpnCertRowRe      = regexp.MustCompile(`(?is)<tr\b[^>]*>(.*?)</tr>`)
 	ovpnHrefRe         = regexp.MustCompile(`href="([^"]+)"`)
 	ovpnRestartHrefRe  = regexp.MustCompile(`(?is)<a\s+href="([^"]+)"[^>]*title="Restart OpenVPN container"`)
+	ovpnNameValidRe    = regexp.MustCompile(`^[^\s]+$`)
 )
 
 var ovpnReservedCertificateRoutes = map[string]struct{}{
@@ -390,6 +391,59 @@ func (c *ovpnUIClient) restartServer(signalName string) error {
 		return fmt.Errorf("OpenVPN UI authentication rejected")
 	}
 	return nil
+}
+
+func (c *ovpnUIClient) createProfile(name string) error {
+	name = strings.TrimSpace(name)
+	if !ovpnNameValidRe.MatchString(name) {
+		return fmt.Errorf("certificate name must not contain spaces")
+	}
+	if err := c.ensureSession(); err != nil {
+		return err
+	}
+
+	form := url.Values{}
+	form.Set("Name", name)
+	form.Set("EasyRSACertExpire", "8250")
+	req, err := http.NewRequest(http.MethodPost, c.BaseURL+"/certificates", strings.NewReader(form.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+		return fmt.Errorf("create certificate failed: %s: %s", resp.Status, string(body))
+	}
+	if ovpnLoginFormCheck.Match(body) || strings.Contains(strings.ToLower(resp.Request.URL.Path), "/login") {
+		return fmt.Errorf("OpenVPN UI authentication rejected")
+	}
+
+	profiles := parseOvpnProfilesFromCertificatesPage(string(body))
+	want := strings.ToLower(name)
+	for _, profile := range profiles {
+		if strings.ToLower(strings.TrimSpace(profile.Name)) == want {
+			return nil
+		}
+	}
+	// Fallback to a fresh fetch in case the POST response redirected somewhere else.
+	currentProfiles, err := c.listProfiles()
+	if err != nil {
+		return fmt.Errorf("create certificate result is unclear: %w", err)
+	}
+	for _, profile := range currentProfiles {
+		if strings.ToLower(strings.TrimSpace(profile.Name)) == want {
+			return nil
+		}
+	}
+	return fmt.Errorf("certificate %q was not found after create request", name)
 }
 
 func (c *ovpnUIClient) ensureSession() error {

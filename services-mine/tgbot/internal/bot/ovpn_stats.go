@@ -264,6 +264,11 @@ func sendOvpnProfileActionsWithStats(ctx *Ctx, profileName, scope string) {
 			))
 		}
 	}
+	if scope == "ovpn:a" {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Add certificate", "ovpn:a:act:add:"),
+		))
+	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Back", scope+":back"),
 		tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
