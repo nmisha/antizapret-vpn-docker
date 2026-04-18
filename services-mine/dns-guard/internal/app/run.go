@@ -44,6 +44,7 @@ func Run() error {
 	if err := saveState(cfg.StatePath, state); err != nil {
 		return err
 	}
+	startAPIServer(cfg)
 	log.Printf("dns-guard started: querylog=%s rules=%d enabled_rules=%d notify=%s notify_score=%d block15m=%d block24h=%d min_rule_risk=%d max_rule_risk=%d",
 		cfg.QueryLogPath, len(rules), countEnabledRules(rules), cfg.NotificationAPIURL, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.MinRuleRisk, cfg.MaxRuleRisk)
 	pollTicker := time.NewTicker(time.Duration(cfg.PollIntervalSeconds) * time.Second)
