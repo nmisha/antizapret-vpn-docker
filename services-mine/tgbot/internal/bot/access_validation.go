@@ -185,3 +185,14 @@ func validateOvpnAdminProfileAccess(ctx *Ctx, _ *ovpnUIClient, profileName strin
 	}
 	return ovpnProfile{}, fmt.Errorf("профиль больше не доступен в текущем scope")
 }
+
+func validateOvpnAdminAddAccess(ctx *Ctx) error {
+	if !ctx.User.Has(RoleAdmin) {
+		return fmt.Errorf("недостаточно прав")
+	}
+	scope, ok := getAdminScope(ctx.TgID)
+	if !ok || scope.Mode == "" {
+		return fmt.Errorf("кнопка устарела, открой список профилей заново")
+	}
+	return nil
+}

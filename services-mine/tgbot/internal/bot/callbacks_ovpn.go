@@ -128,9 +128,16 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 			reply(ctx.Bot, ctx.ChatID, err.Error())
 			return
 		}
-		if _, err := validateOvpnAdminProfileAccess(ctx, client, profileName); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
-			return
+		if act == "add" {
+			if err := validateOvpnAdminAddAccess(ctx); err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				return
+			}
+		} else {
+			if _, err := validateOvpnAdminProfileAccess(ctx, client, profileName); err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				return
+			}
 		}
 		switch act {
 		case "stats":
@@ -139,6 +146,9 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 			sendDNSGuardRiskScore(ctx, "ovpn", profileName, true)
 		case "conf":
 			sendOvpnConfigAsFile(ctx, client, profileName)
+		case "add":
+			setOvpnPending(ctx.TgID, ovpnPending{Kind: ovpnPendingAdd})
+			reply(ctx.Bot, ctx.ChatID, "Отправь имя нового OpenVPN сертификата одним сообщением. Без пробелов. Срок действия будет 8250 дней.")
 		case "restart":
 			sendOvpnAdminRestart(ctx, client, profileName)
 		case "restart_container":
