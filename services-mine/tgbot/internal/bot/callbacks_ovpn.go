@@ -139,6 +139,14 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 			sendDNSGuardRiskScore(ctx, "ovpn", profileName, true)
 		case "conf":
 			sendOvpnConfigAsFile(ctx, client, profileName)
+		case "restart":
+			sendOvpnAdminRestart(ctx, client, profileName)
+		case "restart_container":
+			sendOvpnAdminRestartContainer(ctx, client, profileName)
+		case "revoke":
+			sendOvpnAdminCertificateAction(ctx, client, profileName, "revoke")
+		case "burn":
+			sendOvpnAdminCertificateAction(ctx, client, profileName, "burn")
 		default:
 			reply(ctx.Bot, ctx.ChatID, "Неизвестное действие.")
 		}
@@ -146,4 +154,70 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 	}
 
 	reply(ctx.Bot, ctx.ChatID, "Неизвестный callback.")
+}
+
+func sendOvpnAdminCertificateAction(ctx *Ctx, client *ovpnUIClient, profileName, action string) {
+	profile, err := validateOvpnAdminProfileAccess(ctx, client, profileName)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+		return
+	}
+
+	var (
+		actionURL string
+		okText    string
+	)
+	switch action {
+	case "revoke":
+		actionURL = profile.RevokeURL
+		okText = "Сертификат OpenVPN отозван. Для немедленного разрыва активной сессии может потребоваться restart OpenVPN."
+	case "burn":
+		actionURL = profile.BurnURL
+		okText = "Отозванный сертификат OpenVPN удален."
+	default:
+		reply(ctx.Bot, ctx.ChatID, "Неизвестное действие.")
+		return
+	}
+
+	if strings.TrimSpace(actionURL) == "" {
+		reply(ctx.Bot, ctx.ChatID, "Для выбранного профиля это действие сейчас недоступно.")
+		return
+	}
+	if err := client.executeProfileAction(actionURL); err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Не удалось выполнить действие OpenVPN:\n"+truncate(err.Error(), 3500))
+		return
+	}
+
+	reply(ctx.Bot, ctx.ChatID, okText)
+	sendOvpnProfileActionsWithStats(ctx, profileName, "ovpn:a")
+}
+
+func sendOvpnAdminRestart(ctx *Ctx, client *ovpnUIClient, profileName string) {
+	if _, err := validateOvpnAdminProfileAccess(ctx, client, profileName); err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+		return
+	}
+	if err := client.restartServer("SIGUSR1"); err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Не удалось перезапустить OpenVPN server:\n"+truncate(err.Error(), 3500))
+		return
+	}
+	reply(ctx.Bot, ctx.ChatID, "OpenVPN server restarted (SIGUSR1). Активные клиентские сессии должны быть переинициализированы.")
+	sendOvpnProfileActionsWithStats(ctx, profileName, "ovpn:a")
+}
+
+func sendOvpnAdminRestartContainer(ctx *Ctx, client *ovpnUIClient, profileName string) {
+	profile, err := validateOvpnAdminProfileAccess(ctx, client, profileName)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+		return
+	}
+	if strings.TrimSpace(profile.RestartContainerURL) == "" {
+		reply(ctx.Bot, ctx.ChatID, "Restart container недоступен в текущем OpenVPN UI.")
+		return
+	}
+	if err := client.executeProfileAction(profile.RestartContainerURL); err != nil {
+		reply(ctx.Bot, ctx.ChatID, "Не удалось перезапустить OpenVPN container:\n"+truncate(err.Error(), 3500))
+		return
+	}
+	reply(ctx.Bot, ctx.ChatID, "OpenVPN container restart triggered.")
 }
