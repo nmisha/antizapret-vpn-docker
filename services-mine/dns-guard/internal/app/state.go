@@ -8,9 +8,8 @@ import (
 )
 
 type State struct {
-	Cursor        CursorState                 `json:"cursor"`
-	Profiles      map[string]ProfileRiskState `json:"profiles"`
-	SkippedEvents map[string]int              `json:"skipped_events,omitempty"`
+	Cursor   CursorState                 `json:"cursor"`
+	Profiles map[string]ProfileRiskState `json:"profiles"`
 }
 
 type CursorState struct {
@@ -53,9 +52,6 @@ func loadState(path string) (*State, error) {
 	if st.Profiles == nil {
 		st.Profiles = map[string]ProfileRiskState{}
 	}
-	if st.SkippedEvents == nil {
-		st.SkippedEvents = map[string]int{}
-	}
 	for key, ps := range st.Profiles {
 		if ps.Buckets == nil {
 			ps.Buckets = map[string]int{}
@@ -71,9 +67,6 @@ func loadState(path string) (*State, error) {
 func saveState(path string, st *State) error {
 	if st.Profiles == nil {
 		st.Profiles = map[string]ProfileRiskState{}
-	}
-	if st.SkippedEvents == nil {
-		st.SkippedEvents = map[string]int{}
 	}
 	for key, ps := range st.Profiles {
 		if ps.Buckets == nil {

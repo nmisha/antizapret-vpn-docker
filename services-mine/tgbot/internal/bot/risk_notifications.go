@@ -170,7 +170,7 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 		)
 	}
 	if len(evt.Domains) > 0 {
-		lines = append(lines, "Домены:")
+		lines = append(lines, "Last domain:")
 		for _, d := range limitStrings(evt.Domains, 5) {
 			lines = append(lines, "• <code>"+html.EscapeString(d)+"</code>")
 		}
@@ -222,7 +222,7 @@ func formatRiskAdminMessage(evt riskNotificationEvent, owner User, ownerFound bo
 	// 	lines = append(lines, fmt.Sprintf("Правило: <code>%s</code>", html.EscapeString(evt.MatchedRule)))
 	// }
 	if len(evt.Domains) > 0 {
-		lines = append(lines, "Домены:")
+		lines = append(lines, "Last domain:")
 		for _, d := range limitStrings(evt.Domains, 8) {
 			lines = append(lines, "• <code>"+html.EscapeString(d)+"</code>")
 		}
