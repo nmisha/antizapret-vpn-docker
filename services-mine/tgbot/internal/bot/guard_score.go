@@ -33,11 +33,14 @@ func formatDNSGuardRiskScoreMessage(risk *dnsGuardProfileRisk, adminView bool) s
 			fmt.Sprintf("Critical: <b>%.1f%%</b> (<code>%s</code>)", risk.PercentToCritical, html.EscapeString(risk.CriticalWindow)),
 		)
 	} else {
+		notifyReached := risk.NotifyThreshold > 0 && risk.EffectiveScore >= risk.NotifyThreshold
+		blockDecision := risk.CriticalThresholdReached || strings.TrimSpace(risk.PendingBlockAt) != "" || strings.TrimSpace(risk.LastBlockAt) != ""
 		lines = append(lines,
-			fmt.Sprintf("Notify: <b>%.1f%%</b>", risk.PercentToNotify),
+			fmt.Sprintf("Notify: <b>%t</b>", notifyReached),
 			fmt.Sprintf("15m block: <b>%.1f%%</b>", risk.PercentToBlock15m),
 			fmt.Sprintf("24h block: <b>%.1f%%</b>", risk.PercentToBlock24h),
 			fmt.Sprintf("Critical: <b>%.1f%%</b>", risk.PercentToCritical),
+			fmt.Sprintf("Decision: <b>%s</b>", boolDecisionLabel(blockDecision)),
 		)
 	}
 
@@ -57,4 +60,11 @@ func formatDNSGuardRiskScoreMessage(risk *dnsGuardProfileRisk, adminView bool) s
 		lines = append(lines, fmt.Sprintf("Blocked at: <code>%s</code>", html.EscapeString(risk.LastBlockAt)))
 	}
 	return strings.Join(lines, "\n")
+}
+
+func boolDecisionLabel(block bool) string {
+	if block {
+		return "block"
+	}
+	return "no block"
 }

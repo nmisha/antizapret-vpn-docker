@@ -93,10 +93,19 @@ func buildProfileRiskResponse(cfg Config, kind, name string, now time.Time) (pro
 	if err != nil {
 		return profileRiskAPIResponse{}, false, err
 	}
-	profileKey := strings.ToLower(strings.TrimSpace(kind)) + ":" + strings.ToLower(strings.TrimSpace(name))
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	name = strings.TrimSpace(name)
+	profileKey := kind + ":" + strings.ToLower(name)
 	ps, ok := state.Profiles[profileKey]
 	if !ok {
-		return profileRiskAPIResponse{}, false, nil
+		exists, err := profileExists(cfg, kind, name)
+		if err != nil {
+			return profileRiskAPIResponse{}, false, err
+		}
+		if !exists {
+			return profileRiskAPIResponse{}, false, nil
+		}
+		ps = ProfileRiskState{Buckets: map[string]int{}}
 	}
 	score15m, score24h := calculateScores(ps, now.UTC())
 	effectiveScore := score15m
@@ -113,8 +122,8 @@ func buildProfileRiskResponse(cfg Config, kind, name string, now time.Time) (pro
 		criticalThreshold = cfg.ScoreBlockAt24h
 	}
 	return profileRiskAPIResponse{
-		ProfileKind:              strings.ToLower(strings.TrimSpace(kind)),
-		ProfileName:              strings.TrimSpace(name),
+		ProfileKind:              kind,
+		ProfileName:              name,
 		ProfileKey:               profileKey,
 		LastProfileIP:            ps.LastProfileIP,
 		LastMatchedDomain:        ps.LastMatchedDomain,
@@ -137,6 +146,60 @@ func buildProfileRiskResponse(cfg Config, kind, name string, now time.Time) (pro
 		CriticalThresholdReached: criticalThreshold > 0 && percentCritical >= 100,
 		GeneratedAt:              now.UTC().Format(time.RFC3339),
 	}, true, nil
+}
+
+func profileExists(cfg Config, kind, name string) (bool, error) {
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	want := strings.ToLower(strings.TrimSpace(name))
+	if kind == "" || want == "" {
+		return false, nil
+	}
+	switch kind {
+	case "wg":
+		if !cfg.WG.Enabled {
+			return false, nil
+		}
+		peers, err := listWGPeers(cfg.WG)
+		if err != nil {
+			return false, err
+		}
+		for _, peer := range peers {
+			if strings.ToLower(strings.TrimSpace(peer.Name)) == want {
+				return true, nil
+			}
+		}
+		return false, nil
+	case "awg":
+		if !cfg.AWG.Enabled {
+			return false, nil
+		}
+		peers, err := listWGPeers(cfg.AWG)
+		if err != nil {
+			return false, err
+		}
+		for _, peer := range peers {
+			if strings.ToLower(strings.TrimSpace(peer.Name)) == want {
+				return true, nil
+			}
+		}
+		return false, nil
+	case "ovpn":
+		if !cfg.OVPN.Enabled {
+			return false, nil
+		}
+		profiles, err := listOVPNCertificates(cfg.OVPN)
+		if err != nil {
+			return false, err
+		}
+		for _, profile := range profiles {
+			if strings.ToLower(strings.TrimSpace(profile.Name)) == want {
+				return true, nil
+			}
+		}
+		return false, nil
+	default:
+		return false, nil
+	}
 }
 
 func percentOfThreshold(score, threshold int) float64 {

@@ -1,6 +1,10 @@
 package app
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -43,6 +47,53 @@ func TestBuildProfileRiskResponse(t *testing.T) {
 	}
 	if resp.PercentToBlock15m != 70.0 || resp.PercentToCritical != 70.0 {
 		t.Fatalf("unexpected critical percent: %+v", resp)
+	}
+}
+
+func TestBuildProfileRiskResponseReturnsZeroForExistingProfileWithoutState(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/client" {
+			http.NotFound(w, r)
+			return
+		}
+		_ = json.NewEncoder(w).Encode([]map[string]any{
+			{"id": "1", "name": "Alice", "ipv4Address": "10.1.166.10"},
+		})
+	}))
+	defer srv.Close()
+
+	hostPort := strings.TrimPrefix(srv.URL, "http://")
+	parts := strings.SplitN(hostPort, ":", 2)
+	if len(parts) != 2 {
+		t.Fatalf("unexpected test server url: %s", srv.URL)
+	}
+
+	cfg := Config{
+		StatePath:       t.TempDir() + "/state.json",
+		ScoreNotifyAt:   25,
+		ScoreBlockAt15m: 50,
+		ScoreBlockAt24h: 100,
+		WG: GuardAPIConfig{
+			Enabled:  true,
+			Host:     parts[0],
+			Port:     parts[1],
+			Username: "admin",
+			Password: "admin",
+		},
+	}
+	if err := saveState(cfg.StatePath, &State{Profiles: map[string]ProfileRiskState{}}); err != nil {
+		t.Fatalf("save state: %v", err)
+	}
+
+	resp, ok, err := buildProfileRiskResponse(cfg, "wg", "Alice", mustParseRFC3339(t, "2026-04-18T10:12:00Z"))
+	if err != nil {
+		t.Fatalf("build response: %v", err)
+	}
+	if !ok {
+		t.Fatal("expected existing profile to be returned")
+	}
+	if resp.EffectiveScore != 0 || resp.Score15m != 0 || resp.Score24h != 0 {
+		t.Fatalf("expected zero scores, got %+v", resp)
 	}
 }
 
