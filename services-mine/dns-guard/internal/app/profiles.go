@@ -190,6 +190,48 @@ type ovpnAPIResponse struct {
 	Data    ovpnSessionStatus `json:"data"`
 }
 
+func (s *ovpnSessionStatus) UnmarshalJSON(data []byte) error {
+	type alias ovpnSessionStatus
+	var raw struct {
+		alias
+		ClientListCamel []ovpnSessionClient `json:"ClientList"`
+		ClientListSnake []ovpnSessionClient `json:"client_list"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*s = ovpnSessionStatus(raw.alias)
+	switch {
+	case len(raw.ClientListSnake) > 0:
+		s.ClientList = raw.ClientListSnake
+	case len(raw.ClientListCamel) > 0:
+		s.ClientList = raw.ClientListCamel
+	}
+	return nil
+}
+
+func (c *ovpnSessionClient) UnmarshalJSON(data []byte) error {
+	type alias ovpnSessionClient
+	var raw struct {
+		alias
+		CommonNameCamel     string `json:"CommonName"`
+		CommonNameSnake     string `json:"common_name"`
+		VirtualAddressCamel string `json:"VirtualAddress"`
+		VirtualAddressSnake string `json:"virtual_address"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*c = ovpnSessionClient(raw.alias)
+	if strings.TrimSpace(c.CommonName) == "" {
+		c.CommonName = strings.TrimSpace(nonEmpty(raw.CommonNameSnake, raw.CommonNameCamel))
+	}
+	if strings.TrimSpace(c.VirtualAddress) == "" {
+		c.VirtualAddress = strings.TrimSpace(nonEmpty(raw.VirtualAddressSnake, raw.VirtualAddressCamel))
+	}
+	return nil
+}
+
 var (
 	ovpnLoginTokenRe   = regexp.MustCompile(`name="_xsrf"\s+value="([^"]+)"`)
 	ovpnLoginFormCheck = regexp.MustCompile(`(?i)<form[^>]+action="[^"]*/login"`)
