@@ -65,6 +65,29 @@ func replyHTML(bot *tgbotapi.BotAPI, chatID int64, htmlText string) {
 	logSendErrorIfEnabled(chatID, err, "send message", htmlText)
 }
 
+func replyHTMLChunks(bot *tgbotapi.BotAPI, chatID int64, htmlText string) {
+	const maxLen = 3500
+	htmlText = strings.TrimSpace(htmlText)
+	if htmlText == "" {
+		return
+	}
+	for len(htmlText) > 0 {
+		chunk := htmlText
+		if len(chunk) > maxLen {
+			chunk = chunk[:maxLen]
+			if i := strings.LastIndex(chunk, "\n"); i > 500 {
+				chunk = chunk[:i]
+			}
+		}
+		msg := tgbotapi.NewMessage(chatID, strings.TrimSpace(chunk))
+		msg.DisableWebPagePreview = true
+		msg.ParseMode = "HTML"
+		_, err := bot.Send(msg)
+		logSendErrorIfEnabled(chatID, err, "send message", chunk)
+		htmlText = strings.TrimSpace(htmlText[len(chunk):])
+	}
+}
+
 func editMessage(bot *tgbotapi.BotAPI, chatID int64, messageID int, text string, markup *tgbotapi.InlineKeyboardMarkup) {
 	edit := tgbotapi.NewEditMessageText(chatID, messageID, text)
 	edit.ParseMode = "Markdown"

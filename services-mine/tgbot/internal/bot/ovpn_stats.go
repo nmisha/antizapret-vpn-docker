@@ -243,6 +243,9 @@ func sendOvpnProfileActionsWithStats(ctx *Ctx, profileName, scope string) {
 			tgbotapi.NewInlineKeyboardButtonData("Stat", scope+":act:stats:"+profileName),
 			tgbotapi.NewInlineKeyboardButtonData("Profile", scope+":act:conf:"+profileName),
 		},
+		{
+			tgbotapi.NewInlineKeyboardButtonData("Risk score", scope+":act:score:"+profileName),
+		},
 	}
 	if scope == "ovpn:a" {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
