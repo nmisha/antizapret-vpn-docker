@@ -36,6 +36,7 @@ type profileRiskAPIResponse struct {
 
 func startAPIServer(cfg Config) {
 	addr := strings.TrimSpace(cfg.HTTPListenAddr)
+	token := strings.TrimSpace(cfg.HTTPAPIToken)
 	if addr == "" {
 		return
 	}
@@ -43,6 +44,10 @@ func startAPIServer(cfg Config) {
 	mux.HandleFunc("/api/v1/profile-risk", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if token != "" && !matchBearerToken(r.Header.Get("Authorization"), token) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
 		kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("kind")))
@@ -69,6 +74,18 @@ func startAPIServer(cfg Config) {
 			log.Printf("dns-guard api stopped: %v", err)
 		}
 	}()
+}
+
+func matchBearerToken(headerValue, expected string) bool {
+	headerValue = strings.TrimSpace(headerValue)
+	expected = strings.TrimSpace(expected)
+	if expected == "" {
+		return true
+	}
+	if !strings.HasPrefix(strings.ToLower(headerValue), "bearer ") {
+		return false
+	}
+	return strings.TrimSpace(headerValue[len("Bearer "):]) == expected
 }
 
 func buildProfileRiskResponse(cfg Config, kind, name string, now time.Time) (profileRiskAPIResponse, bool, error) {

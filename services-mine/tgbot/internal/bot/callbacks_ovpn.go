@@ -42,6 +42,8 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		switch act {
 		case "stats":
 			sendOvpnStatsForProfile(ctx, client, profileName)
+		case "score":
+			sendDNSGuardRiskScore(ctx, "ovpn", profileName, false)
 		case "conf":
 			sendOvpnConfigAsFile(ctx, client, profileName)
 		default:
@@ -133,6 +135,8 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		switch act {
 		case "stats":
 			sendOvpnStatsForProfile(ctx, client, profileName)
+		case "score":
+			sendDNSGuardRiskScore(ctx, "ovpn", profileName, true)
 		case "conf":
 			sendOvpnConfigAsFile(ctx, client, profileName)
 		default:

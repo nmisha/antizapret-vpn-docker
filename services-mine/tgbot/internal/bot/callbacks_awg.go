@@ -42,6 +42,13 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		switch act {
 		case "stats":
 			sendAwgStatsForPeerID(ctx, client, peerID)
+		case "score":
+			peer, err := validateAwgUserPeerAccess(ctx, client, peerID)
+			if err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+				return
+			}
+			sendDNSGuardRiskScore(ctx, "awg", peer.Name, false)
 		case "conf":
 			sendAwgConfigAsFile(ctx, client, peerID)
 		case "qr":
@@ -147,6 +154,13 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		switch act {
 		case "stats":
 			sendAwgStatsForPeerID(ctx, client, peerID)
+		case "score":
+			peer, err := validateAwgAdminPeerAccess(ctx, peerID)
+			if err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				return
+			}
+			sendDNSGuardRiskScore(ctx, "awg", peer.Name, true)
 		case "conf":
 			sendAwgConfigAsFile(ctx, client, peerID)
 		case "qr":

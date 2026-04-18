@@ -150,6 +150,9 @@ func sendAwgAdminProfileActions(ctx *Ctx, peerID string) {
 			tgbotapi.NewInlineKeyboardButtonData("QR", "awg:a:act:qr:"+peerID),
 		),
 		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Risk", "awg:a:act:score:"+peerID),
+		),
+		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Enable", "awg:a:act:enable:"+peerID),
 			tgbotapi.NewInlineKeyboardButtonData("Disable", "awg:a:act:disable:"+peerID),
 		),
@@ -180,6 +183,9 @@ func sendAwgUserProfileActions(ctx *Ctx, peerID string) {
 			tgbotapi.NewInlineKeyboardButtonData("Stat", "awg:u:act:stats:"+peerID),
 			tgbotapi.NewInlineKeyboardButtonData("Profile", "awg:u:act:conf:"+peerID),
 			tgbotapi.NewInlineKeyboardButtonData("QR", "awg:u:act:qr:"+peerID),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Risk", "awg:u:act:score:"+peerID),
 		),
 	}
 	if ctx.User.Has(RoleWgUserControl) {

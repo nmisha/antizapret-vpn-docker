@@ -50,6 +50,13 @@ func handleWgCallback(ctx *Ctx, data string) {
 		switch act {
 		case "stats":
 			sendWgStatsForPeerID(ctx, client, peerID)
+		case "score":
+			peer, err := validateWgUserPeerAccess(ctx, client, peerID)
+			if err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+				return
+			}
+			sendDNSGuardRiskScore(ctx, "wg", peer.Name, false)
 		case "conf":
 			sendWgConfigAsFile(ctx, client, peerID)
 		case "qr":
@@ -173,6 +180,13 @@ func handleWgCallback(ctx *Ctx, data string) {
 		switch act {
 		case "stats":
 			sendWgStatsForPeerID(ctx, client, peerID)
+		case "score":
+			peer, err := validateWgAdminPeerAccess(ctx, client, peerID)
+			if err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				return
+			}
+			sendDNSGuardRiskScore(ctx, "wg", peer.Name, true)
 		case "conf":
 			sendWgConfigAsFile(ctx, client, peerID)
 		case "qr":
