@@ -142,7 +142,7 @@ func getOvpnProfilesForScope(ctx *Ctx, scope wgAdminScope) ([]ovpnProfile, error
 func sendOvpnProfileActions(ctx *Ctx, profileName, scope string) {
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Risk", scope+":act:score:"+profileName),
+			tgbotapi.NewInlineKeyboardButtonData("Risk score", scope+":act:score:"+profileName),
 			tgbotapi.NewInlineKeyboardButtonData("Profile", scope+":act:conf:"+profileName),
 		),
 		tgbotapi.NewInlineKeyboardRow(
