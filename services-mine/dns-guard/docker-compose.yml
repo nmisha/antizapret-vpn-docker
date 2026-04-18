@@ -26,6 +26,7 @@ services:
       DNS_GUARD_CONFIG: /config/config.json
       DNS_GUARD_RULES: /config/risk-domains.json
       DNS_GUARD_HTTP_ADDR: :8090
+      DNS_GUARD_HTTP_TOKEN: change-me-dns-guard-api-token
       DNS_GUARD_STATE: /state/state.json
       DNS_GUARD_QUERYLOG: /adguard/querylog.json
       DNS_GUARD_NOTIFICATION_URL: http://tgbot.antizapret:8081/risk-notifications

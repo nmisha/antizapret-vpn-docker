@@ -12,6 +12,7 @@ type Config struct {
 	Enabled              bool                `json:"enabled"`
 	PollIntervalSeconds  int                 `json:"poll_interval_seconds"`
 	HTTPListenAddr       string              `json:"http_listen_addr"`
+	HTTPAPIToken         string              `json:"http_api_token"`
 	QueryLogPath         string              `json:"querylog_path"`
 	StatePath            string              `json:"state_path"`
 	NotificationAPIURL   string              `json:"notification_api_url"`
@@ -98,6 +99,9 @@ func loadConfigFromPath(path string) (Config, configFileSnapshot, error) {
 	}
 	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_HTTP_ADDR")); v != "" {
 		cfg.HTTPListenAddr = v
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_HTTP_TOKEN")); v != "" {
+		cfg.HTTPAPIToken = v
 	}
 	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_STATE")); v != "" {
 		cfg.StatePath = v
