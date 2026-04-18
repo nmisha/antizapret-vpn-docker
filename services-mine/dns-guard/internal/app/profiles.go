@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -23,28 +24,69 @@ type ProfileRef struct {
 }
 
 func resolveProfile(ip string, cfg Config) (ProfileRef, error) {
-	if cfg.WG.Enabled {
-		if ref, ok, err := findWGProfile(ip, "wg", cfg.WG); err != nil {
+	kind, err := resolveProfileKindByIP(ip, cfg.Subnets)
+	if err != nil {
+		return ProfileRef{}, err
+	}
+	switch kind {
+	case "wg":
+		if !cfg.WG.Enabled {
+			return ProfileRef{}, nil
+		}
+		ref, ok, err := findWGProfile(ip, "wg", cfg.WG)
+		if err != nil {
 			return ProfileRef{}, err
-		} else if ok {
+		}
+		if ok {
+			return ref, nil
+		}
+	case "awg":
+		if !cfg.AWG.Enabled {
+			return ProfileRef{}, nil
+		}
+		ref, ok, err := findWGProfile(ip, "awg", cfg.AWG)
+		if err != nil {
+			return ProfileRef{}, err
+		}
+		if ok {
+			return ref, nil
+		}
+	case "ovpn":
+		if !cfg.OVPN.Enabled {
+			return ProfileRef{}, nil
+		}
+		ref, ok, err := findOVPNProfile(ip, cfg.OVPN)
+		if err != nil {
+			return ProfileRef{}, err
+		}
+		if ok {
 			return ref, nil
 		}
 	}
-	if cfg.AWG.Enabled {
-		if ref, ok, err := findWGProfile(ip, "awg", cfg.AWG); err != nil {
-			return ProfileRef{}, err
-		} else if ok {
-			return ref, nil
+	return ProfileRef{Kind: kind, IP: ip}, nil
+}
+
+func resolveProfileKindByIP(ip string, subnets map[string][]string) (string, error) {
+	parsedIP := net.ParseIP(strings.TrimSpace(ip))
+	if parsedIP == nil {
+		return "", fmt.Errorf("invalid profile ip %q", ip)
+	}
+	for _, kind := range []string{"wg", "awg", "ovpn"} {
+		for _, cidr := range subnets[kind] {
+			cidr = strings.TrimSpace(cidr)
+			if cidr == "" {
+				continue
+			}
+			_, network, err := net.ParseCIDR(cidr)
+			if err != nil {
+				return "", fmt.Errorf("parse %s subnet %q: %w", kind, cidr, err)
+			}
+			if network.Contains(parsedIP) {
+				return kind, nil
+			}
 		}
 	}
-	if cfg.OVPN.Enabled {
-		if ref, ok, err := findOVPNProfile(ip, cfg.OVPN); err != nil {
-			return ProfileRef{}, err
-		} else if ok {
-			return ref, nil
-		}
-	}
-	return ProfileRef{}, nil
+	return "", nil
 }
 
 type wgPeer struct {

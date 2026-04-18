@@ -17,6 +17,8 @@ type Config struct {
 	NotificationAPIURL   string              `json:"notification_api_url"`
 	NotificationAPIToken string              `json:"notification_api_token"`
 	NotificationCooldown int                 `json:"notification_cooldown_seconds"`
+	MinRuleRisk          int                 `json:"min_rule_risk"`
+	MaxRuleRisk          int                 `json:"max_rule_risk"`
 	ScoreNotifyAt        int                 `json:"score_notify_at"`
 	ScoreBlockAt15m      int                 `json:"score_block_at_15m"`
 	ScoreBlockAt24h      int                 `json:"score_block_at_24h"`
@@ -89,6 +91,15 @@ func loadConfig() (Config, error) {
 	}
 	if cfg.NotificationCooldown <= 0 {
 		cfg.NotificationCooldown = int((6 * time.Hour).Seconds())
+	}
+	if cfg.MinRuleRisk < 0 {
+		cfg.MinRuleRisk = 0
+	}
+	if cfg.MaxRuleRisk <= 0 {
+		cfg.MaxRuleRisk = 9
+	}
+	if cfg.MaxRuleRisk < cfg.MinRuleRisk {
+		cfg.MaxRuleRisk = cfg.MinRuleRisk
 	}
 	if cfg.ScoreNotifyAt <= 0 {
 		cfg.ScoreNotifyAt = 12

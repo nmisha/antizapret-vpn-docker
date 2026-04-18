@@ -30,7 +30,7 @@ type compiledRule struct {
 	enabled bool
 }
 
-func loadRules() ([]compiledRule, error) {
+func loadRules(cfg Config) ([]compiledRule, error) {
 	path := strings.TrimSpace(os.Getenv("DNS_GUARD_RULES"))
 	if path == "" {
 		path = "/config/risk-domains.json"
@@ -57,11 +57,11 @@ func loadRules() ([]compiledRule, error) {
 			continue
 		}
 		risk := r.Risk
-		if risk < 0 {
-			risk = 0
+		if risk < cfg.MinRuleRisk {
+			risk = cfg.MinRuleRisk
 		}
-		if risk > 9 {
-			risk = 9
+		if risk > cfg.MaxRuleRisk {
+			risk = cfg.MaxRuleRisk
 		}
 		enabled := r.Enabled
 		if r.CreatedAt == "" {
@@ -76,6 +76,16 @@ func loadRules() ([]compiledRule, error) {
 		})
 	}
 	return out, nil
+}
+
+func countEnabledRules(rules []compiledRule) int {
+	total := 0
+	for _, r := range rules {
+		if r.enabled {
+			total++
+		}
+	}
+	return total
 }
 
 func matchRule(domain string, rules []compiledRule) (compiledRule, bool) {
