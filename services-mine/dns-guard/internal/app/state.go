@@ -21,14 +21,20 @@ type CursorState struct {
 }
 
 type ProfileRiskState struct {
-	LastRisk              int    `json:"last_risk"`
-	LastNotifyAt          string `json:"last_notify_at,omitempty"`
-	LastNotifiedRisk      int    `json:"last_notified_risk,omitempty"`
-	LastMatchedDomain     string `json:"last_matched_domain,omitempty"`
-	LastMatchedReason     string `json:"last_matched_reason,omitempty"`
-	LastAction            string `json:"last_action,omitempty"`
-	LastBlockAt           string `json:"last_block_at,omitempty"`
-	LastNotificationEvent string `json:"last_notification_event,omitempty"`
+	LastRuleRisk          int            `json:"last_rule_risk,omitempty"`
+	LastNotifyAt          string         `json:"last_notify_at,omitempty"`
+	LastNotifiedScore     int            `json:"last_notified_score,omitempty"`
+	LastMatchedDomain     string         `json:"last_matched_domain,omitempty"`
+	LastMatchedReason     string         `json:"last_matched_reason,omitempty"`
+	LastAction            string         `json:"last_action,omitempty"`
+	LastBlockAt           string         `json:"last_block_at,omitempty"`
+	LastNotificationEvent string         `json:"last_notification_event,omitempty"`
+	LastProfileID         string         `json:"last_profile_id,omitempty"`
+	LastProfileIP         string         `json:"last_profile_ip,omitempty"`
+	PendingBlockAt        string         `json:"pending_block_at,omitempty"`
+	PendingBlockWindow    string         `json:"pending_block_window,omitempty"`
+	PendingBlockScore     int            `json:"pending_block_score,omitempty"`
+	Buckets               map[string]int `json:"buckets,omitempty"`
 }
 
 func loadState(path string) (*State, error) {
@@ -46,6 +52,12 @@ func loadState(path string) (*State, error) {
 	if st.Profiles == nil {
 		st.Profiles = map[string]ProfileRiskState{}
 	}
+	for key, ps := range st.Profiles {
+		if ps.Buckets == nil {
+			ps.Buckets = map[string]int{}
+		}
+		st.Profiles[key] = ps
+	}
 	if st.Cursor.RecentEventKeys == nil {
 		st.Cursor.RecentEventKeys = []string{}
 	}
@@ -55,6 +67,12 @@ func loadState(path string) (*State, error) {
 func saveState(path string, st *State) error {
 	if st.Profiles == nil {
 		st.Profiles = map[string]ProfileRiskState{}
+	}
+	for key, ps := range st.Profiles {
+		if ps.Buckets == nil {
+			ps.Buckets = map[string]int{}
+		}
+		st.Profiles[key] = ps
 	}
 	if st.Cursor.RecentEventKeys == nil {
 		st.Cursor.RecentEventKeys = []string{}

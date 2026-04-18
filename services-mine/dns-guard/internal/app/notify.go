@@ -19,6 +19,10 @@ type NotificationEvent struct {
 	ProfileName  string   `json:"profile_name"`
 	ProfileIP    string   `json:"profile_ip,omitempty"`
 	Risk         int      `json:"risk"`
+	Score15m     int      `json:"score_15m,omitempty"`
+	Score24h     int      `json:"score_24h,omitempty"`
+	TriggeredWindow string `json:"triggered_window,omitempty"`
+	EstimatedBlockInSeconds int `json:"estimated_block_in_seconds,omitempty"`
 	Reason       string   `json:"reason"`
 	Domains      []string `json:"domains"`
 	MatchedRule  string   `json:"matched_rule,omitempty"`

@@ -17,18 +17,22 @@ import (
 )
 
 type riskNotificationEvent struct {
-	ID           string   `json:"id"`
-	Type         string   `json:"type"`
-	ProfileKind  string   `json:"profile_kind"`
-	ProfileName  string   `json:"profile_name"`
-	ProfileIP    string   `json:"profile_ip,omitempty"`
-	Risk         int      `json:"risk"`
-	Reason       string   `json:"reason"`
-	Domains      []string `json:"domains"`
-	MatchedRule  string   `json:"matched_rule,omitempty"`
-	DetectedAt   string   `json:"detected_at"`
-	Action       string   `json:"action"`
-	ActionResult string   `json:"action_result,omitempty"`
+	ID                      string   `json:"id"`
+	Type                    string   `json:"type"`
+	ProfileKind             string   `json:"profile_kind"`
+	ProfileName             string   `json:"profile_name"`
+	ProfileIP               string   `json:"profile_ip,omitempty"`
+	Risk                    int      `json:"risk"`
+	Score15m                int      `json:"score_15m,omitempty"`
+	Score24h                int      `json:"score_24h,omitempty"`
+	TriggeredWindow         string   `json:"triggered_window,omitempty"`
+	EstimatedBlockInSeconds int      `json:"estimated_block_in_seconds,omitempty"`
+	Reason                  string   `json:"reason"`
+	Domains                 []string `json:"domains"`
+	MatchedRule             string   `json:"matched_rule,omitempty"`
+	DetectedAt              string   `json:"detected_at"`
+	Action                  string   `json:"action"`
+	ActionResult            string   `json:"action_result,omitempty"`
 }
 
 func startRiskNotificationWorker(botAPI *tgbotapi.BotAPI, usersStore *UsersStore) {
@@ -225,7 +229,9 @@ func findNotificationOwner(usersStore *UsersStore, profileKind, profileName stri
 
 func formatRiskUserMessage(evt riskNotificationEvent) string {
 	title := "Обнаружена подозрительная DNS-активность."
-	if evt.Risk >= 9 {
+	if evt.Action == "block_pending" {
+		title = "Обнаружена опасная DNS-активность, профиль может быть заблокирован."
+	} else if evt.Risk >= 9 {
 		title = "Обнаружена критическая DNS-активность."
 	}
 	lines := []string{
@@ -233,8 +239,14 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 		"",
 		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(evt.ProfileName)),
 		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
-		fmt.Sprintf("Риск: <b>%d/9</b>", evt.Risk),
+		fmt.Sprintf("Риск-скор: <b>%d</b>", evt.Risk),
 		fmt.Sprintf("Причина: %s", html.EscapeString(nonEmptyString(evt.Reason, "manual domain risk match"))),
+	}
+	if evt.Score15m > 0 || evt.Score24h > 0 {
+		lines = append(lines,
+			fmt.Sprintf("Скор за 15 минут: <b>%d</b>", evt.Score15m),
+			fmt.Sprintf("Скор за 24 часа: <b>%d</b>", evt.Score24h),
+		)
 	}
 	if len(evt.Domains) > 0 {
 		lines = append(lines, "Домены:")
@@ -242,7 +254,13 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 			lines = append(lines, "• <code>"+html.EscapeString(d)+"</code>")
 		}
 	}
-	if evt.Action == "block" && evt.ActionResult != "" {
+	if evt.TriggeredWindow != "" {
+		lines = append(lines, fmt.Sprintf("Окно срабатывания: <code>%s</code>", html.EscapeString(evt.TriggeredWindow)))
+	}
+	if evt.EstimatedBlockInSeconds > 0 {
+		lines = append(lines, fmt.Sprintf("При текущей динамике блокировка может наступить примерно через <b>%s</b>.", html.EscapeString(formatETASeconds(evt.EstimatedBlockInSeconds))))
+	}
+	if evt.ActionResult != "" {
 		lines = append(lines, fmt.Sprintf("Статус: %s", html.EscapeString(evt.ActionResult)))
 	}
 	lines = append(lines, "", "Если это ожидаемое поведение, свяжитесь с администратором.")
@@ -260,15 +278,27 @@ func formatRiskAdminMessage(evt riskNotificationEvent, owner User, ownerFound bo
 		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(evt.ProfileName)),
 		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
 		fmt.Sprintf("IP: <code>%s</code>", html.EscapeString(nonEmptyString(evt.ProfileIP, "-"))),
-		fmt.Sprintf("Риск: <b>%d/9</b>", evt.Risk),
+		fmt.Sprintf("Риск-скор: <b>%d</b>", evt.Risk),
 		fmt.Sprintf("Причина: %s", html.EscapeString(nonEmptyString(evt.Reason, "manual domain risk match"))),
-		fmt.Sprintf("Action: <code>%s</code>", html.EscapeString(nonEmptyString(evt.Action, "notify"))),
+		fmt.Sprintf("Действие: <code>%s</code>", html.EscapeString(nonEmptyString(evt.Action, "notify"))),
+	}
+	if evt.Score15m > 0 || evt.Score24h > 0 {
+		lines = append(lines,
+			fmt.Sprintf("Скор за 15 минут: <b>%d</b>", evt.Score15m),
+			fmt.Sprintf("Скор за 24 часа: <b>%d</b>", evt.Score24h),
+		)
+	}
+	if evt.TriggeredWindow != "" {
+		lines = append(lines, fmt.Sprintf("Окно срабатывания: <code>%s</code>", html.EscapeString(evt.TriggeredWindow)))
+	}
+	if evt.EstimatedBlockInSeconds > 0 {
+		lines = append(lines, fmt.Sprintf("Оценка до блокировки: <b>%s</b>", html.EscapeString(formatETASeconds(evt.EstimatedBlockInSeconds))))
 	}
 	if evt.ActionResult != "" {
-		lines = append(lines, fmt.Sprintf("Action result: <code>%s</code>", html.EscapeString(evt.ActionResult)))
+		lines = append(lines, fmt.Sprintf("Результат: <code>%s</code>", html.EscapeString(evt.ActionResult)))
 	}
 	if evt.MatchedRule != "" {
-		lines = append(lines, fmt.Sprintf("Rule: <code>%s</code>", html.EscapeString(evt.MatchedRule)))
+		lines = append(lines, fmt.Sprintf("Правило: <code>%s</code>", html.EscapeString(evt.MatchedRule)))
 	}
 	if len(evt.Domains) > 0 {
 		lines = append(lines, "Домены:")
@@ -301,4 +331,27 @@ func limitStrings(list []string, n int) []string {
 		return list
 	}
 	return list[:n]
+}
+
+func formatETASeconds(seconds int) string {
+	if seconds <= 0 {
+		return ""
+	}
+	if seconds < 60 {
+		return fmt.Sprintf("%d sec", seconds)
+	}
+	if seconds < 3600 {
+		minutes := seconds / 60
+		rest := seconds % 60
+		if rest == 0 {
+			return fmt.Sprintf("%d min", minutes)
+		}
+		return fmt.Sprintf("%d min %d sec", minutes, rest)
+	}
+	hours := seconds / 3600
+	minutes := (seconds % 3600) / 60
+	if minutes == 0 {
+		return fmt.Sprintf("%d h", hours)
+	}
+	return fmt.Sprintf("%d h %d min", hours, minutes)
 }
