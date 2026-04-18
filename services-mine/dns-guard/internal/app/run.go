@@ -24,7 +24,11 @@ func Run() error {
 		return err
 	}
 
-	log.Printf("dns-guard started: querylog=%s rules=%d inbox=%s", cfg.QueryLogPath, len(rules), cfg.NotificationInboxDir)
+	notifyTarget := cfg.NotificationInboxDir
+	if strings.TrimSpace(cfg.NotificationAPIURL) != "" {
+		notifyTarget = cfg.NotificationAPIURL
+	}
+	log.Printf("dns-guard started: querylog=%s rules=%d notify=%s", cfg.QueryLogPath, len(rules), notifyTarget)
 	ticker := time.NewTicker(time.Duration(cfg.PollIntervalSeconds) * time.Second)
 	defer ticker.Stop()
 
@@ -136,8 +140,8 @@ func runOnce(cfg Config, rules []compiledRule, state *State) error {
 				Action:       action,
 				ActionResult: actionResult,
 			}
-			if err := writeNotificationEvent(cfg.NotificationInboxDir, evt); err != nil {
-				log.Printf("write notification event failed: %v", err)
+			if err := deliverNotificationEvent(cfg, evt); err != nil {
+				log.Printf("deliver notification event warning: %v", err)
 			} else {
 				ps.LastNotifyAt = time.Now().UTC().Format(time.RFC3339)
 				ps.LastNotifiedRisk = rule.risk

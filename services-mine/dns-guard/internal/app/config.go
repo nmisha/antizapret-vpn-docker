@@ -13,6 +13,8 @@ type Config struct {
 	QueryLogPath         string              `json:"querylog_path"`
 	StatePath            string              `json:"state_path"`
 	NotificationInboxDir string              `json:"notification_inbox_dir"`
+	NotificationAPIURL   string              `json:"notification_api_url"`
+	NotificationAPIToken string              `json:"notification_api_token"`
 	NotificationCooldown int                 `json:"notification_cooldown_seconds"`
 	RiskNotifyFrom       int                 `json:"risk_notify_from"`
 	RiskBlockAt          int                 `json:"risk_block_at"`
@@ -60,6 +62,12 @@ func loadConfig() (Config, error) {
 	}
 	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_STATE")); v != "" {
 		cfg.StatePath = v
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_NOTIFICATION_URL")); v != "" {
+		cfg.NotificationAPIURL = v
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_NOTIFICATION_TOKEN")); v != "" {
+		cfg.NotificationAPIToken = v
 	}
 	overrideGuardAPIFromEnv(&cfg.WG, "WG")
 	overrideGuardAPIFromEnv(&cfg.AWG, "AWG")

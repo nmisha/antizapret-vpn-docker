@@ -1,6 +1,6 @@
 services:
   dns-guard:
-    image: nmisha/antizapret-vpn-dns-guard:6.0.1
+    image: nmisha/antizapret-vpn-dns-guard:6.0.2
     hostname: dns-guard.antizapret
     restart: unless-stopped
     init: true
@@ -21,12 +21,14 @@ services:
       replicas: 1
       endpoint_mode: dnsrr
       placement:
-        constraints: [ node.labels.location == world ]
+        constraints: [ node.labels.location == local ]
     environment:
       DNS_GUARD_CONFIG: /config/config.json
       DNS_GUARD_RULES: /config/risk-domains.json
       DNS_GUARD_STATE: /state/state.json
       DNS_GUARD_QUERYLOG: /adguard/querylog.json
+      DNS_GUARD_NOTIFICATION_URL: http://tgbot.antizapret:8081/risk-notifications
+      DNS_GUARD_NOTIFICATION_TOKEN: change-me-risk-token
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - $PWD/config/adguard/work/data:/adguard:ro

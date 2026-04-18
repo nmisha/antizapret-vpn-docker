@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:6.0.19
+    image: nmisha/antizapret-vpn-tgbot:6.0.20
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
@@ -38,6 +38,8 @@ services:
       RISK_NOTIFICATIONS_SENT_DIR: /data/notifications/sent
       RISK_NOTIFICATIONS_ERROR_DIR: /data/notifications/error
       RISK_NOTIFICATIONS_POLL_SECONDS: 10
+      RISK_NOTIFICATIONS_HTTP_ADDR: ":8081"
+      RISK_NOTIFICATIONS_HTTP_TOKEN: "change-me-risk-token"
 
       # TARGET_SWARM_SERVICE: "your_swarm_service_name"
       # MANAGER_BASH_CMD: "your bash command here"
