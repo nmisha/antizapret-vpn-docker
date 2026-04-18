@@ -26,11 +26,13 @@ func formatDNSGuardRiskScoreMessage(risk *dnsGuardProfileRisk, adminView bool) s
 	}
 
 	if adminView {
+		blockDecision := risk.CriticalThresholdReached || strings.TrimSpace(risk.PendingBlockAt) != "" || strings.TrimSpace(risk.LastBlockAt) != ""
 		lines = append(lines,
 			fmt.Sprintf("Notify: <b>%d</b> / <b>%d</b> (<b>%.1f%%</b>)", risk.EffectiveScore, risk.NotifyThreshold, risk.PercentToNotify),
 			fmt.Sprintf("15m block: <b>%d</b> / <b>%d</b> (<b>%.1f%%</b>)", risk.Score15m, risk.BlockThreshold15m, risk.PercentToBlock15m),
 			fmt.Sprintf("24h block: <b>%d</b> / <b>%d</b> (<b>%.1f%%</b>)", risk.Score24h, risk.BlockThreshold24h, risk.PercentToBlock24h),
 			fmt.Sprintf("Critical: <b>%.1f%%</b> (<code>%s</code>)", risk.PercentToCritical, html.EscapeString(risk.CriticalWindow)),
+			fmt.Sprintf("Decision: <b>%s</b>", boolDecisionLabel(blockDecision)),
 		)
 	} else {
 		notifyReached := risk.NotifyThreshold > 0 && risk.EffectiveScore >= risk.NotifyThreshold
