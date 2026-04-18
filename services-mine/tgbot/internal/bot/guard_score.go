@@ -17,7 +17,7 @@ func sendDNSGuardRiskScore(ctx *Ctx, kind, profileName string, adminView bool) {
 
 func formatDNSGuardRiskScoreMessage(risk *dnsGuardProfileRisk, adminView bool) string {
 	lines := []string{
-		"<b>DNS Guard risk score</b>",
+		"<b>DNS Guard Risk Score</b>",
 		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(risk.ProfileName)),
 		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(risk.ProfileKind))),
 	}
@@ -58,4 +58,3 @@ func formatDNSGuardRiskScoreMessage(risk *dnsGuardProfileRisk, adminView bool) s
 	}
 	return strings.Join(lines, "\n")
 }
-
