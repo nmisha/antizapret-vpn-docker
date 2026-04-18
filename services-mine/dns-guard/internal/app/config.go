@@ -16,6 +16,8 @@ type Config struct {
 	NotificationAPIURL   string              `json:"notification_api_url"`
 	NotificationAPIToken string              `json:"notification_api_token"`
 	NotificationCooldown int                 `json:"notification_cooldown_seconds"`
+	DebugLogEnabled      bool                `json:"debug_log_enabled"`
+	TrackSkippedEvents   bool                `json:"track_skipped_events"`
 	MinRuleRisk          int                 `json:"min_rule_risk"`
 	MaxRuleRisk          int                 `json:"max_rule_risk"`
 	ScoreNotifyAt        int                 `json:"score_notify_at"`
