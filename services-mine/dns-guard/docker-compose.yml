@@ -1,6 +1,6 @@
 services:
   dns-guard:
-    image: nmisha/antizapret-vpn-dns-guard:6.0.5
+    image: nmisha/antizapret-vpn-dns-guard:6.0.6
     hostname: dns-guard.antizapret
     restart: unless-stopped
     init: true

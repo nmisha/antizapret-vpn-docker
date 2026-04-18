@@ -161,7 +161,7 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(evt.ProfileName)),
 		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
 		fmt.Sprintf("Риск-скор: <b>%d</b>", evt.Risk),
-		fmt.Sprintf("Причина: %s", html.EscapeString(nonEmptyString(evt.Reason, "manual domain risk match"))),
+		fmt.Sprintf("Причина: %s", html.EscapeString(nonEmptyString(evt.Reason, "domain risk match"))),
 	}
 	if evt.Score15m > 0 || evt.Score24h > 0 {
 		lines = append(lines,
@@ -184,7 +184,7 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 	if evt.ActionResult != "" {
 		lines = append(lines, fmt.Sprintf("Статус: %s", html.EscapeString(evt.ActionResult)))
 	}
-	lines = append(lines, "", "Если это ожидаемое поведение, свяжитесь с администратором.")
+	// lines = append(lines, "", "Если это ожидаемое поведение, свяжитесь с администратором.")
 	return strings.Join(lines, "\n")
 }
 
