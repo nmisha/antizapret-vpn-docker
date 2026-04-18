@@ -194,10 +194,10 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 		}
 
 		blockWindow, blockScore := evaluateBlockThresholds(cfg, score15m, score24h)
-		if blockWindow != "" && ps.LastBlockAt == "" && ps.PendingBlockAt == "" {
+		if blockWindow != "" && canScheduleBlock(ref.Kind, cfg) && ps.LastBlockAt == "" && ps.PendingBlockAt == "" {
 			scheduledAt := cycleNow.Add(time.Duration(cfg.BlockDelaySeconds) * time.Second).UTC()
 			evt := NotificationEvent{
-				ID:              fmt.Sprintf("block-pending-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
+				ID:              fmt.Sprintf("block-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
 				Type:            "risk_notification",
 				ProfileKind:     ref.Kind,
 				ProfileName:     ref.Name,
@@ -210,16 +210,17 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 				Domains:         []string{normalizeDomain(entry.QH)},
 				MatchedRule:     rule.domain,
 				DetectedAt:      nonEmpty(entry.T, time.Now().UTC().Format(time.RFC3339)),
-				Action:          "block_pending",
-				ActionResult:    fmt.Sprintf("block scheduled in %ds", cfg.BlockDelaySeconds),
+				Action:          "block",
+				ActionResult:    fmt.Sprintf("block decision applied immediately; technical execution delay %ds until %s", cfg.BlockDelaySeconds, scheduledAt.Format(time.RFC3339)),
 			}
 			if err := deliverNotificationEvent(cfg, evt); err != nil {
-				log.Printf("deliver block warning warning: %v", err)
+				log.Printf("deliver block notification warning: %v", err)
 			}
 			ps.PendingBlockAt = scheduledAt.Format(time.RFC3339)
 			ps.PendingBlockWindow = blockWindow
 			ps.PendingBlockScore = blockScore
-			ps.LastAction = "block_pending"
+			ps.LastNotificationEvent = evt.ID
+			ps.LastAction = "block"
 		}
 
 		state.Profiles[profileKey] = ps
@@ -294,6 +295,17 @@ func maybeBlockProfile(ref ProfileRef, cfg Config, ps *ProfileRiskState) error {
 		return nil
 	default:
 		return nil
+	}
+}
+
+func canScheduleBlock(kind string, cfg Config) bool {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "wg":
+		return cfg.WG.Enabled && cfg.WG.Block
+	case "awg":
+		return cfg.AWG.Enabled && cfg.AWG.Block
+	default:
+		return false
 	}
 }
 
