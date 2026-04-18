@@ -47,6 +47,39 @@ func (us *UsersStore) SetGuardNotifyByID(tgID int64, enabled bool) (User, error)
 	return nu, nil
 }
 
+func (us *UsersStore) SetGuardNotMeNotifyByID(tgID int64, enabled bool) (User, error) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+
+	snap, err := us.loadUnlocked()
+	if err != nil {
+		return User{}, err
+	}
+
+	u, ok := snap.ByID[tgID]
+	if !ok {
+		return User{}, fmt.Errorf("user with telegram_id %d not found", tgID)
+	}
+
+	u.GuardNotMeNotifyEnabled = &enabled
+	nu, err := normalizeUser(u)
+	if err != nil {
+		return User{}, err
+	}
+
+	for i := range snap.List {
+		if snap.List[i].TelegramID == tgID {
+			snap.List[i] = nu
+			break
+		}
+	}
+
+	if err := us.saveUnlocked(snap.List); err != nil {
+		return User{}, err
+	}
+	return nu, nil
+}
+
 func NewUsersStore(path string) *UsersStore { return &UsersStore{Path: path} }
 
 type usersSnapshot struct {
@@ -140,47 +173,73 @@ func (us *UsersStore) ListUsers() ([]User, error) {
 }
 
 func (us *UsersStore) FindByWGProfile(profileName string) (User, bool, error) {
+	users, err := us.FindAllByWGProfile(profileName)
+	if err != nil {
+		return User{}, false, err
+	}
+	if len(users) == 0 {
+		return User{}, false, nil
+	}
+	return users[0], true, nil
+}
+
+func (us *UsersStore) FindAllByWGProfile(profileName string) ([]User, error) {
 	us.mu.Lock()
 	defer us.mu.Unlock()
 
 	snap, err := us.loadUnlocked()
 	if err != nil {
-		return User{}, false, err
+		return nil, err
 	}
 	want := strings.ToLower(strings.TrimSpace(profileName))
 	if want == "" {
-		return User{}, false, nil
+		return nil, nil
 	}
+	out := make([]User, 0, 1)
 	for _, u := range snap.List {
 		for _, prefix := range u.WgProfiles {
 			if prefix != "" && strings.HasPrefix(want, prefix) {
-				return u, true, nil
+				out = append(out, u)
+				break
 			}
 		}
 	}
-	return User{}, false, nil
+	return out, nil
 }
 
 func (us *UsersStore) FindByOvpnProfile(profileName string) (User, bool, error) {
+	users, err := us.FindAllByOvpnProfile(profileName)
+	if err != nil {
+		return User{}, false, err
+	}
+	if len(users) == 0 {
+		return User{}, false, nil
+	}
+	return users[0], true, nil
+}
+
+func (us *UsersStore) FindAllByOvpnProfile(profileName string) ([]User, error) {
 	us.mu.Lock()
 	defer us.mu.Unlock()
 
 	snap, err := us.loadUnlocked()
 	if err != nil {
-		return User{}, false, err
+		return nil, err
 	}
 	want := strings.ToLower(strings.TrimSpace(profileName))
 	if want == "" {
-		return User{}, false, nil
+		return nil, nil
 	}
+	out := make([]User, 0, 1)
 	for _, u := range snap.List {
 		for _, prefix := range u.OvpnProfiles {
 			if prefix != "" && strings.HasPrefix(want, prefix) {
-				return u, true, nil
+				out = append(out, u)
+				break
 			}
 		}
 	}
-	return User{}, false, nil
+	return out, nil
 }
 
 func (us *UsersStore) ListAdmins() ([]User, error) {

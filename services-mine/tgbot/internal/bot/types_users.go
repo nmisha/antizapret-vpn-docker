@@ -32,6 +32,7 @@ type User struct {
 	OvpnProfilesRaw    []string      `json:"ovpn_profiles,omitempty"`
 	RolesRaw           []string      `json:"roles"` // persisted canonical role names
 	GuardNotifyEnabled *bool         `json:"guard_notify_enabled,omitempty"`
+	GuardNotMeNotifyEnabled *bool    `json:"guard_notme_notify_enabled,omitempty"`
 	Roles              map[Role]bool `json:"-"` // runtime
 	WgProfiles         []string      `json:"-"` // normalized (lower-case) wg profile prefixes/names
 	OvpnProfiles       []string      `json:"-"` // normalized (lower-case) ovpn profile prefixes/names
@@ -55,6 +56,13 @@ func (u User) GuardNotificationsEnabled() bool {
 		return true
 	}
 	return *u.GuardNotifyEnabled
+}
+
+func (u User) GuardNotMeNotificationsEnabled() bool {
+	if u.GuardNotMeNotifyEnabled == nil {
+		return true
+	}
+	return *u.GuardNotMeNotifyEnabled
 }
 
 func normalizeName(s string) string {
