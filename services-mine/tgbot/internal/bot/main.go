@@ -65,6 +65,7 @@ func Run(register func(reg *CommandRegistry)) error {
 	}
 	accountsStore := NewAccountsStore(accountsFile)
 	log.Printf("Accounts file: %s", accountsFile)
+	startRiskNotificationWorker(bot, usersStore)
 
 	router := NewRouter()
 	reg := NewCommandRegistry(router)

@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:6.0.18
+    image: nmisha/antizapret-vpn-tgbot:6.0.19
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
@@ -34,6 +34,10 @@ services:
       DOMAINS_LOCAL_FILE: /custom/include-hosts-custom.txt
       DOMAINS_WORLD_FILE: /custom/include-hosts-custom.txt
       ACCOUNTS_FILE: /data/accounts.json
+      RISK_NOTIFICATIONS_INBOX_DIR: /data/notifications/inbox
+      RISK_NOTIFICATIONS_SENT_DIR: /data/notifications/sent
+      RISK_NOTIFICATIONS_ERROR_DIR: /data/notifications/error
+      RISK_NOTIFICATIONS_POLL_SECONDS: 10
 
       # TARGET_SWARM_SERVICE: "your_swarm_service_name"
       # MANAGER_BASH_CMD: "your bash command here"

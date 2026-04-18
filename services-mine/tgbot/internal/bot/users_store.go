@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 	"sync"
 )
 
@@ -103,6 +104,67 @@ func (us *UsersStore) ListUsers() ([]User, error) {
 		return nil, err
 	}
 	return snap.List, nil
+}
+
+func (us *UsersStore) FindByWGProfile(profileName string) (User, bool, error) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+
+	snap, err := us.loadUnlocked()
+	if err != nil {
+		return User{}, false, err
+	}
+	want := strings.ToLower(strings.TrimSpace(profileName))
+	if want == "" {
+		return User{}, false, nil
+	}
+	for _, u := range snap.List {
+		for _, prefix := range u.WgProfiles {
+			if prefix != "" && strings.HasPrefix(want, prefix) {
+				return u, true, nil
+			}
+		}
+	}
+	return User{}, false, nil
+}
+
+func (us *UsersStore) FindByOvpnProfile(profileName string) (User, bool, error) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+
+	snap, err := us.loadUnlocked()
+	if err != nil {
+		return User{}, false, err
+	}
+	want := strings.ToLower(strings.TrimSpace(profileName))
+	if want == "" {
+		return User{}, false, nil
+	}
+	for _, u := range snap.List {
+		for _, prefix := range u.OvpnProfiles {
+			if prefix != "" && strings.HasPrefix(want, prefix) {
+				return u, true, nil
+			}
+		}
+	}
+	return User{}, false, nil
+}
+
+func (us *UsersStore) ListAdmins() ([]User, error) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+
+	snap, err := us.loadUnlocked()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]User, 0, len(snap.List))
+	for _, u := range snap.List {
+		if u.HasExact(RoleAdmin) {
+			out = append(out, u)
+		}
+	}
+	return out, nil
 }
 
 func (us *UsersStore) GrantByName(name string, role Role) (string, error) {

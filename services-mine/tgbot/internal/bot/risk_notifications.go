@@ -1,0 +1,243 @@
+package bot
+
+import (
+	"encoding/json"
+	"fmt"
+	"html"
+	"log"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
+
+type riskNotificationEvent struct {
+	ID           string   `json:"id"`
+	Type         string   `json:"type"`
+	ProfileKind  string   `json:"profile_kind"`
+	ProfileName  string   `json:"profile_name"`
+	ProfileIP    string   `json:"profile_ip,omitempty"`
+	Risk         int      `json:"risk"`
+	Reason       string   `json:"reason"`
+	Domains      []string `json:"domains"`
+	MatchedRule  string   `json:"matched_rule,omitempty"`
+	DetectedAt   string   `json:"detected_at"`
+	Action       string   `json:"action"`
+	ActionResult string   `json:"action_result,omitempty"`
+}
+
+func startRiskNotificationWorker(botAPI *tgbotapi.BotAPI, usersStore *UsersStore) {
+	inboxDir := envTrim("RISK_NOTIFICATIONS_INBOX_DIR")
+	if inboxDir == "" {
+		inboxDir = "/data/notifications/inbox"
+	}
+	sentDir := envTrim("RISK_NOTIFICATIONS_SENT_DIR")
+	if sentDir == "" {
+		sentDir = "/data/notifications/sent"
+	}
+	errorDir := envTrim("RISK_NOTIFICATIONS_ERROR_DIR")
+	if errorDir == "" {
+		errorDir = "/data/notifications/error"
+	}
+	pollInterval := 10 * time.Second
+	if v := envTrim("RISK_NOTIFICATIONS_POLL_SECONDS"); v != "" {
+		if n, err := time.ParseDuration(strings.TrimSpace(v) + "s"); err == nil && n > 0 {
+			pollInterval = n
+		}
+	}
+	if err := os.MkdirAll(inboxDir, 0755); err != nil {
+		log.Printf("risk notifications: create inbox dir failed: %v", err)
+		return
+	}
+	if err := os.MkdirAll(sentDir, 0755); err != nil {
+		log.Printf("risk notifications: create sent dir failed: %v", err)
+		return
+	}
+	if err := os.MkdirAll(errorDir, 0755); err != nil {
+		log.Printf("risk notifications: create error dir failed: %v", err)
+		return
+	}
+	go func() {
+		ticker := time.NewTicker(pollInterval)
+		defer ticker.Stop()
+		for {
+			processRiskNotificationQueue(botAPI, usersStore, inboxDir, sentDir, errorDir)
+			<-ticker.C
+		}
+	}()
+}
+
+func processRiskNotificationQueue(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, inboxDir, sentDir, errorDir string) {
+	entries, err := os.ReadDir(inboxDir)
+	if err != nil {
+		log.Printf("risk notifications: read inbox failed: %v", err)
+		return
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
+			continue
+		}
+		srcPath := filepath.Join(inboxDir, entry.Name())
+		evt, err := loadRiskNotificationEvent(srcPath)
+		if err != nil {
+			log.Printf("risk notifications: parse %s failed: %v", entry.Name(), err)
+			moveRiskNotificationFile(srcPath, filepath.Join(errorDir, entry.Name()))
+			continue
+		}
+		if err := deliverRiskNotification(botAPI, usersStore, evt); err != nil {
+			log.Printf("risk notifications: deliver %s failed: %v", entry.Name(), err)
+			moveRiskNotificationFile(srcPath, filepath.Join(errorDir, entry.Name()))
+			continue
+		}
+		moveRiskNotificationFile(srcPath, filepath.Join(sentDir, entry.Name()))
+	}
+}
+
+func loadRiskNotificationEvent(path string) (riskNotificationEvent, error) {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return riskNotificationEvent{}, err
+	}
+	var evt riskNotificationEvent
+	if err := json.Unmarshal(b, &evt); err != nil {
+		return riskNotificationEvent{}, err
+	}
+	if strings.TrimSpace(evt.ProfileKind) == "" || strings.TrimSpace(evt.ProfileName) == "" || evt.Risk < 0 {
+		return riskNotificationEvent{}, fmt.Errorf("invalid event payload")
+	}
+	return evt, nil
+}
+
+func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, evt riskNotificationEvent) error {
+	owner, ownerFound, err := findNotificationOwner(usersStore, evt.ProfileKind, evt.ProfileName)
+	if err != nil {
+		return err
+	}
+	admins, err := usersStore.ListAdmins()
+	if err != nil {
+		return err
+	}
+
+	userMsg := formatRiskUserMessage(evt)
+	adminMsg := formatRiskAdminMessage(evt, owner, ownerFound)
+
+	if ownerFound && owner.TelegramID > 0 {
+		msg := tgbotapi.NewMessage(owner.TelegramID, userMsg)
+		msg.ParseMode = "HTML"
+		msg.DisableWebPagePreview = true
+		if _, err := botAPI.Send(msg); err != nil {
+			log.Printf("risk notifications: send user alert to %d failed: %v", owner.TelegramID, err)
+		}
+	}
+
+	for _, admin := range admins {
+		if admin.TelegramID <= 0 {
+			continue
+		}
+		if ownerFound && admin.TelegramID == owner.TelegramID {
+			continue
+		}
+		msg := tgbotapi.NewMessage(admin.TelegramID, adminMsg)
+		msg.ParseMode = "HTML"
+		msg.DisableWebPagePreview = true
+		if _, err := botAPI.Send(msg); err != nil {
+			log.Printf("risk notifications: send admin alert to %d failed: %v", admin.TelegramID, err)
+		}
+	}
+	return nil
+}
+
+func findNotificationOwner(usersStore *UsersStore, profileKind, profileName string) (User, bool, error) {
+	switch strings.ToLower(strings.TrimSpace(profileKind)) {
+	case "wg", "awg":
+		return usersStore.FindByWGProfile(profileName)
+	case "ovpn":
+		return usersStore.FindByOvpnProfile(profileName)
+	default:
+		return User{}, false, nil
+	}
+}
+
+func formatRiskUserMessage(evt riskNotificationEvent) string {
+	title := "Обнаружена подозрительная DNS-активность."
+	if evt.Risk >= 9 {
+		title = "Обнаружена критическая DNS-активность."
+	}
+	lines := []string{
+		html.EscapeString(title),
+		"",
+		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(evt.ProfileName)),
+		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
+		fmt.Sprintf("Риск: <b>%d/9</b>", evt.Risk),
+		fmt.Sprintf("Причина: %s", html.EscapeString(nonEmptyString(evt.Reason, "manual domain risk match"))),
+	}
+	if len(evt.Domains) > 0 {
+		lines = append(lines, "Домены:")
+		for _, d := range limitStrings(evt.Domains, 5) {
+			lines = append(lines, "• <code>"+html.EscapeString(d)+"</code>")
+		}
+	}
+	if evt.Action == "block" && evt.ActionResult != "" {
+		lines = append(lines, fmt.Sprintf("Статус: %s", html.EscapeString(evt.ActionResult)))
+	}
+	lines = append(lines, "", "Если это ожидаемое поведение, свяжитесь с администратором.")
+	return strings.Join(lines, "\n")
+}
+
+func formatRiskAdminMessage(evt riskNotificationEvent, owner User, ownerFound bool) string {
+	ownerLine := "Пользователь: не найден"
+	if ownerFound {
+		ownerLine = fmt.Sprintf("Пользователь: <b>%s</b> (<code>%d</code>)", html.EscapeString(owner.Name), owner.TelegramID)
+	}
+	lines := []string{
+		"<b>DNS Guard alert</b>",
+		ownerLine,
+		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(evt.ProfileName)),
+		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
+		fmt.Sprintf("IP: <code>%s</code>", html.EscapeString(nonEmptyString(evt.ProfileIP, "-"))),
+		fmt.Sprintf("Риск: <b>%d/9</b>", evt.Risk),
+		fmt.Sprintf("Причина: %s", html.EscapeString(nonEmptyString(evt.Reason, "manual domain risk match"))),
+		fmt.Sprintf("Action: <code>%s</code>", html.EscapeString(nonEmptyString(evt.Action, "notify"))),
+	}
+	if evt.ActionResult != "" {
+		lines = append(lines, fmt.Sprintf("Action result: <code>%s</code>", html.EscapeString(evt.ActionResult)))
+	}
+	if evt.MatchedRule != "" {
+		lines = append(lines, fmt.Sprintf("Rule: <code>%s</code>", html.EscapeString(evt.MatchedRule)))
+	}
+	if len(evt.Domains) > 0 {
+		lines = append(lines, "Домены:")
+		for _, d := range limitStrings(evt.Domains, 8) {
+			lines = append(lines, "• <code>"+html.EscapeString(d)+"</code>")
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+func moveRiskNotificationFile(srcPath, dstPath string) {
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
+		log.Printf("risk notifications: create dir failed: %v", err)
+		return
+	}
+	if err := os.Rename(srcPath, dstPath); err != nil {
+		log.Printf("risk notifications: move %s -> %s failed: %v", srcPath, dstPath, err)
+	}
+}
+
+func nonEmptyString(v, fallback string) string {
+	if strings.TrimSpace(v) != "" {
+		return v
+	}
+	return fallback
+}
+
+func limitStrings(list []string, n int) []string {
+	if len(list) <= n {
+		return list
+	}
+	return list[:n]
+}

@@ -1,0 +1,35 @@
+services:
+  dns-guard:
+    image: nmisha/antizapret-vpn-dns-guard:6.0.1
+    hostname: dns-guard.antizapret
+    restart: unless-stopped
+    init: true
+    build:
+      context: .
+      dockerfile: Dockerfile
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    logging:
+      driver: json-file
+      options:
+        max-size: 100k
+        max-file: 2
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == world ]
+    environment:
+      DNS_GUARD_CONFIG: /config/config.json
+      DNS_GUARD_RULES: /config/risk-domains.json
+      DNS_GUARD_STATE: /state/state.json
+      DNS_GUARD_QUERYLOG: /adguard/querylog.json
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config/adguard/work/data:/adguard:ro
+      - $PWD/config-mine/dns-guard:/config:rw
+      - $PWD/config-mine/dns-guard/state:/state:rw
+      - $PWD/config-mine/tgbot:/tgbot:rw
