@@ -14,12 +14,13 @@ type RiskRulesFile struct {
 }
 
 type RiskRule struct {
-	Domain    string `json:"domain"`
-	Match     string `json:"match"`
-	Risk      int    `json:"risk"`
-	Reason    string `json:"reason"`
-	Enabled   bool   `json:"enabled"`
-	CreatedAt string `json:"created_at,omitempty"`
+	Domain    string   `json:"domain"`
+	Domains   []string `json:"domains,omitempty"`
+	Match     string   `json:"match"`
+	Risk      int      `json:"risk"`
+	Reason    string   `json:"reason"`
+	Enabled   bool     `json:"enabled"`
+	CreatedAt string   `json:"created_at,omitempty"`
 }
 
 type compiledRule struct {
@@ -52,10 +53,6 @@ func loadRules(cfg Config) ([]compiledRule, error) {
 		if match != "exact" && match != "suffix" {
 			continue
 		}
-		domain := normalizeDomain(r.Domain)
-		if domain == "" {
-			continue
-		}
 		risk := r.Risk
 		if risk < cfg.MinRuleRisk {
 			risk = cfg.MinRuleRisk
@@ -67,15 +64,44 @@ func loadRules(cfg Config) ([]compiledRule, error) {
 		if r.CreatedAt == "" {
 			r.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 		}
-		out = append(out, compiledRule{
-			domain:  domain,
-			match:   match,
-			risk:    risk,
-			reason:  strings.TrimSpace(r.Reason),
-			enabled: enabled,
-		})
+		domains := normalizeRuleDomains(r)
+		if len(domains) == 0 {
+			continue
+		}
+		for _, domain := range domains {
+			out = append(out, compiledRule{
+				domain:  domain,
+				match:   match,
+				risk:    risk,
+				reason:  strings.TrimSpace(r.Reason),
+				enabled: enabled,
+			})
+		}
 	}
 	return out, nil
+}
+
+func normalizeRuleDomains(r RiskRule) []string {
+	candidates := make([]string, 0, 1+len(r.Domains))
+	if strings.TrimSpace(r.Domain) != "" {
+		candidates = append(candidates, r.Domain)
+	}
+	candidates = append(candidates, r.Domains...)
+
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(candidates))
+	for _, raw := range candidates {
+		domain := normalizeDomain(raw)
+		if domain == "" {
+			continue
+		}
+		if _, ok := seen[domain]; ok {
+			continue
+		}
+		seen[domain] = struct{}{}
+		out = append(out, domain)
+	}
+	return out
 }
 
 func countEnabledRules(rules []compiledRule) int {

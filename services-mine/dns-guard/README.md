@@ -77,7 +77,7 @@ Rules are stored in `config-mine/dns-guard/risk-domains.json`.
 
 Each rule has:
 
-- `domain`
+- `domain` or `domains`
 - `match`: `exact` or `suffix`
 - `risk`: integer score added for each matched event
 - effective rule risk is clamped to `min_rule_risk..max_rule_risk`
@@ -90,6 +90,8 @@ Rule examples:
 - `risk: 3-4`: low or medium-risk telemetry / suspicious service
 - `risk: 5-7`: serious suspicious domain
 - `risk: 8-9`: malware / phishing / hard block candidate
+
+When `domains` is used, one logical rule is expanded into multiple domain matchers with the same `match`, `risk`, `reason`, and `enabled` settings.
 
 ## Practical Starting Thresholds
 
