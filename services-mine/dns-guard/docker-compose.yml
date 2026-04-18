@@ -1,6 +1,6 @@
 services:
   dns-guard:
-    image: nmisha/antizapret-vpn-dns-guard:6.0.3
+    image: nmisha/antizapret-vpn-dns-guard:6.0.4
     hostname: dns-guard.antizapret
     restart: unless-stopped
     init: true
@@ -34,4 +34,3 @@ services:
       - $PWD/config/adguard/work/data:/adguard:ro
       - $PWD/config-mine/dns-guard:/config:rw
       - $PWD/config-mine/dns-guard/state:/state:rw
-      - $PWD/config-mine/tgbot:/tgbot:rw

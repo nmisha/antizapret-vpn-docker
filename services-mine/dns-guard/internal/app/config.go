@@ -13,7 +13,6 @@ type Config struct {
 	PollIntervalSeconds  int                 `json:"poll_interval_seconds"`
 	QueryLogPath         string              `json:"querylog_path"`
 	StatePath            string              `json:"state_path"`
-	NotificationInboxDir string              `json:"notification_inbox_dir"`
 	NotificationAPIURL   string              `json:"notification_api_url"`
 	NotificationAPIToken string              `json:"notification_api_token"`
 	NotificationCooldown int                 `json:"notification_cooldown_seconds"`
@@ -121,11 +120,8 @@ func loadConfig() (Config, error) {
 			}
 		}
 	}
-	if cfg.NotificationInboxDir == "" {
-		cfg.NotificationInboxDir = "/tgbot/data/notifications/inbox"
-	}
-	if cfg.QueryLogPath == "" || cfg.StatePath == "" {
-		return Config{}, fmt.Errorf("querylog_path and state_path are required")
+	if cfg.QueryLogPath == "" || cfg.StatePath == "" || strings.TrimSpace(cfg.NotificationAPIURL) == "" {
+		return Config{}, fmt.Errorf("querylog_path, state_path and notification_api_url are required")
 	}
 	return cfg, nil
 }

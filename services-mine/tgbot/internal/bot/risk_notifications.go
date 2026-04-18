@@ -7,11 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
-	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -36,45 +32,7 @@ type riskNotificationEvent struct {
 }
 
 func startRiskNotificationWorker(botAPI *tgbotapi.BotAPI, usersStore *UsersStore) {
-	inboxDir := envTrim("RISK_NOTIFICATIONS_INBOX_DIR")
-	if inboxDir == "" {
-		inboxDir = "/data/notifications/inbox"
-	}
-	sentDir := envTrim("RISK_NOTIFICATIONS_SENT_DIR")
-	if sentDir == "" {
-		sentDir = "/data/notifications/sent"
-	}
-	errorDir := envTrim("RISK_NOTIFICATIONS_ERROR_DIR")
-	if errorDir == "" {
-		errorDir = "/data/notifications/error"
-	}
-	pollInterval := 10 * time.Second
-	if v := envTrim("RISK_NOTIFICATIONS_POLL_SECONDS"); v != "" {
-		if n, err := time.ParseDuration(strings.TrimSpace(v) + "s"); err == nil && n > 0 {
-			pollInterval = n
-		}
-	}
-	if err := os.MkdirAll(inboxDir, 0755); err != nil {
-		log.Printf("risk notifications: create inbox dir failed: %v", err)
-		return
-	}
-	if err := os.MkdirAll(sentDir, 0755); err != nil {
-		log.Printf("risk notifications: create sent dir failed: %v", err)
-		return
-	}
-	if err := os.MkdirAll(errorDir, 0755); err != nil {
-		log.Printf("risk notifications: create error dir failed: %v", err)
-		return
-	}
 	startRiskNotificationHTTPServer(botAPI, usersStore)
-	go func() {
-		ticker := time.NewTicker(pollInterval)
-		defer ticker.Stop()
-		for {
-			processRiskNotificationQueue(botAPI, usersStore, inboxDir, sentDir, errorDir)
-			<-ticker.C
-		}
-	}()
 }
 
 func startRiskNotificationHTTPServer(botAPI *tgbotapi.BotAPI, usersStore *UsersStore) {
@@ -133,48 +91,6 @@ func matchBearerToken(headerValue, expected string) bool {
 		return false
 	}
 	return strings.TrimSpace(headerValue[len("Bearer "):]) == expected
-}
-
-func processRiskNotificationQueue(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, inboxDir, sentDir, errorDir string) {
-	entries, err := os.ReadDir(inboxDir)
-	if err != nil {
-		log.Printf("risk notifications: read inbox failed: %v", err)
-		return
-	}
-	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(strings.ToLower(entry.Name()), ".json") {
-			continue
-		}
-		srcPath := filepath.Join(inboxDir, entry.Name())
-		evt, err := loadRiskNotificationEvent(srcPath)
-		if err != nil {
-			log.Printf("risk notifications: parse %s failed: %v", entry.Name(), err)
-			moveRiskNotificationFile(srcPath, filepath.Join(errorDir, entry.Name()))
-			continue
-		}
-		if err := deliverRiskNotification(botAPI, usersStore, evt); err != nil {
-			log.Printf("risk notifications: deliver %s failed: %v", entry.Name(), err)
-			moveRiskNotificationFile(srcPath, filepath.Join(errorDir, entry.Name()))
-			continue
-		}
-		moveRiskNotificationFile(srcPath, filepath.Join(sentDir, entry.Name()))
-	}
-}
-
-func loadRiskNotificationEvent(path string) (riskNotificationEvent, error) {
-	b, err := os.ReadFile(path)
-	if err != nil {
-		return riskNotificationEvent{}, err
-	}
-	var evt riskNotificationEvent
-	if err := json.Unmarshal(b, &evt); err != nil {
-		return riskNotificationEvent{}, err
-	}
-	if strings.TrimSpace(evt.ProfileKind) == "" || strings.TrimSpace(evt.ProfileName) == "" || evt.Risk < 0 {
-		return riskNotificationEvent{}, fmt.Errorf("invalid event payload")
-	}
-	return evt, nil
 }
 
 func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, evt riskNotificationEvent) error {
@@ -302,9 +218,9 @@ func formatRiskAdminMessage(evt riskNotificationEvent, owner User, ownerFound bo
 	if evt.ActionResult != "" {
 		lines = append(lines, fmt.Sprintf("Результат: <code>%s</code>", html.EscapeString(evt.ActionResult)))
 	}
-	if evt.MatchedRule != "" {
-		lines = append(lines, fmt.Sprintf("Правило: <code>%s</code>", html.EscapeString(evt.MatchedRule)))
-	}
+	// if evt.MatchedRule != "" {
+	// 	lines = append(lines, fmt.Sprintf("Правило: <code>%s</code>", html.EscapeString(evt.MatchedRule)))
+	// }
 	if len(evt.Domains) > 0 {
 		lines = append(lines, "Домены:")
 		for _, d := range limitStrings(evt.Domains, 8) {
@@ -312,16 +228,6 @@ func formatRiskAdminMessage(evt riskNotificationEvent, owner User, ownerFound bo
 		}
 	}
 	return strings.Join(lines, "\n")
-}
-
-func moveRiskNotificationFile(srcPath, dstPath string) {
-	if err := os.MkdirAll(filepath.Dir(dstPath), 0755); err != nil {
-		log.Printf("risk notifications: create dir failed: %v", err)
-		return
-	}
-	if err := os.Rename(srcPath, dstPath); err != nil {
-		log.Printf("risk notifications: move %s -> %s failed: %v", srcPath, dstPath, err)
-	}
 }
 
 func nonEmptyString(v, fallback string) string {

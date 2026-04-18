@@ -69,7 +69,6 @@ Main fields in `config-mine/dns-guard/config.json`:
 Delivery settings:
 
 - `notification_api_url` and `notification_api_token` can be passed via env
-- file inbox delivery remains available as fallback via `notification_inbox_dir`
 
 ## Rules
 

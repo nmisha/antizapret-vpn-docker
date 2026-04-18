@@ -6,61 +6,31 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 )
 
 type NotificationEvent struct {
-	ID           string   `json:"id"`
-	Type         string   `json:"type"`
-	ProfileKind  string   `json:"profile_kind"`
-	ProfileName  string   `json:"profile_name"`
-	ProfileIP    string   `json:"profile_ip,omitempty"`
-	Risk         int      `json:"risk"`
-	Score15m     int      `json:"score_15m,omitempty"`
-	Score24h     int      `json:"score_24h,omitempty"`
-	TriggeredWindow string `json:"triggered_window,omitempty"`
-	EstimatedBlockInSeconds int `json:"estimated_block_in_seconds,omitempty"`
-	Reason       string   `json:"reason"`
-	Domains      []string `json:"domains"`
-	MatchedRule  string   `json:"matched_rule,omitempty"`
-	DetectedAt   string   `json:"detected_at"`
-	Action       string   `json:"action"`
-	ActionResult string   `json:"action_result,omitempty"`
-}
-
-func writeNotificationEvent(dir string, evt NotificationEvent) error {
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("mkdir notification dir: %w", err)
-	}
-	name := sanitizeFilename(evt.ID)
-	if name == "" {
-		name = fmt.Sprintf("risk-%d", time.Now().UnixNano())
-	}
-	path := filepath.Join(dir, name+".json")
-	b, err := json.MarshalIndent(evt, "", "  ")
-	if err != nil {
-		return fmt.Errorf("marshal notification: %w", err)
-	}
-	return os.WriteFile(path, b, 0644)
+	ID                      string   `json:"id"`
+	Type                    string   `json:"type"`
+	ProfileKind             string   `json:"profile_kind"`
+	ProfileName             string   `json:"profile_name"`
+	ProfileIP               string   `json:"profile_ip,omitempty"`
+	Risk                    int      `json:"risk"`
+	Score15m                int      `json:"score_15m,omitempty"`
+	Score24h                int      `json:"score_24h,omitempty"`
+	TriggeredWindow         string   `json:"triggered_window,omitempty"`
+	EstimatedBlockInSeconds int      `json:"estimated_block_in_seconds,omitempty"`
+	Reason                  string   `json:"reason"`
+	Domains                 []string `json:"domains"`
+	MatchedRule             string   `json:"matched_rule,omitempty"`
+	DetectedAt              string   `json:"detected_at"`
+	Action                  string   `json:"action"`
+	ActionResult            string   `json:"action_result,omitempty"`
 }
 
 func deliverNotificationEvent(cfg Config, evt NotificationEvent) error {
-	if strings.TrimSpace(cfg.NotificationAPIURL) != "" {
-		if err := postNotificationEvent(cfg.NotificationAPIURL, cfg.NotificationAPIToken, evt); err != nil {
-			if strings.TrimSpace(cfg.NotificationInboxDir) == "" {
-				return err
-			}
-			if fileErr := writeNotificationEvent(cfg.NotificationInboxDir, evt); fileErr != nil {
-				return fmt.Errorf("notification api failed: %v; fallback file delivery failed: %w", err, fileErr)
-			}
-			return fmt.Errorf("notification api failed, wrote fallback file: %w", err)
-		}
-		return nil
-	}
-	return writeNotificationEvent(cfg.NotificationInboxDir, evt)
+	return postNotificationEvent(cfg.NotificationAPIURL, cfg.NotificationAPIToken, evt)
 }
 
 func postNotificationEvent(url, token string, evt NotificationEvent) error {
