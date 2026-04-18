@@ -47,7 +47,7 @@ func validateWgUserPeerAccess(ctx *Ctx, client *wgEasyClient, peerID string) (wg
 	return peer, nil
 }
 
-func validateWgAdminPeerAccess(ctx *Ctx, client *wgEasyClient, peerID string) (wgEasyPeer, error) {
+func validateWgAdminPeerAccess(ctx *Ctx, _ *wgEasyClient, peerID string) (wgEasyPeer, error) {
 	if !ctx.User.Has(RoleAdmin) {
 		return wgEasyPeer{}, fmt.Errorf("недостаточно прав")
 	}
@@ -163,7 +163,7 @@ func validateOvpnUserProfileAccess(ctx *Ctx, client *ovpnUIClient, profileName s
 	return ovpnProfile{}, fmt.Errorf("профиль больше не найден")
 }
 
-func validateOvpnAdminProfileAccess(ctx *Ctx, client *ovpnUIClient, profileName string) (ovpnProfile, error) {
+func validateOvpnAdminProfileAccess(ctx *Ctx, _ *ovpnUIClient, profileName string) (ovpnProfile, error) {
 	if !ctx.User.Has(RoleAdmin) {
 		return ovpnProfile{}, fmt.Errorf("недостаточно прав")
 	}

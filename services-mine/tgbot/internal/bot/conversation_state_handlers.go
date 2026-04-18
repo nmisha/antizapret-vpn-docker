@@ -9,7 +9,7 @@ import (
 
 // handleConversationStateIfAny intercepts plain text messages when a wizard is active.
 // Returns true if the message was consumed.
-func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, arg string) bool {
+func handleConversationStateIfAny(ctx *Ctx, fullText, cmd, _ string) bool {
 	st, ok := getConv(ctx.ChatID, ctx.TgID)
 	if !ok || st.Mode == ConvNone {
 		return false

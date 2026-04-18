@@ -95,7 +95,6 @@ func handleDel(ctx *Ctx, arg string) {
 	// Confirmation for any destructive action.
 	// Actual deletion is performed in handleConfirmCallback.
 	sendConfirm(ctx, "Удалить домен \""+d+"\"?", "domain:del", d)
-	return
 }
 
 func handleList(ctx *Ctx, _ string) {
