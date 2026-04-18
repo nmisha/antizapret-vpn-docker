@@ -54,11 +54,7 @@ func Run() error {
 			if freshRules, err := loadRules(cfg); err != nil {
 				log.Printf("dns-guard reload rules error: %v", err)
 			} else {
-				prevSig := rulesSignature(rules)
-				nextSig := rulesSignature(freshRules)
 				rules = freshRules
-				log.Printf("dns-guard rules reloaded: rules=%d enabled_rules=%d changed=%t min_rule_risk=%d max_rule_risk=%d",
-					len(rules), countEnabledRules(rules), prevSig != nextSig, cfg.MinRuleRisk, cfg.MaxRuleRisk)
 			}
 			if err := runOnce(cfg, rules, state, time.Now().UTC()); err != nil {
 				log.Printf("dns-guard cycle error: %v", err)
@@ -88,41 +84,38 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 
 		ip := strings.TrimSpace(entry.IP)
 		if ip == "" {
-			incrementSkippedEvent(state, "empty_ip")
 			return nil
 		}
 		if _, ok := ignoreIPs[ip]; ok {
-			incrementSkippedEvent(state, "ignored_ip")
 			return nil
 		}
 		if !ipAllowed(ip, allowedSubnets) {
-			incrementSkippedEvent(state, "ip_not_allowed")
 			return nil
 		}
 		rule, matched := matchRule(entry.QH, rules)
 		if !matched {
-			incrementSkippedEvent(state, "rule_not_matched")
 			return nil
 		}
 		if shouldSkipEvent(entry, state.Cursor) {
-			incrementSkippedEvent(state, "duplicate_event")
 			return nil
 		}
 
 		ref, err := resolveProfile(ip, cfg)
 		if err != nil {
 			log.Printf("resolve profile for %s failed: %v", ip, err)
-			incrementSkippedEvent(state, "resolve_error")
 			return nil
 		}
 		if ref.Name == "" {
 			log.Printf("dns-guard matched rule=%s domain=%s but profile was not resolved for ip=%s kind=%s", rule.domain, normalizeDomain(entry.QH), ip, ref.Kind)
-			incrementSkippedEvent(state, "profile_not_found")
 			return nil
 		}
 
 		profileKey := ref.Kind + ":" + strings.ToLower(strings.TrimSpace(ref.Name))
 		ps := state.Profiles[profileKey]
+		if ps.LastBlockAt != "" {
+			log.Printf("dns-guard profile activity resumed after block: profile=%s blocked_at=%s; resetting profile state", profileKey, ps.LastBlockAt)
+			ps = ProfileRiskState{}
+		}
 		if ps.Buckets == nil {
 			ps.Buckets = map[string]int{}
 		}
@@ -281,9 +274,6 @@ func shouldNotifyScore(ps ProfileRiskState, score int, cooldownSeconds int) bool
 	if score <= 0 {
 		return false
 	}
-	if score > ps.LastNotifiedScore {
-		return true
-	}
 	if ps.LastNotifyAt == "" {
 		return true
 	}
@@ -430,17 +420,6 @@ func cleanupState(state *State, now time.Time) {
 			delete(state.Profiles, key)
 		}
 	}
-}
-
-func incrementSkippedEvent(state *State, reason string) {
-	reason = strings.TrimSpace(reason)
-	if reason == "" {
-		reason = "unknown"
-	}
-	if state.SkippedEvents == nil {
-		state.SkippedEvents = map[string]int{}
-	}
-	state.SkippedEvents[reason]++
 }
 
 func syncCursorToEOF(path string, state *State) error {

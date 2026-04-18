@@ -39,6 +39,7 @@ If one of them is crossed:
 - service sends a `block_pending` warning immediately
 - stores pending block in `state.json`
 - performs actual block after `block_delay_seconds`
+- if the same profile later appears in query log again after block, its stored risk state is reset and score accumulation starts from zero
 
 Actual blocking is supported for:
 
