@@ -9,6 +9,7 @@ import (
 )
 
 type Config struct {
+	Enabled              bool                `json:"enabled"`
 	PollIntervalSeconds  int                 `json:"poll_interval_seconds"`
 	QueryLogPath         string              `json:"querylog_path"`
 	StatePath            string              `json:"state_path"`
@@ -16,9 +17,11 @@ type Config struct {
 	NotificationAPIURL   string              `json:"notification_api_url"`
 	NotificationAPIToken string              `json:"notification_api_token"`
 	NotificationCooldown int                 `json:"notification_cooldown_seconds"`
-	RiskNotifyFrom       int                 `json:"risk_notify_from"`
-	RiskBlockAt          int                 `json:"risk_block_at"`
-	MatchMode            string              `json:"match_mode"`
+	ScoreNotifyAt        int                 `json:"score_notify_at"`
+	ScoreBlockAt15m      int                 `json:"score_block_at_15m"`
+	ScoreBlockAt24h      int                 `json:"score_block_at_24h"`
+	BlockDelaySeconds    int                 `json:"block_delay_seconds"`
+	PredictBlockETA      bool                `json:"predict_block_eta"`
 	Subnets              map[string][]string `json:"subnets"`
 	IgnoreIPs            []string            `json:"ignore_ips"`
 	WG                   GuardAPIConfig      `json:"wg"`
@@ -72,20 +75,40 @@ func loadConfig() (Config, error) {
 	overrideGuardAPIFromEnv(&cfg.WG, "WG")
 	overrideGuardAPIFromEnv(&cfg.AWG, "AWG")
 	overrideOVPNAPIFromEnv(&cfg.OVPN)
+	if !cfg.Enabled {
+		// keep zero-value false only when explicitly set? default to enabled for backward compatibility
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(b, &raw); err == nil {
+			if _, ok := raw["enabled"]; !ok {
+				cfg.Enabled = true
+			}
+		}
+	}
 	if cfg.PollIntervalSeconds <= 0 {
 		cfg.PollIntervalSeconds = 60
 	}
 	if cfg.NotificationCooldown <= 0 {
 		cfg.NotificationCooldown = int((6 * time.Hour).Seconds())
 	}
-	if cfg.RiskNotifyFrom <= 0 {
-		cfg.RiskNotifyFrom = 6
+	if cfg.ScoreNotifyAt <= 0 {
+		cfg.ScoreNotifyAt = 12
 	}
-	if cfg.RiskBlockAt <= 0 {
-		cfg.RiskBlockAt = 9
+	if cfg.ScoreBlockAt15m <= 0 {
+		cfg.ScoreBlockAt15m = 18
 	}
-	if cfg.MatchMode == "" {
-		cfg.MatchMode = "max"
+	if cfg.ScoreBlockAt24h <= 0 {
+		cfg.ScoreBlockAt24h = 36
+	}
+	if cfg.BlockDelaySeconds <= 0 {
+		cfg.BlockDelaySeconds = 30
+	}
+	if !cfg.PredictBlockETA {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(b, &raw); err == nil {
+			if _, ok := raw["predict_block_eta"]; !ok {
+				cfg.PredictBlockETA = true
+			}
+		}
 	}
 	if cfg.NotificationInboxDir == "" {
 		cfg.NotificationInboxDir = "/tgbot/data/notifications/inbox"

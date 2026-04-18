@@ -22,15 +22,15 @@ type QueryLogEntry struct {
 }
 
 type QueryLogReadResult struct {
-	Entries        []QueryLogEntry
 	NewOffset      int64
 	FileSize       int64
 	FileModTime    time.Time
 	ResetToStart   bool
 	UsedOffsetRead bool
+	LinesRead      int
 }
 
-func readNewEntries(path string, cursor CursorState) (QueryLogReadResult, error) {
+func processNewEntries(path string, cursor CursorState, handler func(QueryLogEntry) error) (QueryLogReadResult, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return QueryLogReadResult{}, fmt.Errorf("open querylog: %w", err)
@@ -52,14 +52,19 @@ func readNewEntries(path string, cursor CursorState) (QueryLogReadResult, error)
 		return QueryLogReadResult{}, fmt.Errorf("seek querylog: %w", err)
 	}
 
-	entries := make([]QueryLogEntry, 0, 32)
+	linesRead := 0
 	reader := bufio.NewReader(f)
 	for {
 		line, err := reader.ReadBytes('\n')
 		if len(line) > 0 {
 			var e QueryLogEntry
 			if jsonErr := json.Unmarshal(line, &e); jsonErr == nil {
-				entries = append(entries, e)
+				linesRead++
+				if handler != nil {
+					if handleErr := handler(e); handleErr != nil {
+						return QueryLogReadResult{}, handleErr
+					}
+				}
 			}
 		}
 		if err != nil {
@@ -75,12 +80,12 @@ func readNewEntries(path string, cursor CursorState) (QueryLogReadResult, error)
 		return QueryLogReadResult{}, fmt.Errorf("get querylog offset: %w", err)
 	}
 	return QueryLogReadResult{
-		Entries:        entries,
 		NewOffset:      newOffset,
 		FileSize:       info.Size(),
 		FileModTime:    info.ModTime().UTC(),
 		ResetToStart:   reset,
 		UsedOffsetRead: offset > 0 && !reset,
+		LinesRead:      linesRead,
 	}, nil
 }
 

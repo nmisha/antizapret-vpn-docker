@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"time"
 )
@@ -14,6 +15,10 @@ func Run() error {
 	cfg, err := loadConfig()
 	if err != nil {
 		return err
+	}
+	if !cfg.Enabled {
+		log.Printf("dns-guard disabled by config")
+		return nil
 	}
 	rules, err := loadRules()
 	if err != nil {
@@ -28,44 +33,50 @@ func Run() error {
 	if strings.TrimSpace(cfg.NotificationAPIURL) != "" {
 		notifyTarget = cfg.NotificationAPIURL
 	}
-	log.Printf("dns-guard started: querylog=%s rules=%d notify=%s", cfg.QueryLogPath, len(rules), notifyTarget)
-	ticker := time.NewTicker(time.Duration(cfg.PollIntervalSeconds) * time.Second)
-	defer ticker.Stop()
+	if err := syncCursorToEOF(cfg.QueryLogPath, state); err != nil {
+		return err
+	}
+	if err := saveState(cfg.StatePath, state); err != nil {
+		return err
+	}
+	log.Printf("dns-guard started: querylog=%s rules=%d notify=%s notify_score=%d block15m=%d block24h=%d",
+		cfg.QueryLogPath, len(rules), notifyTarget, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h)
+	pollTicker := time.NewTicker(time.Duration(cfg.PollIntervalSeconds) * time.Second)
+	blockTicker := time.NewTicker(1 * time.Second)
+	defer pollTicker.Stop()
+	defer blockTicker.Stop()
 
 	for {
-		if freshRules, err := loadRules(); err != nil {
-			log.Printf("dns-guard reload rules error: %v", err)
-		} else {
-			prevSig := rulesSignature(rules)
-			nextSig := rulesSignature(freshRules)
-			rules = freshRules
-			if prevSig != nextSig {
-				log.Printf("dns-guard rules reloaded: rules=%d", len(rules))
+		select {
+		case <-blockTicker.C:
+			if changed := processPendingBlocks(cfg, state, time.Now().UTC()); changed {
+				if err := saveState(cfg.StatePath, state); err != nil {
+					log.Printf("dns-guard save state error: %v", err)
+				}
+			}
+		case <-pollTicker.C:
+			if freshRules, err := loadRules(); err != nil {
+				log.Printf("dns-guard reload rules error: %v", err)
+			} else {
+				prevSig := rulesSignature(rules)
+				nextSig := rulesSignature(freshRules)
+				rules = freshRules
+				if prevSig != nextSig {
+					log.Printf("dns-guard rules reloaded: rules=%d", len(rules))
+				}
+			}
+			if err := runOnce(cfg, rules, state, time.Now().UTC()); err != nil {
+				log.Printf("dns-guard cycle error: %v", err)
+			}
+			if err := saveState(cfg.StatePath, state); err != nil {
+				log.Printf("dns-guard save state error: %v", err)
 			}
 		}
-		if err := runOnce(cfg, rules, state); err != nil {
-			log.Printf("dns-guard cycle error: %v", err)
-		}
-		if err := saveState(cfg.StatePath, state); err != nil {
-			log.Printf("dns-guard save state error: %v", err)
-		}
-		<-ticker.C
 	}
 }
 
-func runOnce(cfg Config, rules []compiledRule, state *State) error {
-	readResult, err := readNewEntries(cfg.QueryLogPath, state.Cursor)
-	if err != nil {
-		return err
-	}
-	entries := readResult.Entries
-	if len(entries) == 0 {
-		state.Cursor.Offset = readResult.NewOffset
-		state.Cursor.FileSize = readResult.FileSize
-		state.Cursor.FileModTime = readResult.FileModTime.Format(time.RFC3339Nano)
-		return nil
-	}
-
+func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time) error {
+	cleanupState(state, cycleNow)
 	allowedSubnets, err := parseAllowedSubnets(cfg.Subnets)
 	if err != nil {
 		return err
@@ -77,81 +88,121 @@ func runOnce(cfg Config, rules []compiledRule, state *State) error {
 			ignoreIPs[ip] = struct{}{}
 		}
 	}
-
-	for _, entry := range entries {
+	readResult, err := processNewEntries(cfg.QueryLogPath, state.Cursor, func(entry QueryLogEntry) error {
 		ip := strings.TrimSpace(entry.IP)
 		if ip == "" {
-			continue
+			return nil
 		}
 		if _, ok := ignoreIPs[ip]; ok {
-			continue
+			return nil
 		}
 		if !ipAllowed(ip, allowedSubnets) {
-			continue
+			return nil
 		}
 		rule, matched := matchRule(entry.QH, rules)
 		if !matched {
-			continue
+			return nil
 		}
 		if shouldSkipEvent(entry, state.Cursor) {
-			continue
+			return nil
 		}
 
 		ref, err := resolveProfile(ip, cfg)
 		if err != nil {
 			log.Printf("resolve profile for %s failed: %v", ip, err)
-			continue
+			return nil
 		}
 		if ref.Name == "" {
-			continue
+			return nil
 		}
 
 		profileKey := ref.Kind + ":" + strings.ToLower(strings.TrimSpace(ref.Name))
 		ps := state.Profiles[profileKey]
-		ps.LastRisk = max(ps.LastRisk, rule.risk)
+		if ps.Buckets == nil {
+			ps.Buckets = map[string]int{}
+		}
+		ps.LastRuleRisk = max(ps.LastRuleRisk, rule.risk)
 		ps.LastMatchedDomain = normalizeDomain(entry.QH)
 		ps.LastMatchedReason = rule.reason
+		ps.LastProfileID = ref.ID
+		ps.LastProfileIP = ref.IP
 
-		action := "notify"
-		actionResult := ""
-		if rule.risk >= cfg.RiskBlockAt {
-			blockErr := maybeBlockProfile(ref, cfg, &ps)
-			action = "block"
-			if blockErr != nil {
-				actionResult = "block_failed: " + truncateForLog(blockErr.Error(), 300)
-				log.Printf("block profile %s failed: %v", profileKey, blockErr)
-			} else if ps.LastBlockAt != "" {
-				actionResult = "blocked"
-			}
+		eventTime := normalizeEventTime(entry.T, cycleNow)
+		addScoreBucket(&ps, eventTime, rule.risk)
+		cleanupProfileBuckets(&ps, cycleNow)
+
+		score15m, score24h := calculateScores(ps, cycleNow)
+		effectiveScore := score15m
+		if score24h > effectiveScore {
+			effectiveScore = score24h
 		}
 
-		if shouldNotify(ps, rule.risk, cfg.NotificationCooldown) && rule.risk >= cfg.RiskNotifyFrom {
+		if effectiveScore >= cfg.ScoreNotifyAt && shouldNotifyScore(ps, effectiveScore, cfg.NotificationCooldown) {
+			estimatedBlockInSeconds := 0
+			if cfg.PredictBlockETA {
+				estimatedBlockInSeconds = estimateTimeToBlockSeconds(ps, cycleNow, cfg)
+			}
 			evt := NotificationEvent{
 				ID:           fmt.Sprintf("risk-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
 				Type:         "risk_notification",
 				ProfileKind:  ref.Kind,
 				ProfileName:  ref.Name,
 				ProfileIP:    ref.IP,
-				Risk:         rule.risk,
+				Risk:         effectiveScore,
+				Score15m:     score15m,
+				Score24h:     score24h,
+				EstimatedBlockInSeconds: estimatedBlockInSeconds,
 				Reason:       nonEmpty(rule.reason, "manual domain risk match"),
 				Domains:      []string{normalizeDomain(entry.QH)},
 				MatchedRule:  rule.domain,
 				DetectedAt:   nonEmpty(entry.T, time.Now().UTC().Format(time.RFC3339)),
-				Action:       action,
-				ActionResult: actionResult,
+				Action:       "notify",
 			}
 			if err := deliverNotificationEvent(cfg, evt); err != nil {
 				log.Printf("deliver notification event warning: %v", err)
 			} else {
 				ps.LastNotifyAt = time.Now().UTC().Format(time.RFC3339)
-				ps.LastNotifiedRisk = rule.risk
+				ps.LastNotifiedScore = effectiveScore
 				ps.LastNotificationEvent = evt.ID
-				ps.LastAction = action
+				ps.LastAction = "notify"
 			}
+		}
+
+		blockWindow, blockScore := evaluateBlockThresholds(cfg, score15m, score24h)
+		if blockWindow != "" && ps.LastBlockAt == "" && ps.PendingBlockAt == "" {
+			scheduledAt := cycleNow.Add(time.Duration(cfg.BlockDelaySeconds) * time.Second).UTC()
+			evt := NotificationEvent{
+				ID:               fmt.Sprintf("block-pending-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
+				Type:             "risk_notification",
+				ProfileKind:      ref.Kind,
+				ProfileName:      ref.Name,
+				ProfileIP:        ref.IP,
+				Risk:             blockScore,
+				Score15m:         score15m,
+				Score24h:         score24h,
+				TriggeredWindow:  blockWindow,
+				Reason:           nonEmpty(rule.reason, "manual domain risk match"),
+				Domains:          []string{normalizeDomain(entry.QH)},
+				MatchedRule:      rule.domain,
+				DetectedAt:       nonEmpty(entry.T, time.Now().UTC().Format(time.RFC3339)),
+				Action:           "block_pending",
+				ActionResult:     fmt.Sprintf("block scheduled in %ds", cfg.BlockDelaySeconds),
+			}
+			if err := deliverNotificationEvent(cfg, evt); err != nil {
+				log.Printf("deliver block warning warning: %v", err)
+			}
+			ps.PendingBlockAt = scheduledAt.Format(time.RFC3339)
+			ps.PendingBlockWindow = blockWindow
+			ps.PendingBlockScore = blockScore
+			ps.LastAction = "block_pending"
 		}
 
 		state.Profiles[profileKey] = ps
 		advanceCursorEvent(entry, &state.Cursor)
+		return nil
+	})
+	if err != nil {
+		return err
 	}
 
 	state.Cursor.Offset = readResult.NewOffset
@@ -222,12 +273,12 @@ func maybeBlockProfile(ref ProfileRef, cfg Config, ps *ProfileRiskState) error {
 	}
 }
 
-func shouldNotify(ps ProfileRiskState, risk int, cooldownSeconds int) bool {
-	if risk <= 0 {
+func shouldNotifyScore(ps ProfileRiskState, score int, cooldownSeconds int) bool {
+	if score <= 0 {
 		return false
 	}
-	if ps.LastNotifiedRisk == 0 || risk > ps.LastNotifiedRisk {
-		return true
+	if score <= ps.LastNotifiedScore {
+		return false
 	}
 	if ps.LastNotifyAt == "" {
 		return true
@@ -237,6 +288,202 @@ func shouldNotify(ps ProfileRiskState, risk int, cooldownSeconds int) bool {
 		return true
 	}
 	return time.Since(last) >= time.Duration(cooldownSeconds)*time.Second
+}
+
+func evaluateBlockThresholds(cfg Config, score15m, score24h int) (string, int) {
+	window := ""
+	score := 0
+	if score15m >= cfg.ScoreBlockAt15m {
+		window = "15m"
+		score = score15m
+	}
+	if score24h >= cfg.ScoreBlockAt24h && score24h >= score {
+		window = "24h"
+		score = score24h
+	}
+	return window, score
+}
+
+func normalizeEventTime(src string, fallback time.Time) time.Time {
+	t := parseEventTime(src)
+	if t.IsZero() {
+		return fallback.UTC()
+	}
+	return t.UTC()
+}
+
+func minuteBucketKey(t time.Time) string {
+	return t.UTC().Truncate(time.Minute).Format(time.RFC3339)
+}
+
+func addScoreBucket(ps *ProfileRiskState, eventTime time.Time, risk int) {
+	if ps.Buckets == nil {
+		ps.Buckets = map[string]int{}
+	}
+	ps.Buckets[minuteBucketKey(eventTime)] += risk
+}
+
+func calculateScores(ps ProfileRiskState, now time.Time) (int, int) {
+	now = now.UTC()
+	cut15 := now.Add(-15 * time.Minute)
+	cut24 := now.Add(-24 * time.Hour)
+	score15 := 0
+	score24 := 0
+	for key, score := range ps.Buckets {
+		ts, err := time.Parse(time.RFC3339, key)
+		if err != nil {
+			continue
+		}
+		if ts.Before(cut24) {
+			continue
+		}
+		score24 += score
+		if !ts.Before(cut15) {
+			score15 += score
+		}
+	}
+	return score15, score24
+}
+
+func estimateTimeToBlockSeconds(ps ProfileRiskState, now time.Time, cfg Config) int {
+	now = now.UTC()
+	points := make([]bucketPoint, 0, len(ps.Buckets))
+	for key, score := range ps.Buckets {
+		ts, err := time.Parse(time.RFC3339, key)
+		if err != nil {
+			continue
+		}
+		points = append(points, bucketPoint{ts: ts.UTC(), score: score})
+	}
+	if len(points) == 0 {
+		return 0
+	}
+	score15m, score24h := calculateScores(ps, now)
+	bestETA := 0
+	if eta := estimateWindowETASeconds(points, now, 15*time.Minute, score15m, cfg.ScoreBlockAt15m); eta > 0 {
+		bestETA = eta
+	}
+	if eta := estimateWindowETASeconds(points, now, 24*time.Hour, score24h, cfg.ScoreBlockAt24h); eta > 0 && (bestETA == 0 || eta < bestETA) {
+		bestETA = eta
+	}
+	return bestETA
+}
+
+type bucketPoint struct {
+	ts    time.Time
+	score int
+}
+
+func estimateWindowETASeconds(points []bucketPoint, now time.Time, window time.Duration, currentScore, threshold int) int {
+	if currentScore >= threshold {
+		return 0
+	}
+	lookback := 5 * time.Minute
+	if window < lookback {
+		lookback = window
+	}
+	cutoff := now.Add(-lookback)
+	recentScore := 0
+	for _, p := range points {
+		if !p.ts.Before(cutoff) && !p.ts.After(now) {
+			recentScore += p.score
+		}
+	}
+	if recentScore <= 0 {
+		return 0
+	}
+	ratePerSecond := float64(recentScore) / lookback.Seconds()
+	if ratePerSecond <= 0 {
+		return 0
+	}
+	remaining := float64(threshold - currentScore)
+	eta := int(remaining / ratePerSecond)
+	if eta <= 0 {
+		return 1
+	}
+	return eta
+}
+
+func cleanupProfileBuckets(ps *ProfileRiskState, now time.Time) {
+	if ps.Buckets == nil {
+		ps.Buckets = map[string]int{}
+		return
+	}
+	cutoff := now.UTC().Add(-24 * time.Hour)
+	for key := range ps.Buckets {
+		ts, err := time.Parse(time.RFC3339, key)
+		if err != nil || ts.Before(cutoff) {
+			delete(ps.Buckets, key)
+		}
+	}
+}
+
+func cleanupState(state *State, now time.Time) {
+	for key, ps := range state.Profiles {
+		cleanupProfileBuckets(&ps, now)
+		state.Profiles[key] = ps
+		if len(ps.Buckets) == 0 && ps.PendingBlockAt == "" && ps.LastBlockAt == "" {
+			delete(state.Profiles, key)
+		}
+	}
+}
+
+func syncCursorToEOF(path string, state *State) error {
+	info, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat querylog for startup sync: %w", err)
+	}
+	state.Cursor.Offset = info.Size()
+	state.Cursor.FileSize = info.Size()
+	state.Cursor.FileModTime = info.ModTime().UTC().Format(time.RFC3339Nano)
+	return nil
+}
+
+func processPendingBlocks(cfg Config, state *State, now time.Time) bool {
+	changed := false
+	for profileKey, ps := range state.Profiles {
+		if ps.PendingBlockAt == "" || ps.LastBlockAt != "" {
+			continue
+		}
+		dueAt, err := time.Parse(time.RFC3339, ps.PendingBlockAt)
+		if err != nil || now.UTC().Before(dueAt) {
+			continue
+		}
+		ref, ok := pendingProfileRef(profileKey, ps)
+		if !ok {
+			ps.PendingBlockAt = ""
+			ps.PendingBlockWindow = ""
+			ps.PendingBlockScore = 0
+			state.Profiles[profileKey] = ps
+			changed = true
+			continue
+		}
+		if err := maybeBlockProfile(ref, cfg, &ps); err != nil {
+			log.Printf("block profile %s failed: %v", profileKey, err)
+		}
+		ps.PendingBlockAt = ""
+		ps.PendingBlockWindow = ""
+		ps.PendingBlockScore = 0
+		if ps.LastBlockAt != "" {
+			ps.LastAction = "block"
+		}
+		state.Profiles[profileKey] = ps
+		changed = true
+	}
+	return changed
+}
+
+func pendingProfileRef(profileKey string, ps ProfileRiskState) (ProfileRef, bool) {
+	parts := strings.SplitN(profileKey, ":", 2)
+	if len(parts) != 2 {
+		return ProfileRef{}, false
+	}
+	return ProfileRef{
+		Kind: parts[0],
+		Name: parts[1],
+		ID:   ps.LastProfileID,
+		IP:   ps.LastProfileIP,
+	}, true
 }
 
 func nonEmpty(v, fallback string) string {
