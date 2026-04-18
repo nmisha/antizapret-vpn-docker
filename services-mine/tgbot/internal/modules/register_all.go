@@ -10,6 +10,7 @@ func RegisterAll(reg *bot.CommandRegistry) {
 	bot.RegisterAdminAccountsUIHandlers(reg)
 	bot.RegisterAdminSettingsHandlers(reg)
 	bot.RegisterDomainHandlers(reg)
+	bot.RegisterGuardNotifyHandlers(reg)
 	bot.RegisterServiceHandlers(reg)
 	bot.RegisterWgProfilesHandlers(reg)
 	bot.RegisterAwgStatsHandlers(reg)

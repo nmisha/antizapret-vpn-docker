@@ -14,6 +14,39 @@ type UsersStore struct {
 	mu   sync.Mutex
 }
 
+func (us *UsersStore) SetGuardNotifyByID(tgID int64, enabled bool) (User, error) {
+	us.mu.Lock()
+	defer us.mu.Unlock()
+
+	snap, err := us.loadUnlocked()
+	if err != nil {
+		return User{}, err
+	}
+
+	u, ok := snap.ByID[tgID]
+	if !ok {
+		return User{}, fmt.Errorf("user with telegram_id %d not found", tgID)
+	}
+
+	u.GuardNotifyEnabled = &enabled
+	nu, err := normalizeUser(u)
+	if err != nil {
+		return User{}, err
+	}
+
+	for i := range snap.List {
+		if snap.List[i].TelegramID == tgID {
+			snap.List[i] = nu
+			break
+		}
+	}
+
+	if err := us.saveUnlocked(snap.List); err != nil {
+		return User{}, err
+	}
+	return nu, nil
+}
+
 func NewUsersStore(path string) *UsersStore { return &UsersStore{Path: path} }
 
 type usersSnapshot struct {

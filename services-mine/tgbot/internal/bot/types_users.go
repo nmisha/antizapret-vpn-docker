@@ -26,14 +26,15 @@ const (
 )
 
 type User struct {
-	TelegramID      int64         `json:"telegram_id"`
-	Name            string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
-	WgProfilesRaw   []string      `json:"wg_profiles,omitempty"`
-	OvpnProfilesRaw []string      `json:"ovpn_profiles,omitempty"`
-	RolesRaw        []string      `json:"roles"` // persisted canonical role names
-	Roles           map[Role]bool `json:"-"`     // runtime
-	WgProfiles      []string      `json:"-"`     // normalized (lower-case) wg profile prefixes/names
-	OvpnProfiles    []string      `json:"-"`     // normalized (lower-case) ovpn profile prefixes/names
+	TelegramID         int64         `json:"telegram_id"`
+	Name               string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
+	WgProfilesRaw      []string      `json:"wg_profiles,omitempty"`
+	OvpnProfilesRaw    []string      `json:"ovpn_profiles,omitempty"`
+	RolesRaw           []string      `json:"roles"` // persisted canonical role names
+	GuardNotifyEnabled *bool         `json:"guard_notify_enabled,omitempty"`
+	Roles              map[Role]bool `json:"-"` // runtime
+	WgProfiles         []string      `json:"-"` // normalized (lower-case) wg profile prefixes/names
+	OvpnProfiles       []string      `json:"-"` // normalized (lower-case) ovpn profile prefixes/names
 }
 
 // Admin includes permissions of all other roles.
@@ -47,6 +48,13 @@ func (u User) Has(role Role) bool {
 // HasExact checks whether the role is explicitly assigned without Admin override.
 func (u User) HasExact(role Role) bool {
 	return u.Roles[role]
+}
+
+func (u User) GuardNotificationsEnabled() bool {
+	if u.GuardNotifyEnabled == nil {
+		return true
+	}
+	return *u.GuardNotifyEnabled
 }
 
 func normalizeName(s string) string {
