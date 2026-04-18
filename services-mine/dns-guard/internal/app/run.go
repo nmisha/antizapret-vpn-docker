@@ -10,6 +10,7 @@ import (
 )
 
 const maxRecentEventKeys = 512
+const skippedEventsResetInterval = 36 * time.Hour
 
 func Run() error {
 	cfg, err := loadConfig()
@@ -68,6 +69,7 @@ func Run() error {
 
 func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time) error {
 	cleanupState(state, cycleNow)
+	cleanupSkippedEvents(state, cycleNow, cfg.TrackSkippedEvents)
 	allowedSubnets, err := parseAllowedSubnets(cfg.Subnets)
 	if err != nil {
 		return err
@@ -84,9 +86,11 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 
 		ip := strings.TrimSpace(entry.IP)
 		if ip == "" {
+			incrementSkippedEvent(state, cfg, "empty_ip")
 			return nil
 		}
 		if _, ok := ignoreIPs[ip]; ok {
+			incrementSkippedEvent(state, cfg, "ignored_ip")
 			return nil
 		}
 		if !ipAllowed(ip, allowedSubnets) {
@@ -97,16 +101,21 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 			return nil
 		}
 		if shouldSkipEvent(entry, state.Cursor) {
+			incrementSkippedEvent(state, cfg, "duplicate_event")
 			return nil
 		}
 
 		ref, err := resolveProfile(ip, cfg)
 		if err != nil {
 			log.Printf("resolve profile for %s failed: %v", ip, err)
+			writeDebugLog(cfg, "resolve_error ip=%s domain=%s qt=%s rule=%s kind=%s err=%q", ip, normalizeDomain(entry.QH), strings.ToUpper(strings.TrimSpace(entry.QT)), rule.domain, ref.Kind, err.Error())
+			incrementSkippedEvent(state, cfg, "resolve_error")
 			return nil
 		}
 		if ref.Name == "" {
 			log.Printf("dns-guard matched rule=%s domain=%s but profile was not resolved for ip=%s kind=%s", rule.domain, normalizeDomain(entry.QH), ip, ref.Kind)
+			writeDebugLog(cfg, "profile_not_found ip=%s domain=%s qt=%s rule=%s kind=%s", ip, normalizeDomain(entry.QH), strings.ToUpper(strings.TrimSpace(entry.QT)), rule.domain, ref.Kind)
+			incrementSkippedEvent(state, cfg, "profile_not_found")
 			return nil
 		}
 
@@ -134,6 +143,8 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 		if score24h > effectiveScore {
 			effectiveScore = score24h
 		}
+		writeDebugLog(cfg, "rule_matched profile=%s profile_ip=%s kind=%s domain=%s matched_rule=%s rule_risk=%d score15m=%d score24h=%d effective_score=%d",
+			ref.Name, ref.IP, ref.Kind, normalizeDomain(entry.QH), rule.domain, rule.risk, score15m, score24h, effectiveScore)
 
 		if effectiveScore >= cfg.ScoreNotifyAt && shouldNotifyScore(ps, effectiveScore, cfg.NotificationCooldown) {
 			estimatedBlockInSeconds := 0
@@ -420,6 +431,41 @@ func cleanupState(state *State, now time.Time) {
 			delete(state.Profiles, key)
 		}
 	}
+}
+
+func incrementSkippedEvent(state *State, cfg Config, reason string) {
+	if !cfg.TrackSkippedEvents {
+		return
+	}
+	reason = strings.TrimSpace(reason)
+	if reason == "" {
+		return
+	}
+	if state.SkippedEvents == nil {
+		state.SkippedEvents = map[string]int{}
+	}
+	state.SkippedEvents[reason]++
+}
+
+func cleanupSkippedEvents(state *State, now time.Time, enabled bool) {
+	if !enabled {
+		state.SkippedEvents = map[string]int{}
+		state.SkippedEventsResetAt = ""
+		return
+	}
+	if state.SkippedEvents == nil {
+		state.SkippedEvents = map[string]int{}
+	}
+	lastReset := parseEventTime(state.SkippedEventsResetAt)
+	if lastReset.IsZero() {
+		state.SkippedEventsResetAt = now.UTC().Format(time.RFC3339)
+		return
+	}
+	if now.UTC().Sub(lastReset) < skippedEventsResetInterval {
+		return
+	}
+	state.SkippedEvents = map[string]int{}
+	state.SkippedEventsResetAt = now.UTC().Format(time.RFC3339)
 }
 
 func syncCursorToEOF(path string, state *State) error {

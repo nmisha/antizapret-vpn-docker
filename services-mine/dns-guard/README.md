@@ -57,6 +57,8 @@ Main fields in `config-mine/dns-guard/config.json`:
 - `querylog_path`: path to AdGuard `querylog.json`
 - `state_path`: path to `state.json`
 - `notification_cooldown_seconds`: cooldown for repeated score notifications
+- `debug_log_enabled`: write detailed debug log next to `state.json`
+- `track_skipped_events`: store selected skipped-event counters in `state.json`
 - `min_rule_risk`: lower clamp for `risk` loaded from rules file
 - `max_rule_risk`: upper clamp for `risk` loaded from rules file
 - `score_notify_at`: notification threshold
@@ -118,12 +120,33 @@ This means:
 - last notified score
 - pending block state
 - last matched domain / reason
+- optional `skipped_events` counters when `track_skipped_events=true`
+
+Tracked skipped-event reasons:
+
+- `empty_ip`
+- `ignored_ip`
+- `duplicate_event`
+- `resolve_error`
+- `profile_not_found`
+
+Skipped-event counters are reset every 36 hours.
 
 If `dns-guard` restarts:
 
 - it does not replay old log history
 - it resumes from current end of `querylog.json`
 - existing `state.json` is used to preserve buckets and pending blocks
+
+## Debug Log
+
+When `debug_log_enabled=true`, `dns-guard` appends a file named `dns-guard-debug.log` in the same directory as `state.json`.
+
+The debug log includes:
+
+- rule matches with profile, matched rule, and calculated scores
+- `profile_not_found` details
+- `resolve_error` details
 
 ## Notes
 
