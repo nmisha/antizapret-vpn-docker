@@ -93,7 +93,7 @@ func handleAdminMsgMenu(ctx *Ctx, _ string) {
 }
 
 func handleHelp(ctx *Ctx, _ string) {
-	replyHTML(ctx.Bot, ctx.ChatID, helpForUser(ctx.User))
+	replyHTMLChunks(ctx.Bot, ctx.ChatID, helpForUser(ctx.User))
 }
 
 func handleUsers(ctx *Ctx, _ string) {
