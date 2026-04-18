@@ -140,6 +140,12 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
+	if strings.HasPrefix(data, ovpnNameCbPrefix) {
+		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
+		handleOvpnNameCallback(ctx, data)
+		return
+	}
+
 	// wg profiles callbacks
 	if strings.HasPrefix(data, wgCbPrefix) {
 		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
