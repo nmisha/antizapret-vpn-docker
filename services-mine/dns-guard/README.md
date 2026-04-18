@@ -54,8 +54,6 @@ Main fields in `config-mine/dns-guard/config.json`:
 
 - `enabled`: global on/off switch
 - `poll_interval_seconds`: how often to read new query log events and recalculate score
-- `querylog_path`: path to AdGuard `querylog.json`
-- `state_path`: path to `state.json`
 - `notification_cooldown_seconds`: cooldown for repeated score notifications
 - `debug_log_enabled`: write detailed debug log next to `state.json`
 - `track_skipped_events`: store selected skipped-event counters in `state.json`
@@ -72,7 +70,11 @@ Main fields in `config-mine/dns-guard/config.json`:
 
 Delivery settings:
 
-- `notification_api_url` and `notification_api_token` can be passed via env
+- restart-only env settings:
+- `DNS_GUARD_QUERYLOG`: path to AdGuard `querylog.json`
+- `DNS_GUARD_STATE`: path to `state.json`
+- `DNS_GUARD_NOTIFICATION_URL`
+- `DNS_GUARD_NOTIFICATION_TOKEN`
 
 ## Rules
 
@@ -155,3 +157,5 @@ The debug log includes:
 - Large query log tails should not blow up memory: processing is streaming, not batch-loading into slices.
 - Large tails can still increase one poll cycle duration because the file is processed line by line.
 - Pending blocks are checked every second independently from `poll_interval_seconds`.
+- `config.json` is reloaded before rules reload and only when the file changes.
+- If notification/block thresholds are lowered, existing accumulated profile buckets are evaluated with the new thresholds on the next cycle.
