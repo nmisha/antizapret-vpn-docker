@@ -13,7 +13,11 @@ type State struct {
 }
 
 type CursorState struct {
-	Offset int64 `json:"offset"`
+	Offset          int64    `json:"offset"`
+	FileSize        int64    `json:"file_size,omitempty"`
+	FileModTime     string   `json:"file_mod_time,omitempty"`
+	LastSeenTime    string   `json:"last_seen_time,omitempty"`
+	RecentEventKeys []string `json:"recent_event_keys,omitempty"`
 }
 
 type ProfileRiskState struct {
@@ -42,12 +46,18 @@ func loadState(path string) (*State, error) {
 	if st.Profiles == nil {
 		st.Profiles = map[string]ProfileRiskState{}
 	}
+	if st.Cursor.RecentEventKeys == nil {
+		st.Cursor.RecentEventKeys = []string{}
+	}
 	return &st, nil
 }
 
 func saveState(path string, st *State) error {
 	if st.Profiles == nil {
 		st.Profiles = map[string]ProfileRiskState{}
+	}
+	if st.Cursor.RecentEventKeys == nil {
+		st.Cursor.RecentEventKeys = []string{}
 	}
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return fmt.Errorf("mkdir state dir: %w", err)
