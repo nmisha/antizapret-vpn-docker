@@ -1,8 +1,10 @@
 package bot
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"html"
 	"io"
 	"mime"
 	"net/http"
@@ -18,6 +20,9 @@ var (
 	ovpnLoginTokenRe   = regexp.MustCompile(`name="_xsrf"\s+value="([^"]+)"`)
 	ovpnCertLinkRe     = regexp.MustCompile(`href="/certificates/([^"/?#]+)"`)
 	ovpnLoginFormCheck = regexp.MustCompile(`(?i)<form[^>]+action="[^"]*/login"`)
+	ovpnCertRowRe      = regexp.MustCompile(`(?is)<tr\b[^>]*>(.*?)</tr>`)
+	ovpnHrefRe         = regexp.MustCompile(`href="([^"]+)"`)
+	ovpnRestartHrefRe  = regexp.MustCompile(`(?is)<a\s+href="([^"]+)"[^>]*title="Restart OpenVPN container"`)
 )
 
 var ovpnReservedCertificateRoutes = map[string]struct{}{
@@ -28,7 +33,10 @@ var ovpnReservedCertificateRoutes = map[string]struct{}{
 }
 
 type ovpnProfile struct {
-	Name string
+	Name                string
+	RevokeURL           string
+	BurnURL             string
+	RestartContainerURL string
 }
 
 type ovpnSessionClient struct {
@@ -100,35 +108,7 @@ func (c *ovpnUIClient) listProfiles() ([]ovpnProfile, error) {
 	if err != nil {
 		return nil, err
 	}
-	matches := ovpnCertLinkRe.FindAllStringSubmatch(body, -1)
-	if len(matches) == 0 {
-		return nil, fmt.Errorf("no OpenVPN profiles found on certificates page")
-	}
-
-	seen := make(map[string]struct{}, len(matches))
-	profiles := make([]ovpnProfile, 0, len(matches))
-	for _, m := range matches {
-		if len(m) < 2 {
-			continue
-		}
-		name, err := url.PathUnescape(m[1])
-		if err != nil {
-			name = m[1]
-		}
-		name = strings.TrimSpace(name)
-		if name == "" || strings.EqualFold(name, "server") {
-			continue
-		}
-		if _, reserved := ovpnReservedCertificateRoutes[strings.ToLower(name)]; reserved {
-			continue
-		}
-		key := strings.ToLower(name)
-		if _, ok := seen[key]; ok {
-			continue
-		}
-		seen[key] = struct{}{}
-		profiles = append(profiles, ovpnProfile{Name: name})
-	}
+	profiles := parseOvpnProfilesFromCertificatesPage(body)
 	if len(profiles) == 0 {
 		return nil, fmt.Errorf("no OpenVPN client profiles found")
 	}
@@ -228,6 +208,188 @@ func (c *ovpnUIClient) listSessions() (*ovpnSessionStatus, error) {
 		return nil, fmt.Errorf("session api returned status %q", data.Status)
 	}
 	return &data.Data, nil
+}
+
+func parseOvpnProfilesFromCertificatesPage(body string) []ovpnProfile {
+	rows := ovpnCertRowRe.FindAllStringSubmatch(body, -1)
+	restartContainerURL := parseOvpnRestartContainerURL(body)
+	seen := make(map[string]int)
+	profiles := make([]ovpnProfile, 0, len(rows))
+	for _, rowMatch := range rows {
+		if len(rowMatch) < 2 {
+			continue
+		}
+		profile, ok := parseOvpnProfileRow(rowMatch[1])
+		if !ok {
+			continue
+		}
+		profile.RestartContainerURL = restartContainerURL
+		key := strings.ToLower(profile.Name)
+		if idx, exists := seen[key]; exists {
+			if profiles[idx].RevokeURL == "" {
+				profiles[idx].RevokeURL = profile.RevokeURL
+			}
+			if profiles[idx].BurnURL == "" {
+				profiles[idx].BurnURL = profile.BurnURL
+			}
+			if profiles[idx].RestartContainerURL == "" {
+				profiles[idx].RestartContainerURL = profile.RestartContainerURL
+			}
+			continue
+		}
+		seen[key] = len(profiles)
+		profiles = append(profiles, profile)
+	}
+	if len(profiles) > 0 {
+		return profiles
+	}
+
+	matches := ovpnCertLinkRe.FindAllStringSubmatch(body, -1)
+	profiles = make([]ovpnProfile, 0, len(matches))
+	for _, m := range matches {
+		if len(m) < 2 {
+			continue
+		}
+		name, ok := parseOvpnProfileName(m[1])
+		if !ok {
+			continue
+		}
+		key := strings.ToLower(name)
+		if _, exists := seen[key]; exists {
+			continue
+		}
+		seen[key] = len(profiles)
+		profiles = append(profiles, ovpnProfile{
+			Name:                name,
+			RestartContainerURL: restartContainerURL,
+		})
+	}
+	return profiles
+}
+
+func parseOvpnRestartContainerURL(body string) string {
+	match := ovpnRestartHrefRe.FindStringSubmatch(body)
+	if len(match) < 2 {
+		return ""
+	}
+	return html.UnescapeString(strings.TrimSpace(match[1]))
+}
+
+func parseOvpnProfileRow(row string) (ovpnProfile, bool) {
+	hrefs := ovpnHrefRe.FindAllStringSubmatch(row, -1)
+	profile := ovpnProfile{}
+	for _, hrefMatch := range hrefs {
+		if len(hrefMatch) < 2 {
+			continue
+		}
+		href := html.UnescapeString(strings.TrimSpace(hrefMatch[1]))
+		lower := strings.ToLower(href)
+		switch {
+		case strings.Contains(lower, "/revoke/"):
+			profile.RevokeURL = href
+		case strings.Contains(lower, "/burn/"):
+			profile.BurnURL = href
+		case strings.HasPrefix(lower, "/certificates/"):
+			name, ok := parseOvpnProfileName(strings.TrimPrefix(href, "/certificates/"))
+			if ok && profile.Name == "" {
+				profile.Name = name
+			}
+		}
+	}
+	if profile.Name == "" {
+		return ovpnProfile{}, false
+	}
+	return profile, true
+}
+
+func parseOvpnProfileName(raw string) (string, bool) {
+	name, err := url.PathUnescape(raw)
+	if err != nil {
+		name = raw
+	}
+	name = strings.TrimSpace(name)
+	if name == "" || strings.EqualFold(name, "server") {
+		return "", false
+	}
+	if _, reserved := ovpnReservedCertificateRoutes[strings.ToLower(name)]; reserved {
+		return "", false
+	}
+	return name, true
+}
+
+func (c *ovpnUIClient) executeProfileAction(actionURL string) error {
+	if err := c.ensureSession(); err != nil {
+		return err
+	}
+	actionURL = strings.TrimSpace(actionURL)
+	if actionURL == "" {
+		return fmt.Errorf("empty action url")
+	}
+	parsed, err := url.Parse(actionURL)
+	if err != nil {
+		return err
+	}
+	if !parsed.IsAbs() {
+		base, err := url.Parse(c.BaseURL)
+		if err != nil {
+			return err
+		}
+		actionURL = base.ResolveReference(parsed).String()
+	}
+
+	req, err := http.NewRequest(http.MethodGet, actionURL, nil)
+	if err != nil {
+		return err
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 400 {
+		return fmt.Errorf("OpenVPN action failed: %s: %s", resp.Status, string(body))
+	}
+	if ovpnLoginFormCheck.Match(body) || strings.Contains(strings.ToLower(resp.Request.URL.Path), "/login") {
+		return fmt.Errorf("OpenVPN UI authentication rejected")
+	}
+	return nil
+}
+
+func (c *ovpnUIClient) restartServer(signalName string) error {
+	if err := c.ensureSession(); err != nil {
+		return err
+	}
+	payload, err := json.Marshal(map[string]string{
+		"sname": strings.TrimSpace(signalName),
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodDelete, c.BaseURL+"/signal", bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("OpenVPN restart failed: %s: %s", resp.Status, string(body))
+	}
+	if ovpnLoginFormCheck.Match(body) || strings.Contains(strings.ToLower(resp.Request.URL.Path), "/login") {
+		return fmt.Errorf("OpenVPN UI authentication rejected")
+	}
+	return nil
 }
 
 func (c *ovpnUIClient) ensureSession() error {

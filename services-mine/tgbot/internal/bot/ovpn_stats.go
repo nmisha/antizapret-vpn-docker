@@ -226,16 +226,49 @@ func formatOvpnSessionAge(d time.Duration) string {
 }
 
 func sendOvpnProfileActionsWithStats(ctx *Ctx, profileName, scope string) {
-	kb := tgbotapi.NewInlineKeyboardMarkup(
-		tgbotapi.NewInlineKeyboardRow(
+	profile := ovpnProfile{Name: profileName}
+	if client, err := newOvpnUIClientFromEnv(); err == nil {
+		if profiles, err := client.listProfiles(); err == nil {
+			want := strings.ToLower(strings.TrimSpace(profileName))
+			for _, candidate := range profiles {
+				if strings.ToLower(strings.TrimSpace(candidate.Name)) == want {
+					profile = candidate
+					break
+				}
+			}
+		}
+	}
+	rows := [][]tgbotapi.InlineKeyboardButton{
+		{
 			tgbotapi.NewInlineKeyboardButtonData("Stat", scope+":act:stats:"+profileName),
 			tgbotapi.NewInlineKeyboardButtonData("Profile", scope+":act:conf:"+profileName),
-		),
-		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Back", scope+":back"),
-			tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
-		),
-	)
+		},
+	}
+	if scope == "ovpn:a" {
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Restart server", scope+":act:restart:"+profileName),
+		))
+		if profile.RestartContainerURL != "" {
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Restart container", scope+":act:restart_container:"+profileName),
+			))
+		}
+		switch {
+		case profile.RevokeURL != "":
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Revoke", scope+":act:revoke:"+profileName),
+			))
+		case profile.BurnURL != "":
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("Delete", scope+":act:burn:"+profileName),
+			))
+		}
+	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Back", scope+":back"),
+		tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
+	))
+	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	m := tgbotapi.NewMessage(ctx.ChatID, "Select action:")
 	m.ReplyMarkup = kb
 	_, err := ctx.Bot.Send(m)
