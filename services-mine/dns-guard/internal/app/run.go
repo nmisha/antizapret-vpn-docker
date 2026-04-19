@@ -201,6 +201,8 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 		ps := state.Profiles[profileKey]
 		if ps.LastBlockAt != "" {
 			log.Printf("dns-guard profile activity resumed after block: profile=%s blocked_at=%s; resetting profile state", profileKey, ps.LastBlockAt)
+			writeDebugLog(cfg, "block_state_reset profile=%s blocked_at=%s resumed_ip=%s resumed_domain=%s reason=%q",
+				profileKey, ps.LastBlockAt, ref.IP, normalizeDomain(entry.QH), "profile activity resumed after prior block")
 			ps = ProfileRiskState{}
 		}
 		if ps.Buckets == nil {
@@ -247,7 +249,11 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 			}
 			if err := deliverNotificationEvent(cfg, evt); err != nil {
 				log.Printf("deliver notification event warning: %v", err)
+				writeDebugLog(cfg, "notification_failed action=%s profile=%s kind=%s ip=%s risk=%d score15m=%d score24h=%d domain=%s matched_rule=%s err=%q",
+					evt.Action, ref.Name, ref.Kind, ref.IP, effectiveScore, score15m, score24h, normalizeDomain(entry.QH), rule.domain, err.Error())
 			} else {
+				writeDebugLog(cfg, "notification_sent action=%s profile=%s kind=%s ip=%s risk=%d score15m=%d score24h=%d domain=%s matched_rule=%s eta_seconds=%d",
+					evt.Action, ref.Name, ref.Kind, ref.IP, effectiveScore, score15m, score24h, normalizeDomain(entry.QH), rule.domain, estimatedBlockInSeconds)
 				ps.LastNotifyAt = time.Now().UTC().Format(time.RFC3339)
 				ps.LastNotifiedScore = effectiveScore
 				ps.LastNotificationEvent = evt.ID
@@ -281,6 +287,11 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 			}
 			if err := deliverNotificationEvent(cfg, evt); err != nil {
 				log.Printf("deliver block notification warning: %v", err)
+				writeDebugLog(cfg, "block_decision_notification_failed profile=%s kind=%s ip=%s block_window=%s block_score=%d score15m=%d score24h=%d domain=%s matched_rule=%s scheduled_at=%s err=%q",
+					ref.Name, ref.Kind, ref.IP, blockWindow, blockScore, score15m, score24h, normalizeDomain(entry.QH), rule.domain, scheduledAt.Format(time.RFC3339), err.Error())
+			} else {
+				writeDebugLog(cfg, "block_decision_scheduled profile=%s kind=%s ip=%s block_window=%s block_score=%d score15m=%d score24h=%d domain=%s matched_rule=%s scheduled_at=%s delay_seconds=%d",
+					ref.Name, ref.Kind, ref.IP, blockWindow, blockScore, score15m, score24h, normalizeDomain(entry.QH), rule.domain, scheduledAt.Format(time.RFC3339), cfg.BlockDelaySeconds)
 			}
 			ps.PendingBlockAt = scheduledAt.Format(time.RFC3339)
 			ps.PendingBlockWindow = blockWindow
@@ -663,12 +674,18 @@ func processPendingBlocks(cfg Config, state *State, now time.Time) bool {
 			log.Printf("block profile %s failed: %v", profileKey, err)
 			action = "block_failed"
 			actionResult = err.Error()
+			writeDebugLog(cfg, "block_execution_failed profile=%s kind=%s ip=%s block_window=%s block_score=%d err=%q",
+				ref.Name, ref.Kind, ref.IP, ps.PendingBlockWindow, ps.PendingBlockScore, err.Error())
 		} else {
 			actionResult = strings.TrimSpace(result)
+			writeDebugLog(cfg, "block_execution_applied profile=%s kind=%s ip=%s block_window=%s block_score=%d result=%q blocked_at=%s",
+				ref.Name, ref.Kind, ref.IP, ps.PendingBlockWindow, ps.PendingBlockScore, actionResult, ps.LastBlockAt)
 		}
 		if evt := buildAppliedBlockNotification(ref, ps, action, actionResult); evt != nil {
 			if err := deliverNotificationEvent(cfg, *evt); err != nil {
 				log.Printf("deliver applied block notification warning: %v", err)
+				writeDebugLog(cfg, "block_execution_notification_failed action=%s profile=%s kind=%s ip=%s block_window=%s block_score=%d err=%q",
+					action, ref.Name, ref.Kind, ref.IP, ps.PendingBlockWindow, ps.PendingBlockScore, err.Error())
 			}
 		}
 		ps.PendingBlockAt = ""
