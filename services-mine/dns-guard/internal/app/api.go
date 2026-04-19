@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -43,7 +44,7 @@ type profileRiskResetAPIResponse struct {
 	GeneratedAt string `json:"generated_at"`
 }
 
-func startAPIServer(cfg Config) {
+func startAPIServer(cfg Config, state *State, stateMu *sync.RWMutex) {
 	addr := strings.TrimSpace(cfg.HTTPListenAddr)
 	token := strings.TrimSpace(cfg.HTTPAPIToken)
 	if addr == "" {
@@ -65,7 +66,16 @@ func startAPIServer(cfg Config) {
 			http.Error(w, "kind and name are required", http.StatusBadRequest)
 			return
 		}
-		resp, ok, err := buildProfileRiskResponse(cfg, kind, name, time.Now().UTC())
+		stateMu.RLock()
+		resp, ok, err := buildProfileRiskResponseFromState(cfg, state, kind, name, time.Now().UTC())
+		stateMu.RUnlock()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			resp, ok, err = buildProfileRiskResponse(cfg, kind, name, time.Now().UTC())
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -92,7 +102,16 @@ func startAPIServer(cfg Config) {
 			http.Error(w, "kind and name are required", http.StatusBadRequest)
 			return
 		}
-		resp, ok, err := resetProfileRiskState(cfg, kind, name, time.Now().UTC())
+		stateMu.Lock()
+		resp, ok, err := resetProfileRiskStateInMemory(cfg, state, kind, name, time.Now().UTC())
+		stateMu.Unlock()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			resp, ok, err = resetProfileRiskState(cfg, kind, name, time.Now().UTC())
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -129,6 +148,10 @@ func buildProfileRiskResponse(cfg Config, kind, name string, now time.Time) (pro
 	if err != nil {
 		return profileRiskAPIResponse{}, false, err
 	}
+	return buildProfileRiskResponseFromState(cfg, state, kind, name, now)
+}
+
+func buildProfileRiskResponseFromState(cfg Config, state *State, kind, name string, now time.Time) (profileRiskAPIResponse, bool, error) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	name = strings.TrimSpace(name)
 	profileKey := kind + ":" + strings.ToLower(name)
@@ -189,6 +212,10 @@ func resetProfileRiskState(cfg Config, kind, name string, now time.Time) (profil
 	if err != nil {
 		return profileRiskResetAPIResponse{}, false, err
 	}
+	return resetProfileRiskStateInMemory(cfg, state, kind, name, now)
+}
+
+func resetProfileRiskStateInMemory(cfg Config, state *State, kind, name string, now time.Time) (profileRiskResetAPIResponse, bool, error) {
 	kind = strings.ToLower(strings.TrimSpace(kind))
 	name = strings.TrimSpace(name)
 	profileKey := kind + ":" + strings.ToLower(name)
