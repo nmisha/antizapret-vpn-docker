@@ -145,7 +145,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		case "score":
 			sendDNSGuardRiskScore(ctx, "ovpn", profileName, true)
 		case "reset_score":
-			sendConfirm(ctx, "СЃР±СЂРѕСЃРёС‚СЊ risk score Рё state РґР»СЏ OpenVPN РїСЂРѕС„РёР»СЏ "+profileName+"?", "ovpn:reset_score", profileName)
+			sendConfirm(ctx, "Сбросить risk score и state для OpenVPN профиля "+profileName+"?", "ovpn:reset_score", profileName)
 		case "conf":
 			sendOvpnConfigAsFile(ctx, client, profileName)
 		case "add":

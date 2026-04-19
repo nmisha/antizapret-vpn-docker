@@ -18,7 +18,7 @@ func sendDNSGuardRiskScore(ctx *Ctx, kind, profileName string, adminView bool) {
 func resetDNSGuardRiskScore(ctx *Ctx, kind, profileName string) {
 	result, err := resetDNSGuardProfileRisk(kind, profileName)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ СЃР±СЂРѕСЃРёС‚СЊ risk score:\n"+truncate(err.Error(), 3500))
+		reply(ctx.Bot, ctx.ChatID, "Не удалось сбросить risk score:\n"+truncate(err.Error(), 3500))
 		return
 	}
 	replyHTML(ctx.Bot, ctx.ChatID, formatDNSGuardRiskResetMessage(result))
