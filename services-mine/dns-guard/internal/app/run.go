@@ -37,8 +37,12 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	querySource, err := newQueryLogSource(cfg)
+	if err != nil {
+		return err
+	}
 
-	if err := syncCursorToEOF(cfg.QueryLogPath, state); err != nil {
+	if err := querySource.Sync(&state.Cursor); err != nil {
 		return err
 	}
 	if err := saveState(cfg.StatePath, state); err != nil {
@@ -46,7 +50,7 @@ func Run() error {
 	}
 	startAPIServer(cfg)
 	log.Printf("dns-guard started: querylog=%s rules=%d enabled_rules=%d notify=%s notify_score=%d block15m=%d block24h=%d min_rule_risk=%d max_rule_risk=%d",
-		cfg.QueryLogPath, len(rules), countEnabledRules(rules), cfg.NotificationAPIURL, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.MinRuleRisk, cfg.MaxRuleRisk)
+		querySource.Description(), len(rules), countEnabledRules(rules), cfg.NotificationAPIURL, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.MinRuleRisk, cfg.MaxRuleRisk)
 	pollTicker := time.NewTicker(time.Duration(cfg.PollIntervalSeconds) * time.Second)
 	blockTicker := time.NewTicker(1 * time.Second)
 	defer pollTicker.Stop()
@@ -67,8 +71,19 @@ func Run() error {
 			if freshCfg, freshSnapshot, changed, err := refreshConfigIfChanged(cfg, configSnapshot); err != nil {
 				log.Printf("dns-guard reload config error: %v", err)
 			} else {
+				prevSourceDesc := querySource.Description()
 				cfg = freshCfg
 				configSnapshot = freshSnapshot
+				if querySource, err = newQueryLogSource(cfg); err != nil {
+					log.Printf("dns-guard querylog source reload error: %v", err)
+					continue
+				}
+				if changed && querySource.Description() != prevSourceDesc {
+					if err := querySource.Sync(&state.Cursor); err != nil {
+						log.Printf("dns-guard querylog source sync error: %v", err)
+						continue
+					}
+				}
 				if changed {
 					log.Printf("dns-guard config reloaded: notify_score=%d block15m=%d block24h=%d cooldown=%d debug=%t track_skipped=%t ignore_ips=%d whitelist=%d",
 						cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.NotificationCooldown,
@@ -99,7 +114,7 @@ func Run() error {
 					)
 				}
 			}
-			if err := runOnce(cfg, rules, state, time.Now().UTC()); err != nil {
+			if err := runOnce(cfg, querySource, rules, state, time.Now().UTC()); err != nil {
 				log.Printf("dns-guard cycle error: %v", err)
 			}
 			if err := saveState(cfg.StatePath, state); err != nil {
@@ -109,7 +124,7 @@ func Run() error {
 	}
 }
 
-func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time) error {
+func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *State, cycleNow time.Time) error {
 	cleanupState(state, cycleNow)
 	cleanupSkippedEvents(state, cycleNow, cfg.TrackSkippedEvents)
 	allowedSubnets, err := parseAllowedSubnets(cfg.Subnets)
@@ -123,7 +138,7 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 			ignoreIPs[ip] = struct{}{}
 		}
 	}
-	readResult, err := processNewEntries(cfg.QueryLogPath, state.Cursor, func(entry QueryLogEntry) error {
+	err = source.Process(&state.Cursor, func(entry QueryLogEntry) error {
 		defer advanceCursorEvent(entry, &state.Cursor)
 
 		ip := strings.TrimSpace(entry.IP)
@@ -261,10 +276,6 @@ func runOnce(cfg Config, rules []compiledRule, state *State, cycleNow time.Time)
 	if err != nil {
 		return err
 	}
-
-	state.Cursor.Offset = readResult.NewOffset
-	state.Cursor.FileSize = readResult.FileSize
-	state.Cursor.FileModTime = readResult.FileModTime.Format(time.RFC3339Nano)
 	return nil
 }
 
@@ -574,14 +585,16 @@ func cleanupSkippedEvents(state *State, now time.Time, enabled bool) {
 	state.SkippedEventsResetAt = now.UTC().Format(time.RFC3339)
 }
 
-func syncCursorToEOF(path string, state *State) error {
+func syncCursorToEOF(path string, cursor *CursorState) error {
 	info, err := os.Stat(path)
 	if err != nil {
 		return fmt.Errorf("stat querylog for startup sync: %w", err)
 	}
-	state.Cursor.Offset = info.Size()
-	state.Cursor.FileSize = info.Size()
-	state.Cursor.FileModTime = info.ModTime().UTC().Format(time.RFC3339Nano)
+	cursor.Offset = info.Size()
+	cursor.FileSize = info.Size()
+	cursor.FileModTime = info.ModTime().UTC().Format(time.RFC3339Nano)
+	cursor.LastSeenTime = ""
+	cursor.RecentEventKeys = nil
 	return nil
 }
 

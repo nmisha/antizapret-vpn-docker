@@ -28,11 +28,11 @@ services:
       DNS_GUARD_HTTP_ADDR: :8090
       DNS_GUARD_HTTP_TOKEN: change-me-dns-guard-api-token
       DNS_GUARD_STATE: /state/state.json
-      DNS_GUARD_QUERYLOG: /adguard/querylog.json
+      # DNS_GUARD_QUERYLOG: /adguard/querylog.json
       DNS_GUARD_NOTIFICATION_URL: http://tgbot.antizapret:8081/risk-notifications
       DNS_GUARD_NOTIFICATION_TOKEN: change-me-risk-token
     volumes:
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config/adguard/work/data:/adguard:ro
+      # - $PWD/config/adguard/work/data:/adguard:ro
       - $PWD/config-mine/dns-guard:/config:rw
       - $PWD/config-mine/dns-guard/state:/state:rw
