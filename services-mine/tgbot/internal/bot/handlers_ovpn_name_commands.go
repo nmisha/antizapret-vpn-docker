@@ -13,49 +13,49 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 		CommandSpec{
 			Cmd:     "/ovpn_create",
 			Args:    "<certificate_name>",
-			Desc:    "СЃРѕР·РґР°С‚СЊ РЅРѕРІС‹Р№ СЃРµСЂС‚РёС„РёРєР°С‚",
-			Section: "РђРґРјРёРЅ: OpenVPN",
+			Desc:    "создать новый сертификат",
+			Section: "Админ: OpenVPN",
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameCreate,
-		RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."),
-		RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /ovpn_create <certificate_name>"),
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /ovpn_create <certificate_name>"),
 	)
 	reg.Command(
 		CommandSpec{
 			Cmd:     "/ovpn_conf",
 			Args:    "<profile_name_or_prefix>",
-			Desc:    "РїРѕР»СѓС‡РёС‚СЊ РєРѕРЅС„РёРі РїСЂРѕС„РёР»СЏ",
-			Section: "РђРґРјРёРЅ: OpenVPN",
+			Desc:    "получить конфиг профиля",
+			Section: "Админ: OpenVPN",
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameConf,
-		RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."),
-		RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /ovpn_conf <profile_name_or_prefix>"),
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /ovpn_conf <profile_name_or_prefix>"),
 	)
 	reg.Command(
 		CommandSpec{
 			Cmd:     "/ovpn_stats_profile",
 			Args:    "<profile_name_or_prefix>",
-			Desc:    "СЃС‚Р°С‚РёСЃС‚РёРєР° РїРѕ РїСЂРѕС„РёР»СЋ",
-			Section: "РђРґРјРёРЅ: OpenVPN",
+			Desc:    "статистика по профилю",
+			Section: "Админ: OpenVPN",
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameStatsProfile,
-		RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."),
-		RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /ovpn_stats_profile <profile_name_or_prefix>"),
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /ovpn_stats_profile <profile_name_or_prefix>"),
 	)
 	reg.Command(
 		CommandSpec{
 			Cmd:     "/ovpn_score",
 			Args:    "<profile_name_or_prefix>",
-			Desc:    "РїРѕР»СѓС‡РёС‚СЊ risk score РїСЂРѕС„РёР»СЏ",
-			Section: "РђРґРјРёРЅ: OpenVPN",
+			Desc:    "получить risk score профиля",
+			Section: "Админ: OpenVPN",
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameScore,
-		RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."),
-		RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /ovpn_score <profile_name_or_prefix>"),
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /ovpn_score <profile_name_or_prefix>"),
 	)
 	reg.Command(
 		CommandSpec{
@@ -73,64 +73,64 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 		CommandSpec{
 			Cmd:     "/ovpn_revoke",
 			Args:    "<profile_name_or_prefix>",
-			Desc:    "РѕС‚РѕР·РІР°С‚СЊ СЃРµСЂС‚РёС„РёРєР°С‚",
-			Section: "РђРґРјРёРЅ: OpenVPN",
+			Desc:    "отозвать сертификат",
+			Section: "Админ: OpenVPN",
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameRevoke,
-		RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."),
-		RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /ovpn_revoke <profile_name_or_prefix>"),
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /ovpn_revoke <profile_name_or_prefix>"),
 	)
 	reg.Command(
 		CommandSpec{
 			Cmd:     "/ovpn_burn",
 			Args:    "<profile_name_or_prefix>",
-			Desc:    "СѓРґР°Р»РёС‚СЊ СѓР¶Рµ РѕС‚РѕР·РІР°РЅРЅС‹Р№ СЃРµСЂС‚РёС„РёРєР°С‚",
-			Section: "РђРґРјРёРЅ: OpenVPN",
+			Desc:    "удалить уже отозванный сертификат",
+			Section: "Админ: OpenVPN",
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameBurn,
-		RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."),
-		RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /ovpn_burn <profile_name_or_prefix>"),
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /ovpn_burn <profile_name_or_prefix>"),
 	)
 	reg.Command(
 		CommandSpec{
 			Cmd:     "/ovpn_restart",
 			Args:    "<profile_name_or_prefix>",
-			Desc:    "РїРµСЂРµР·Р°РїСѓСЃС‚РёС‚СЊ OpenVPN server",
-			Section: "РђРґРјРёРЅ: OpenVPN",
+			Desc:    "перезапустить OpenVPN server",
+			Section: "Админ: OpenVPN",
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameRestart,
-		RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."),
-		RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /ovpn_restart <profile_name_or_prefix>"),
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /ovpn_restart <profile_name_or_prefix>"),
 	)
 	reg.Command(
 		CommandSpec{
 			Cmd:     "/ovpn_restart_container",
 			Args:    "<profile_name_or_prefix>",
-			Desc:    "РїРµСЂРµР·Р°РїСѓСЃС‚РёС‚СЊ OpenVPN container",
-			Section: "РђРґРјРёРЅ: OpenVPN",
+			Desc:    "перезапустить OpenVPN container",
+			Section: "Админ: OpenVPN",
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameRestartContainer,
-		RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."),
-		RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /ovpn_restart_container <profile_name_or_prefix>"),
+		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
+		RequireNonEmptyArg("Формат: /ovpn_restart_container <profile_name_or_prefix>"),
 	)
 }
 
 func handleOvpnNameCreate(ctx *Ctx, arg string) {
 	if !ctx.IsPrivate {
-		reply(ctx.Bot, ctx.ChatID, "Р­С‚Р° РєРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РІ Р»РёС‡РЅС‹С… СЃРѕРѕР±С‰РµРЅРёСЏС… Р±РѕС‚Сѓ.")
+		reply(ctx.Bot, ctx.ChatID, "Эта команда доступна только в личных сообщениях боту.")
 		return
 	}
 	name := strings.TrimSpace(arg)
 	if name == "" {
-		reply(ctx.Bot, ctx.ChatID, "Р¤РѕСЂРјР°С‚: /ovpn_create <certificate_name>")
+		reply(ctx.Bot, ctx.ChatID, "Формат: /ovpn_create <certificate_name>")
 		return
 	}
 	if strings.ContainsAny(name, " \t\r\n") {
-		reply(ctx.Bot, ctx.ChatID, "РРјСЏ СЃРµСЂС‚РёС„РёРєР°С‚Р° РґРѕР»Р¶РЅРѕ Р±С‹С‚СЊ Р±РµР· РїСЂРѕР±РµР»РѕРІ.")
+		reply(ctx.Bot, ctx.ChatID, "Имя сертификата должно быть без пробелов.")
 		return
 	}
 	client, err := newOvpnUIClientFromEnv()
@@ -139,7 +139,7 @@ func handleOvpnNameCreate(ctx *Ctx, arg string) {
 		return
 	}
 	if err := client.createProfile(name); err != nil {
-		reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ СЃРѕР·РґР°С‚СЊ OpenVPN СЃРµСЂС‚РёС„РёРєР°С‚:\n"+truncate(err.Error(), 3500))
+		reply(ctx.Bot, ctx.ChatID, "Не удалось создать OpenVPN сертификат:\n"+truncate(err.Error(), 3500))
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, "OK: OpenVPN certificate created")
@@ -158,7 +158,7 @@ func handleOvpnNameRestartContainer(ctx *Ctx, arg string) {
 
 func ovpnNameAction(ctx *Ctx, action string, query string) {
 	if !ctx.IsPrivate {
-		reply(ctx.Bot, ctx.ChatID, "Р­С‚Р° РєРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РІ Р»РёС‡РЅС‹С… СЃРѕРѕР±С‰РµРЅРёСЏС… Р±РѕС‚Сѓ.")
+		reply(ctx.Bot, ctx.ChatID, "Эта команда доступна только в личных сообщениях боту.")
 		return
 	}
 	client, err := newOvpnUIClientFromEnv()
@@ -168,12 +168,12 @@ func ovpnNameAction(ctx *Ctx, action string, query string) {
 	}
 	profiles, err := client.listProfiles()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє OpenVPN РїСЂРѕС„РёР»РµР№:\n"+truncate(err.Error(), 3500))
+		reply(ctx.Bot, ctx.ChatID, "Не удалось получить список OpenVPN профилей:\n"+truncate(err.Error(), 3500))
 		return
 	}
 	matches := matchOvpnProfilesByNamePrefix(profiles, query)
 	if len(matches) == 0 {
-		reply(ctx.Bot, ctx.ChatID, "РџСЂРѕС„РёР»СЊ РЅРµ РЅР°Р№РґРµРЅ: "+query)
+		reply(ctx.Bot, ctx.ChatID, "Профиль не найден: "+query)
 		return
 	}
 	if len(matches) == 1 {
@@ -192,7 +192,7 @@ func ovpnNameAction(ctx *Ctx, action string, query string) {
 		tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
 	})
 	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
-	m := tgbotapi.NewMessage(ctx.ChatID, "РќР°Р№РґРµРЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ РїСЂРѕС„РёР»РµР№. Р’С‹Р±РµСЂРё С‚РѕС‡РЅС‹Р№:")
+	m := tgbotapi.NewMessage(ctx.ChatID, "Найдено несколько профилей. Выбери точный:")
 	m.ReplyMarkup = kb
 	_, err = ctx.Bot.Send(m)
 	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
@@ -215,7 +215,7 @@ func matchOvpnProfilesByNamePrefix(profiles []ovpnProfile, query string) []ovpnP
 func performOvpnProfileAction(ctx *Ctx, client *ovpnUIClient, action string, profileName string) {
 	profile, ok := findOvpnProfileByExactName(client, profileName)
 	if !ok && action != "restart" {
-		reply(ctx.Bot, ctx.ChatID, "РџСЂРѕС„РёР»СЊ Р±РѕР»СЊС€Рµ РЅРµ РЅР°Р№РґРµРЅ: "+profileName)
+		reply(ctx.Bot, ctx.ChatID, "Профиль больше не найден: "+profileName)
 		return
 	}
 
@@ -227,45 +227,45 @@ func performOvpnProfileAction(ctx *Ctx, client *ovpnUIClient, action string, pro
 	case "score":
 		sendDNSGuardRiskScore(ctx, "ovpn", profileName, true)
 	case "reset_score":
-		sendConfirm(ctx, "РЎР±СЂРѕСЃРёС‚СЊ risk score Рё state РґР»СЏ OpenVPN РїСЂРѕС„РёР»СЏ "+profileName+"?", "ovpn:reset_score", profileName)
+		sendConfirm(ctx, "Сбросить risk score и state для OpenVPN профиля "+profileName+"?", "ovpn:reset_score", profileName)
 	case "revoke":
 		if strings.TrimSpace(profile.RevokeURL) == "" {
-			reply(ctx.Bot, ctx.ChatID, "Р”Р»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РїСЂРѕС„РёР»СЏ СЌС‚Рѕ РґРµР№СЃС‚РІРёРµ СЃРµР№С‡Р°СЃ РЅРµРґРѕСЃС‚СѓРїРЅРѕ.")
+			reply(ctx.Bot, ctx.ChatID, "Для выбранного профиля это действие сейчас недоступно.")
 			return
 		}
 		if err := client.executeProfileAction(profile.RevokeURL); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РґРµР№СЃС‚РІРёРµ OpenVPN:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось выполнить действие OpenVPN:\n"+truncate(err.Error(), 3500))
 			return
 		}
-		reply(ctx.Bot, ctx.ChatID, "РЎРµСЂС‚РёС„РёРєР°С‚ OpenVPN РѕС‚РѕР·РІР°РЅ. Р”Р»СЏ РЅРµРјРµРґР»РµРЅРЅРѕРіРѕ СЂР°Р·СЂС‹РІР° Р°РєС‚РёРІРЅРѕР№ СЃРµСЃСЃРёРё РјРѕР¶РµС‚ РїРѕС‚СЂРµР±РѕРІР°С‚СЊСЃСЏ restart OpenVPN.")
+		reply(ctx.Bot, ctx.ChatID, "Сертификат OpenVPN отозван. Для немедленного разрыва активной сессии может потребоваться restart OpenVPN.")
 	case "burn":
 		if strings.TrimSpace(profile.BurnURL) == "" {
-			reply(ctx.Bot, ctx.ChatID, "Р”Р»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РїСЂРѕС„РёР»СЏ СЌС‚Рѕ РґРµР№СЃС‚РІРёРµ СЃРµР№С‡Р°СЃ РЅРµРґРѕСЃС‚СѓРїРЅРѕ.")
+			reply(ctx.Bot, ctx.ChatID, "Для выбранного профиля это действие сейчас недоступно.")
 			return
 		}
 		if err := client.executeProfileAction(profile.BurnURL); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РїРѕР»РЅРёС‚СЊ РґРµР№СЃС‚РІРёРµ OpenVPN:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось выполнить действие OpenVPN:\n"+truncate(err.Error(), 3500))
 			return
 		}
-		reply(ctx.Bot, ctx.ChatID, "РћС‚РѕР·РІР°РЅРЅС‹Р№ СЃРµСЂС‚РёС„РёРєР°С‚ OpenVPN СѓРґР°Р»РµРЅ.")
+		reply(ctx.Bot, ctx.ChatID, "Отозванный сертификат OpenVPN удален.")
 	case "restart":
 		if err := client.restartServer("SIGUSR1"); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РїРµСЂРµР·Р°РїСѓСЃС‚РёС‚СЊ OpenVPN server:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось перезапустить OpenVPN server:\n"+truncate(err.Error(), 3500))
 			return
 		}
-		reply(ctx.Bot, ctx.ChatID, "OpenVPN server restarted (SIGUSR1). РђРєС‚РёРІРЅС‹Рµ РєР»РёРµРЅС‚СЃРєРёРµ СЃРµСЃСЃРёРё РґРѕР»Р¶РЅС‹ Р±С‹С‚СЊ РїРµСЂРµРёРЅРёС†РёР°Р»РёР·РёСЂРѕРІР°РЅС‹.")
+		reply(ctx.Bot, ctx.ChatID, "OpenVPN server restarted (SIGUSR1). Активные клиентские сессии должны быть переинициализированы.")
 	case "restart_container":
 		if strings.TrimSpace(profile.RestartContainerURL) == "" {
-			reply(ctx.Bot, ctx.ChatID, "Р”Р»СЏ РІС‹Р±СЂР°РЅРЅРѕРіРѕ РїСЂРѕС„РёР»СЏ СЌС‚Рѕ РґРµР№СЃС‚РІРёРµ СЃРµР№С‡Р°СЃ РЅРµРґРѕСЃС‚СѓРїРЅРѕ.")
+			reply(ctx.Bot, ctx.ChatID, "Для выбранного профиля это действие сейчас недоступно.")
 			return
 		}
 		if err := client.executeProfileAction(profile.RestartContainerURL); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РїРµСЂРµР·Р°РїСѓСЃС‚РёС‚СЊ OpenVPN container:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось перезапустить OpenVPN container:\n"+truncate(err.Error(), 3500))
 			return
 		}
 		reply(ctx.Bot, ctx.ChatID, "OpenVPN container restart triggered.")
 	default:
-		reply(ctx.Bot, ctx.ChatID, "РќРµРёР·РІРµСЃС‚РЅРѕРµ РґРµР№СЃС‚РІРёРµ.")
+		reply(ctx.Bot, ctx.ChatID, "Неизвестное действие.")
 	}
 }
 

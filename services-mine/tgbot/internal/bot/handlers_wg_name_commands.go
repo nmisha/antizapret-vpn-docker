@@ -11,14 +11,14 @@ const wgNameCbPrefix = "wgn:"
 
 func RegisterWgNameCommands(reg *CommandRegistry) {
 	// Admin-only name-based actions with disambiguation
-	reg.Command(CommandSpec{Cmd: "/wg_enable", Args: "<profile_name_or_prefix>", Desc: "РІРєР»СЋС‡РёС‚СЊ РїСЂРѕС„РёР»СЊ", Section: "РђРґРјРёРЅ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameEnable, RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."), RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /wg_enable <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wg_disable", Args: "<profile_name_or_prefix>", Desc: "РІС‹РєР»СЋС‡РёС‚СЊ РїСЂРѕС„РёР»СЊ", Section: "РђРґРјРёРЅ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameDisable, RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."), RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /wg_disable <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wg_conf", Args: "<profile_name_or_prefix>", Desc: "РїРѕР»СѓС‡РёС‚СЊ РєРѕРЅС„РёРі", Section: "РђРґРјРёРЅ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameConf, RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."), RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /wg_conf <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wg_qr", Args: "<profile_name_or_prefix>", Desc: "РїРѕР»СѓС‡РёС‚СЊ QR", Section: "РђРґРјРёРЅ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameQR, RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."), RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /wg_qr <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wg_score", Args: "<profile_name_or_prefix>", Desc: "РїРѕР»СѓС‡РёС‚СЊ risk score РїСЂРѕС„РёР»СЏ", Section: "РђРґРјРёРЅ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameScore, RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."), RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /wg_score <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_enable", Args: "<profile_name_or_prefix>", Desc: "включить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameEnable, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_enable <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_disable", Args: "<profile_name_or_prefix>", Desc: "выключить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameDisable, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_disable <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_conf", Args: "<profile_name_or_prefix>", Desc: "получить конфиг", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameConf, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_conf <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_qr", Args: "<profile_name_or_prefix>", Desc: "получить QR", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameQR, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_qr <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_score", Args: "<profile_name_or_prefix>", Desc: "получить risk score профиля", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameScore, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_score <profile_name_or_prefix>"))
 	reg.Command(CommandSpec{Cmd: "/wg_reset_score", Args: "<profile_name_or_prefix>", Desc: "reset dns-guard risk score", Section: "Admin: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameResetScore, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_reset_score <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wg_del", Args: "<profile_name_or_prefix>", Desc: "СѓРґР°Р»РёС‚СЊ РїСЂРѕС„РёР»СЊ", Section: "РђРґРјРёРЅ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameDel, RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."), RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /wg_del <profile_name_or_prefix>"))
-	reg.Command(CommandSpec{Cmd: "/wg_rename", Args: "<old_name_or_prefix> <new_name>", Desc: "РїРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ РїСЂРѕС„РёР»СЊ", Section: "РђРґРјРёРЅ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameRename, RequireRole(RoleAdmin, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin."), RequireNonEmptyArg("Р¤РѕСЂРјР°С‚: /wg_rename <old_name_or_prefix> <new_name>"))
+	reg.Command(CommandSpec{Cmd: "/wg_del", Args: "<profile_name_or_prefix>", Desc: "удалить профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameDel, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_del <profile_name_or_prefix>"))
+	reg.Command(CommandSpec{Cmd: "/wg_rename", Args: "<old_name_or_prefix> <new_name>", Desc: "переименовать профиль", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgNameRename, RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."), RequireNonEmptyArg("Формат: /wg_rename <old_name_or_prefix> <new_name>"))
 }
 
 func handleWgNameEnable(ctx *Ctx, arg string)  { wgNameAction(ctx, "enable", arg, "") }
@@ -34,7 +34,7 @@ func handleWgNameDel(ctx *Ctx, arg string) { wgNameAction(ctx, "delete", arg, ""
 func handleWgNameRename(ctx *Ctx, arg string) {
 	fields := strings.Fields(arg)
 	if len(fields) < 2 {
-		reply(ctx.Bot, ctx.ChatID, "Р¤РѕСЂРјР°С‚: /wg_rename <old_name_or_prefix> <new_name>")
+		reply(ctx.Bot, ctx.ChatID, "Формат: /wg_rename <old_name_or_prefix> <new_name>")
 		return
 	}
 	old := fields[0]
@@ -44,7 +44,7 @@ func handleWgNameRename(ctx *Ctx, arg string) {
 
 func wgNameAction(ctx *Ctx, action string, query string, extra string) {
 	if !ctx.IsPrivate {
-		reply(ctx.Bot, ctx.ChatID, "Р­С‚Р° РєРѕРјР°РЅРґР° РґРѕСЃС‚СѓРїРЅР° С‚РѕР»СЊРєРѕ РІ Р»РёС‡РЅС‹С… СЃРѕРѕР±С‰РµРЅРёСЏС… Р±РѕС‚Сѓ.")
+		reply(ctx.Bot, ctx.ChatID, "Эта команда доступна только в личных сообщениях боту.")
 		return
 	}
 	client, err := makeWgClientFromEnv()
@@ -54,13 +54,13 @@ func wgNameAction(ctx *Ctx, action string, query string, extra string) {
 	}
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє РїСЂРѕС„РёР»РµР№:\n"+truncate(err.Error(), 3500))
+		reply(ctx.Bot, ctx.ChatID, "Не удалось получить список профилей:\n"+truncate(err.Error(), 3500))
 		return
 	}
 
 	matches := matchPeersByNamePrefix(peers, query)
 	if len(matches) == 0 {
-		reply(ctx.Bot, ctx.ChatID, "РџСЂРѕС„РёР»СЊ РЅРµ РЅР°Р№РґРµРЅ: "+query)
+		reply(ctx.Bot, ctx.ChatID, "Профиль не найден: "+query)
 		return
 	}
 	if len(matches) == 1 {
@@ -83,7 +83,7 @@ func wgNameAction(ctx *Ctx, action string, query string, extra string) {
 		tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),
 	})
 	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
-	m := tgbotapi.NewMessage(ctx.ChatID, "РќР°Р№РґРµРЅРѕ РЅРµСЃРєРѕР»СЊРєРѕ РїСЂРѕС„РёР»РµР№. Р’С‹Р±РµСЂРё С‚РѕС‡РЅС‹Р№:")
+	m := tgbotapi.NewMessage(ctx.ChatID, "Найдено несколько профилей. Выбери точный:")
 	m.ReplyMarkup = kb
 	_, err = ctx.Bot.Send(m)
 	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
@@ -108,18 +108,18 @@ func performWgPeerAction(ctx *Ctx, client *wgEasyClient, action string, peerID s
 	switch action {
 	case "enable":
 		if err := client.enableClient(peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РІРєР»СЋС‡РёС‚СЊ:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось включить:\n"+truncate(err.Error(), 3500))
 			return
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: enabled")
 	case "disable":
 		if err := client.disableClient(peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РІС‹РєР»СЋС‡РёС‚СЊ:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось выключить:\n"+truncate(err.Error(), 3500))
 			return
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: disabled")
 	case "delete":
-		sendConfirm(ctx, "РЈРґР°Р»РёС‚СЊ WireGuard РїСЂРѕС„РёР»СЊ (id="+peerID+")?", "wgn:delete", peerID)
+		sendConfirm(ctx, "Удалить WireGuard профиль (id="+peerID+")?", "wgn:delete", peerID)
 	case "conf":
 		sendWgConfigAsFile(ctx, client, peerID)
 	case "qr":
@@ -127,7 +127,7 @@ func performWgPeerAction(ctx *Ctx, client *wgEasyClient, action string, peerID s
 	case "score":
 		peers, err := client.listPeers()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє РїСЂРѕС„РёР»РµР№:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось получить список профилей:\n"+truncate(err.Error(), 3500))
 			return
 		}
 		for _, p := range peers {
@@ -136,31 +136,31 @@ func performWgPeerAction(ctx *Ctx, client *wgEasyClient, action string, peerID s
 				return
 			}
 		}
-		reply(ctx.Bot, ctx.ChatID, "РџСЂРѕС„РёР»СЊ РЅРµ РЅР°Р№РґРµРЅ.")
+		reply(ctx.Bot, ctx.ChatID, "Профиль не найден.")
 	case "reset_score":
 		peers, err := client.listPeers()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РїРѕР»СѓС‡РёС‚СЊ СЃРїРёСЃРѕРє РїСЂРѕС„РёР»РµР№:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось получить список профилей:\n"+truncate(err.Error(), 3500))
 			return
 		}
 		for _, p := range peers {
 			if string(p.ID) == peerID {
-				sendConfirm(ctx, "РЎР±СЂРѕСЃРёС‚СЊ risk score Рё state РґР»СЏ WireGuard РїСЂРѕС„РёР»СЏ "+p.Name+"?", "wg:reset_score", p.Name)
+				sendConfirm(ctx, "Сбросить risk score и state для WireGuard профиля "+p.Name+"?", "wg:reset_score", p.Name)
 				return
 			}
 		}
-		reply(ctx.Bot, ctx.ChatID, "РџСЂРѕС„РёР»СЊ РЅРµ РЅР°Р№РґРµРЅ.")
+		reply(ctx.Bot, ctx.ChatID, "Профиль не найден.")
 	case "rename":
 		if strings.TrimSpace(extra) == "" {
-			reply(ctx.Bot, ctx.ChatID, "РќРѕРІРѕРµ РёРјСЏ РЅРµ Р·Р°РґР°РЅРѕ.")
+			reply(ctx.Bot, ctx.ChatID, "Новое имя не задано.")
 			return
 		}
 		if err := client.renameClient(peerID, extra); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ РїРµСЂРµРёРјРµРЅРѕРІР°С‚СЊ:\n"+truncate(err.Error(), 3500))
+			reply(ctx.Bot, ctx.ChatID, "Не удалось переименовать:\n"+truncate(err.Error(), 3500))
 			return
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: renamed")
 	default:
-		reply(ctx.Bot, ctx.ChatID, "РќРµРёР·РІРµСЃС‚РЅРѕРµ РґРµР№СЃС‚РІРёРµ.")
+		reply(ctx.Bot, ctx.ChatID, "Неизвестное действие.")
 	}
 }
