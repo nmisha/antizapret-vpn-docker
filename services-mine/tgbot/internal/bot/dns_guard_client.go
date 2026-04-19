@@ -36,7 +36,24 @@ type dnsGuardProfileRisk struct {
 	GeneratedAt              string  `json:"generated_at"`
 }
 
+type dnsGuardProfileRiskReset struct {
+	ProfileKind string `json:"profile_kind"`
+	ProfileName string `json:"profile_name"`
+	ProfileKey  string `json:"profile_key"`
+	HadState    bool   `json:"had_state"`
+	Reset       bool   `json:"reset"`
+	GeneratedAt string `json:"generated_at"`
+}
+
 func fetchDNSGuardProfileRisk(kind, name string) (*dnsGuardProfileRisk, error) {
+	return doDNSGuardProfileRequest[dnsGuardProfileRisk](http.MethodGet, "/api/v1/profile-risk", kind, name)
+}
+
+func resetDNSGuardProfileRisk(kind, name string) (*dnsGuardProfileRiskReset, error) {
+	return doDNSGuardProfileRequest[dnsGuardProfileRiskReset](http.MethodPost, "/api/v1/profile-risk/reset", kind, name)
+}
+
+func doDNSGuardProfileRequest[T any](method, path, kind, name string) (*T, error) {
 	baseURL := envTrim("DNS_GUARD_API_URL")
 	if baseURL == "" {
 		baseURL = "http://dns-guard.antizapret:8090"
@@ -45,13 +62,13 @@ func fetchDNSGuardProfileRisk(kind, name string) (*dnsGuardProfileRisk, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid DNS_GUARD_API_URL: %w", err)
 	}
-	u.Path = "/api/v1/profile-risk"
+	u.Path = path
 	q := u.Query()
 	q.Set("kind", strings.ToLower(strings.TrimSpace(kind)))
 	q.Set("name", strings.TrimSpace(name))
 	u.RawQuery = q.Encode()
 
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(method, u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -68,7 +85,7 @@ func fetchDNSGuardProfileRisk(kind, name string) (*dnsGuardProfileRisk, error) {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
 		return nil, fmt.Errorf("dns-guard api failed: %s: %s", resp.Status, strings.TrimSpace(string(b)))
 	}
-	var out dnsGuardProfileRisk
+	var out T
 	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&out); err != nil {
 		return nil, err
 	}

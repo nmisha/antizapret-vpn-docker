@@ -161,6 +161,13 @@ func handleAwgCallback(ctx *Ctx, data string) {
 				return
 			}
 			sendDNSGuardRiskScore(ctx, "awg", peer.Name, true)
+		case "reset_score":
+			peer, err := validateAwgAdminPeerAccess(ctx, peerID)
+			if err != nil {
+				reply(ctx.Bot, ctx.ChatID, "Р”РµР№СЃС‚РІРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ: "+err.Error())
+				return
+			}
+			sendConfirm(ctx, "СЃР±СЂРѕСЃРёС‚СЊ risk score Рё state РґР»СЏ Amnezia WireGuard РїСЂРѕС„РёР»СЏ "+peer.Name+"?", "awg:reset_score", peer.Name)
 		case "conf":
 			sendAwgConfigAsFile(ctx, client, peerID)
 		case "qr":

@@ -184,6 +184,7 @@ func sendAdminProfileActions(ctx *Ctx, peerID string) {
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Risk score", "wg:a:act:score:"+peerID),
+			tgbotapi.NewInlineKeyboardButtonData("Reset risk", "wg:a:act:reset_score:"+peerID),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Enable", "wg:a:act:enable:"+peerID),
