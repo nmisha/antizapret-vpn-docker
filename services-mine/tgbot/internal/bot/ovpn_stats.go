@@ -249,6 +249,9 @@ func sendOvpnProfileActionsWithStats(ctx *Ctx, profileName, scope string) {
 	}
 	if scope == "ovpn:a" {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Reset risk", scope+":act:reset_score:"+profileName),
+		))
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("Restart server", scope+":act:restart:"+profileName),
 		))
 		if profile.RestartContainerURL != "" {

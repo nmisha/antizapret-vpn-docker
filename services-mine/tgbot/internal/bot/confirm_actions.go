@@ -25,6 +25,9 @@ func sendConfirm(ctx *Ctx, prompt string, kind string, payload string) {
 	if strings.Contains(kind, "migrate") {
 		confirmLabel = "Confirm"
 	}
+	if strings.Contains(kind, "reset_score") {
+		confirmLabel = "Reset"
+	}
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(confirmLabel, cb),
@@ -162,6 +165,33 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 			return true
 		}
 		reply(ctx.Bot, ctx.ChatID, msg)
+		return true
+
+	case "wg:reset_score":
+		profileName := strings.TrimSpace(payload)
+		if !ctx.User.Has(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin.")
+			return true
+		}
+		resetDNSGuardRiskScore(ctx, "wg", profileName)
+		return true
+
+	case "awg:reset_score":
+		profileName := strings.TrimSpace(payload)
+		if !ctx.User.Has(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin.")
+			return true
+		}
+		resetDNSGuardRiskScore(ctx, "awg", profileName)
+		return true
+
+	case "ovpn:reset_score":
+		profileName := strings.TrimSpace(payload)
+		if !ctx.User.Has(RoleAdmin) {
+			reply(ctx.Bot, ctx.ChatID, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin.")
+			return true
+		}
+		resetDNSGuardRiskScore(ctx, "ovpn", profileName)
 		return true
 
 	case "wgn:delete":

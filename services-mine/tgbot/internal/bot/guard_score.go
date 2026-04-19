@@ -15,6 +15,15 @@ func sendDNSGuardRiskScore(ctx *Ctx, kind, profileName string, adminView bool) {
 	replyHTML(ctx.Bot, ctx.ChatID, formatDNSGuardRiskScoreMessage(risk, adminView))
 }
 
+func resetDNSGuardRiskScore(ctx *Ctx, kind, profileName string) {
+	result, err := resetDNSGuardProfileRisk(kind, profileName)
+	if err != nil {
+		reply(ctx.Bot, ctx.ChatID, "РќРµ СѓРґР°Р»РѕСЃСЊ СЃР±СЂРѕСЃРёС‚СЊ risk score:\n"+truncate(err.Error(), 3500))
+		return
+	}
+	replyHTML(ctx.Bot, ctx.ChatID, formatDNSGuardRiskResetMessage(result))
+}
+
 func formatDNSGuardRiskScoreMessage(risk *dnsGuardProfileRisk, adminView bool) string {
 	lines := []string{
 		"<b>DNS Guard Risk Score</b>",
@@ -60,6 +69,17 @@ func formatDNSGuardRiskScoreMessage(risk *dnsGuardProfileRisk, adminView bool) s
 	}
 	if strings.TrimSpace(risk.LastBlockAt) != "" {
 		lines = append(lines, fmt.Sprintf("Blocked at: <code>%s</code>", html.EscapeString(risk.LastBlockAt)))
+	}
+	return strings.Join(lines, "\n")
+}
+
+func formatDNSGuardRiskResetMessage(result *dnsGuardProfileRiskReset) string {
+	lines := []string{
+		"<b>DNS Guard Risk Reset</b>",
+		fmt.Sprintf("РџСЂРѕС„РёР»СЊ: <b>%s</b>", html.EscapeString(result.ProfileName)),
+		fmt.Sprintf("РўРёРї: <code>%s</code>", html.EscapeString(strings.ToUpper(result.ProfileKind))),
+		fmt.Sprintf("Reset: <b>%t</b>", result.Reset),
+		fmt.Sprintf("Stored state existed: <b>%t</b>", result.HadState),
 	}
 	return strings.Join(lines, "\n")
 }

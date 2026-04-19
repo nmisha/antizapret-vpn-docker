@@ -1,6 +1,6 @@
 services:
   dns-guard:
-    image: nmisha/antizapret-vpn-dns-guard:6.0.12
+    image: nmisha/antizapret-vpn-dns-guard:6.0.13
     hostname: dns-guard.antizapret
     restart: unless-stopped
     init: true
@@ -16,6 +16,9 @@ services:
       options:
         max-size: 100k
         max-file: 2
+    depends_on:
+      - tgbot
+      - adguard
     deploy:
       mode: replicated
       replicas: 1
