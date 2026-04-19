@@ -190,7 +190,7 @@ func handleWgCallback(ctx *Ctx, data string) {
 		case "reset_score":
 			peer, err := validateWgAdminPeerAccess(ctx, client, peerID)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Р”РµР№СЃС‚РІРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ: "+err.Error())
+				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
 				return
 			}
 			sendConfirm(ctx, "Сбросить risk score и state для WireGuard профиля "+peer.Name+"?", "wg:reset_score", peer.Name)

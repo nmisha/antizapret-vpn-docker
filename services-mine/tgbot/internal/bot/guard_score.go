@@ -76,8 +76,8 @@ func formatDNSGuardRiskScoreMessage(risk *dnsGuardProfileRisk, adminView bool) s
 func formatDNSGuardRiskResetMessage(result *dnsGuardProfileRiskReset) string {
 	lines := []string{
 		"<b>DNS Guard Risk Reset</b>",
-		fmt.Sprintf("РџСЂРѕС„РёР»СЊ: <b>%s</b>", html.EscapeString(result.ProfileName)),
-		fmt.Sprintf("РўРёРї: <code>%s</code>", html.EscapeString(strings.ToUpper(result.ProfileKind))),
+		fmt.Sprintf("Профиль: <b>%s</b>", html.EscapeString(result.ProfileName)),
+		fmt.Sprintf("Тип: <code>%s</code>", html.EscapeString(strings.ToUpper(result.ProfileKind))),
 		fmt.Sprintf("Reset: <b>%t</b>", result.Reset),
 		fmt.Sprintf("Stored state existed: <b>%t</b>", result.HadState),
 	}
