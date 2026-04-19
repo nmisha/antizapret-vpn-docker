@@ -107,6 +107,31 @@ Optional env overrides for API mode:
 - `DNS_GUARD_AGH_TIMEOUT_SECONDS`
 - `DNS_GUARD_AGH_PAGE_LIMIT`
 
+## HTTP API
+
+When `http_listen_addr` is set, `dns-guard` exposes a small HTTP API. If `http_api_token` is configured, send it as `Authorization: Bearer <token>`.
+
+Available endpoints:
+
+- `GET /api/v1/profile-risk?kind=<wg|awg|ovpn>&name=<profile>`: returns current risk scores and the stored profile state
+- `POST /api/v1/profile-risk/reset?kind=<wg|awg|ovpn>&name=<profile>`: resets the profile risk state by removing its entry from `state.json`
+
+Reset removes the whole stored profile state, including:
+
+- minute buckets
+- pending block information
+- last action / last block markers
+- last matched domain / reason
+- last seen profile IP / ID
+
+Example:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bearer $DNS_GUARD_HTTP_TOKEN" \
+  "http://127.0.0.1:9154/api/v1/profile-risk/reset?kind=wg&name=alice"
+```
+
 ## Rules
 
 Rules are stored in `config-mine/dns-guard/risk-domains.json`.

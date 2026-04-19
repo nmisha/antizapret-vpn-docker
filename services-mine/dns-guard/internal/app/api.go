@@ -34,6 +34,15 @@ type profileRiskAPIResponse struct {
 	GeneratedAt             string  `json:"generated_at"`
 }
 
+type profileRiskResetAPIResponse struct {
+	ProfileKind string `json:"profile_kind"`
+	ProfileName string `json:"profile_name"`
+	ProfileKey  string `json:"profile_key"`
+	HadState    bool   `json:"had_state"`
+	Reset       bool   `json:"reset"`
+	GeneratedAt string `json:"generated_at"`
+}
+
 func startAPIServer(cfg Config) {
 	addr := strings.TrimSpace(cfg.HTTPListenAddr)
 	token := strings.TrimSpace(cfg.HTTPAPIToken)
@@ -57,6 +66,33 @@ func startAPIServer(cfg Config) {
 			return
 		}
 		resp, ok, err := buildProfileRiskResponse(cfg, kind, name, time.Now().UTC())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if !ok {
+			http.Error(w, "profile not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+	mux.HandleFunc("/api/v1/profile-risk/reset", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		if token != "" && !matchBearerToken(r.Header.Get("Authorization"), token) {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		kind := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("kind")))
+		name := strings.TrimSpace(r.URL.Query().Get("name"))
+		if kind == "" || name == "" {
+			http.Error(w, "kind and name are required", http.StatusBadRequest)
+			return
+		}
+		resp, ok, err := resetProfileRiskState(cfg, kind, name, time.Now().UTC())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -145,6 +181,40 @@ func buildProfileRiskResponse(cfg Config, kind, name string, now time.Time) (pro
 		CriticalThreshold:        criticalThreshold,
 		CriticalThresholdReached: criticalThreshold > 0 && percentCritical >= 100,
 		GeneratedAt:              now.UTC().Format(time.RFC3339),
+	}, true, nil
+}
+
+func resetProfileRiskState(cfg Config, kind, name string, now time.Time) (profileRiskResetAPIResponse, bool, error) {
+	state, err := loadState(cfg.StatePath)
+	if err != nil {
+		return profileRiskResetAPIResponse{}, false, err
+	}
+	kind = strings.ToLower(strings.TrimSpace(kind))
+	name = strings.TrimSpace(name)
+	profileKey := kind + ":" + strings.ToLower(name)
+	_, hadState := state.Profiles[profileKey]
+	if !hadState {
+		exists, err := profileExists(cfg, kind, name)
+		if err != nil {
+			return profileRiskResetAPIResponse{}, false, err
+		}
+		if !exists {
+			return profileRiskResetAPIResponse{}, false, nil
+		}
+	}
+	if hadState {
+		delete(state.Profiles, profileKey)
+		if err := saveState(cfg.StatePath, state); err != nil {
+			return profileRiskResetAPIResponse{}, false, err
+		}
+	}
+	return profileRiskResetAPIResponse{
+		ProfileKind: kind,
+		ProfileName: name,
+		ProfileKey:  profileKey,
+		HadState:    hadState,
+		Reset:       true,
+		GeneratedAt: now.UTC().Format(time.RFC3339),
 	}, true, nil
 }
 
