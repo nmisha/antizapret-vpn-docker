@@ -13,6 +13,7 @@ func htmlEscape(s string) string {
 
 func helpForUser(u User) string {
 	if gCmdRegistry == nil {
+		// fallback
 		return "📚 Справка недоступна: registry не инициализирован."
 	}
 
