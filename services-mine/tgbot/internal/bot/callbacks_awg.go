@@ -164,7 +164,7 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		case "reset_score":
 			peer, err := validateAwgAdminPeerAccess(ctx, peerID)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Р”РµР№СЃС‚РІРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ: "+err.Error())
+				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
 				return
 			}
 			sendConfirm(ctx, "Сбросить risk score и state для Amnezia WireGuard профиля "+peer.Name+"?", "awg:reset_score", peer.Name)
