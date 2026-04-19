@@ -13,6 +13,7 @@ type Config struct {
 	PollIntervalSeconds  int                 `json:"poll_interval_seconds"`
 	HTTPListenAddr       string              `json:"http_listen_addr"`
 	HTTPAPIToken         string              `json:"http_api_token"`
+	QueryLogSource       string              `json:"querylog_source"`
 	QueryLogPath         string              `json:"querylog_path"`
 	StatePath            string              `json:"state_path"`
 	NotificationAPIURL   string              `json:"notification_api_url"`
@@ -30,9 +31,20 @@ type Config struct {
 	Subnets              map[string][]string `json:"subnets"`
 	IgnoreIPs            []string            `json:"ignore_ips"`
 	ProfileWhitelist     map[string][]string `json:"profile_whitelist"`
+	AdGuard              AdGuardAPIConfig    `json:"adguard"`
 	WG                   GuardAPIConfig      `json:"wg"`
 	AWG                  GuardAPIConfig      `json:"awg"`
 	OVPN                 OVPNAPIConfig       `json:"ovpn"`
+}
+
+type AdGuardAPIConfig struct {
+	Scheme         string `json:"scheme"`
+	Host           string `json:"host"`
+	Port           string `json:"port"`
+	Username       string `json:"username"`
+	Password       string `json:"password"`
+	TimeoutSeconds int    `json:"timeout_seconds"`
+	PageLimit      int    `json:"page_limit"`
 }
 
 type GuardAPIConfig struct {
@@ -113,6 +125,7 @@ func loadConfigFromPath(path string) (Config, configFileSnapshot, error) {
 	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_NOTIFICATION_TOKEN")); v != "" {
 		cfg.NotificationAPIToken = v
 	}
+	overrideAdGuardAPIFromEnv(&cfg.AdGuard)
 	overrideGuardAPIFromEnv(&cfg.WG, "WG")
 	overrideGuardAPIFromEnv(&cfg.AWG, "AWG")
 	overrideOVPNAPIFromEnv(&cfg.OVPN)
@@ -130,6 +143,15 @@ func loadConfigFromPath(path string) (Config, configFileSnapshot, error) {
 	}
 	if cfg.NotificationCooldown <= 0 {
 		cfg.NotificationCooldown = int((6 * time.Hour).Seconds())
+	}
+	if cfg.AdGuard.Scheme == "" {
+		cfg.AdGuard.Scheme = "http"
+	}
+	if cfg.AdGuard.TimeoutSeconds <= 0 {
+		cfg.AdGuard.TimeoutSeconds = 15
+	}
+	if cfg.AdGuard.PageLimit <= 0 {
+		cfg.AdGuard.PageLimit = 500
 	}
 	if cfg.MinRuleRisk < 0 {
 		cfg.MinRuleRisk = 0
@@ -160,8 +182,20 @@ func loadConfigFromPath(path string) (Config, configFileSnapshot, error) {
 			}
 		}
 	}
-	if cfg.QueryLogPath == "" || cfg.StatePath == "" || strings.TrimSpace(cfg.NotificationAPIURL) == "" {
-		return Config{}, configFileSnapshot{}, fmt.Errorf("querylog_path, state_path and notification_api_url are required")
+	switch queryLogSource(cfg) {
+	case "api":
+		if strings.TrimSpace(cfg.AdGuard.Host) == "" || strings.TrimSpace(cfg.AdGuard.Port) == "" || strings.TrimSpace(cfg.AdGuard.Username) == "" || strings.TrimSpace(cfg.AdGuard.Password) == "" {
+			return Config{}, configFileSnapshot{}, fmt.Errorf("adguard.host, adguard.port, adguard.username and adguard.password are required for querylog_source=api")
+		}
+	case "file":
+		if strings.TrimSpace(cfg.QueryLogPath) == "" {
+			return Config{}, configFileSnapshot{}, fmt.Errorf("querylog_path is required for querylog_source=file")
+		}
+	default:
+		return Config{}, configFileSnapshot{}, fmt.Errorf("unsupported querylog_source %q", cfg.QueryLogSource)
+	}
+	if cfg.StatePath == "" || strings.TrimSpace(cfg.NotificationAPIURL) == "" {
+		return Config{}, configFileSnapshot{}, fmt.Errorf("state_path and notification_api_url are required")
 	}
 	snapshot, err := statConfigFile(path)
 	if err != nil {
@@ -184,6 +218,66 @@ func refreshConfigIfChanged(current Config, prev configFileSnapshot) (Config, co
 		return Config{}, configFileSnapshot{}, false, err
 	}
 	return cfg, loadedSnapshot, true, nil
+}
+
+func queryLogSource(cfg Config) string {
+	src := strings.ToLower(strings.TrimSpace(cfg.QueryLogSource))
+	switch src {
+	case "api", "file":
+		return src
+	case "":
+		if strings.TrimSpace(cfg.QueryLogPath) != "" {
+			return "file"
+		}
+		if strings.TrimSpace(cfg.AdGuard.Host) != "" {
+			return "api"
+		}
+		return "file"
+	default:
+		return src
+	}
+}
+
+func overrideAdGuardAPIFromEnv(dst *AdGuardAPIConfig) {
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_AGH_SCHEME")); v != "" {
+		dst.Scheme = v
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_AGH_HOST")); v != "" {
+		dst.Host = v
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_AGH_PORT")); v != "" {
+		dst.Port = v
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_AGH_USERNAME")); v != "" {
+		dst.Username = v
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_AGH_PASSWORD")); v != "" {
+		dst.Password = v
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_AGH_TIMEOUT_SECONDS")); v != "" {
+		if n, err := parsePositiveInt(v); err == nil {
+			dst.TimeoutSeconds = n
+		}
+	}
+	if v := strings.TrimSpace(os.Getenv("DNS_GUARD_AGH_PAGE_LIMIT")); v != "" {
+		if n, err := parsePositiveInt(v); err == nil {
+			dst.PageLimit = n
+		}
+	}
+}
+
+func parsePositiveInt(v string) (int, error) {
+	n := 0
+	for _, ch := range v {
+		if ch < '0' || ch > '9' {
+			return 0, fmt.Errorf("not a positive integer")
+		}
+		n = n*10 + int(ch-'0')
+	}
+	if n <= 0 {
+		return 0, fmt.Errorf("not a positive integer")
+	}
+	return n, nil
 }
 
 func overrideGuardAPIFromEnv(dst *GuardAPIConfig, prefix string) {

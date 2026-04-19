@@ -1,11 +1,15 @@
 # dns-guard
 
-`dns-guard` watches AdGuard `querylog.json`, matches risky domains, accumulates score per profile, sends notifications, and can schedule profile blocking.
+`dns-guard` watches AdGuard query log, matches risky domains, accumulates score per profile, sends notifications, and can schedule profile blocking.
 
 ## How It Works
 
-- Reads only new lines from `querylog.json`.
-- On service start, syncs cursor to the end of the file and does not replay history.
+- Supports two query log sources:
+  - AdGuard API via `GET /control/querylog`
+  - direct file tailing of `querylog.json` for backward compatibility
+- In API mode, reads recent pages from AdGuard and stops when it reaches already processed event time.
+- In file mode, reads only new lines from `querylog.json`.
+- On service start, syncs to current head and does not replay history.
 - Resolves profile owner by source IP via WG, AWG, or OVPN APIs.
 - Adds matched rule risk into per-profile minute buckets.
 - Keeps only the last 24 hours of buckets in `state.json`.
@@ -71,10 +75,33 @@ Main fields in `config-mine/dns-guard/config.json`:
 Delivery settings:
 
 - restart-only env settings:
-- `DNS_GUARD_QUERYLOG`: path to AdGuard `querylog.json`
 - `DNS_GUARD_STATE`: path to `state.json`
 - `DNS_GUARD_NOTIFICATION_URL`
 - `DNS_GUARD_NOTIFICATION_TOKEN`
+
+Query log source settings:
+
+- `querylog_source`: `api` or `file`
+- for `api`:
+  - `adguard.scheme`
+  - `adguard.host`
+  - `adguard.port`
+  - `adguard.username`
+  - `adguard.password`
+  - `adguard.timeout_seconds`
+  - `adguard.page_limit`
+- for `file`:
+  - `querylog_path`
+
+Optional env overrides for API mode:
+
+- `DNS_GUARD_AGH_SCHEME`
+- `DNS_GUARD_AGH_HOST`
+- `DNS_GUARD_AGH_PORT`
+- `DNS_GUARD_AGH_USERNAME`
+- `DNS_GUARD_AGH_PASSWORD`
+- `DNS_GUARD_AGH_TIMEOUT_SECONDS`
+- `DNS_GUARD_AGH_PAGE_LIMIT`
 
 ## Rules
 
@@ -139,7 +166,8 @@ Skipped-event counters are reset every 36 hours.
 If `dns-guard` restarts:
 
 - it does not replay old log history
-- it resumes from current end of `querylog.json`
+- in API mode it resumes from the current newest event returned by AdGuard
+- in file mode it resumes from current end of `querylog.json`
 - existing `state.json` is used to preserve buckets and pending blocks
 
 ## Debug Log
@@ -154,8 +182,11 @@ The debug log includes:
 
 ## Notes
 
-- Large query log tails should not blow up memory: processing is streaming, not batch-loading into slices.
-- Large tails can still increase one poll cycle duration because the file is processed line by line.
+- API mode avoids delays from `querylog.json` flush latency because AdGuard serves in-memory entries too.
+- File mode still exists as a fallback for backward compatibility.
+- API mode may fetch multiple pages per cycle if many new events arrive between polls.
+- Large query log tails should not blow up memory in file mode: processing is streaming, not batch-loading into slices.
+- Large file tails can still increase one poll cycle duration because the file is processed line by line.
 - Pending blocks are checked every second independently from `poll_interval_seconds`.
 - `config.json` is reloaded before rules reload and only when the file changes.
 - If notification/block thresholds are lowered, existing accumulated profile buckets are evaluated with the new thresholds on the next cycle.
