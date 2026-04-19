@@ -170,7 +170,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 	case "wg:reset_score":
 		profileName := strings.TrimSpace(payload)
 		if !ctx.User.Has(RoleAdmin) {
-			reply(ctx.Bot, ctx.ChatID, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin.")
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
 			return true
 		}
 		resetDNSGuardRiskScore(ctx, "wg", profileName)
@@ -179,7 +179,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 	case "awg:reset_score":
 		profileName := strings.TrimSpace(payload)
 		if !ctx.User.Has(RoleAdmin) {
-			reply(ctx.Bot, ctx.ChatID, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin.")
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
 			return true
 		}
 		resetDNSGuardRiskScore(ctx, "awg", profileName)
@@ -188,7 +188,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 	case "ovpn:reset_score":
 		profileName := strings.TrimSpace(payload)
 		if !ctx.User.Has(RoleAdmin) {
-			reply(ctx.Bot, ctx.ChatID, "РќРµРґРѕСЃС‚Р°С‚РѕС‡РЅРѕ РїСЂР°РІ. РќСѓР¶РЅР° СЂРѕР»СЊ Admin.")
+			reply(ctx.Bot, ctx.ChatID, "Недостаточно прав. Нужна роль Admin.")
 			return true
 		}
 		resetDNSGuardRiskScore(ctx, "ovpn", profileName)

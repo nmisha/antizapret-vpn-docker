@@ -193,7 +193,7 @@ func handleWgCallback(ctx *Ctx, data string) {
 				reply(ctx.Bot, ctx.ChatID, "Р”РµР№СЃС‚РІРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ: "+err.Error())
 				return
 			}
-			sendConfirm(ctx, "СЃР±СЂРѕСЃРёС‚СЊ risk score Рё state РґР»СЏ WireGuard РїСЂРѕС„РёР»СЏ "+peer.Name+"?", "wg:reset_score", peer.Name)
+			sendConfirm(ctx, "Сбросить risk score и state для WireGuard профиля "+peer.Name+"?", "wg:reset_score", peer.Name)
 		case "conf":
 			sendWgConfigAsFile(ctx, client, peerID)
 		case "qr":

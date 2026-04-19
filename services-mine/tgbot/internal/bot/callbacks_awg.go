@@ -167,7 +167,7 @@ func handleAwgCallback(ctx *Ctx, data string) {
 				reply(ctx.Bot, ctx.ChatID, "Р”РµР№СЃС‚РІРёРµ РЅРµРґРѕСЃС‚СѓРїРЅРѕ: "+err.Error())
 				return
 			}
-			sendConfirm(ctx, "СЃР±СЂРѕСЃРёС‚СЊ risk score Рё state РґР»СЏ Amnezia WireGuard РїСЂРѕС„РёР»СЏ "+peer.Name+"?", "awg:reset_score", peer.Name)
+			sendConfirm(ctx, "Сбросить risk score и state для Amnezia WireGuard профиля "+peer.Name+"?", "awg:reset_score", peer.Name)
 		case "conf":
 			sendAwgConfigAsFile(ctx, client, peerID)
 		case "qr":
