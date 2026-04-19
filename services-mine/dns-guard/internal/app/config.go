@@ -21,6 +21,7 @@ type Config struct {
 	NotificationCooldown        int                 `json:"notification_cooldown_seconds"`
 	DebugLogEnabled             bool                `json:"debug_log_enabled"`
 	TrackSkippedEvents          bool                `json:"track_skipped_events"`
+	SkippedEventsResetHours     int                 `json:"skipped_events_reset_hours"`
 	HistoryCatchupEnabled       bool                `json:"history_catchup_enabled"`
 	HistoryCatchupMaxAgeMinutes int                 `json:"history_catchup_max_age_minutes"`
 	HistoryCatchupMaxRecords    int                 `json:"history_catchup_max_records"`
@@ -146,6 +147,9 @@ func loadConfigFromPath(path string) (Config, configFileSnapshot, error) {
 	}
 	if cfg.NotificationCooldown <= 0 {
 		cfg.NotificationCooldown = int((6 * time.Hour).Seconds())
+	}
+	if cfg.SkippedEventsResetHours <= 0 {
+		cfg.SkippedEventsResetHours = 36
 	}
 	if cfg.HistoryCatchupMaxAgeMinutes <= 0 {
 		cfg.HistoryCatchupMaxAgeMinutes = 10

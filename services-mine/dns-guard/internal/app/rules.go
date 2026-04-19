@@ -10,7 +10,8 @@ import (
 )
 
 type RiskRulesFile struct {
-	Rules []RiskRule `json:"rules"`
+	Rules    []RiskRule    `json:"rules"`
+	Excludes []RuleMatcher `json:"excludes,omitempty"`
 }
 
 type RiskRule struct {
@@ -23,12 +24,32 @@ type RiskRule struct {
 	CreatedAt string   `json:"created_at,omitempty"`
 }
 
+type RuleMatcher struct {
+	Domain  string   `json:"domain"`
+	Domains []string `json:"domains,omitempty"`
+	Match   string   `json:"match"`
+	Reason  string   `json:"reason,omitempty"`
+	Enabled bool     `json:"enabled"`
+}
+
 type compiledRule struct {
 	domain  string
 	match   string
 	risk    int
 	reason  string
 	enabled bool
+}
+
+type compiledMatcher struct {
+	domain  string
+	match   string
+	reason  string
+	enabled bool
+}
+
+type compiledRuleset struct {
+	Rules    []compiledRule
+	Excludes []compiledMatcher
 }
 
 type rulesFileSnapshot struct {
@@ -38,12 +59,12 @@ type rulesFileSnapshot struct {
 }
 
 type rulesReloadResult struct {
-	Rules    []compiledRule
+	Rules    compiledRuleset
 	Snapshot rulesFileSnapshot
 	Changed  bool
 }
 
-func loadRules(cfg Config) ([]compiledRule, error) {
+func loadRules(cfg Config) (compiledRuleset, error) {
 	path := rulesPath()
 	rules, _, err := loadRulesFromPath(path, cfg)
 	return rules, err
@@ -69,16 +90,19 @@ func statRulesFile(path string) (rulesFileSnapshot, error) {
 	}, nil
 }
 
-func loadRulesFromPath(path string, cfg Config) ([]compiledRule, rulesFileSnapshot, error) {
+func loadRulesFromPath(path string, cfg Config) (compiledRuleset, rulesFileSnapshot, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
-		return nil, rulesFileSnapshot{}, fmt.Errorf("read rules: %w", err)
+		return compiledRuleset{}, rulesFileSnapshot{}, fmt.Errorf("read rules: %w", err)
 	}
 	var root RiskRulesFile
 	if err := json.Unmarshal(b, &root); err != nil {
-		return nil, rulesFileSnapshot{}, fmt.Errorf("parse rules: %w", err)
+		return compiledRuleset{}, rulesFileSnapshot{}, fmt.Errorf("parse rules: %w", err)
 	}
-	out := make([]compiledRule, 0, len(root.Rules))
+	out := compiledRuleset{
+		Rules:    make([]compiledRule, 0, len(root.Rules)),
+		Excludes: make([]compiledMatcher, 0, len(root.Excludes)),
+	}
 	for _, r := range root.Rules {
 		match := strings.ToLower(strings.TrimSpace(r.Match))
 		if match == "" {
@@ -103,7 +127,7 @@ func loadRulesFromPath(path string, cfg Config) ([]compiledRule, rulesFileSnapsh
 			continue
 		}
 		for _, domain := range domains {
-			out = append(out, compiledRule{
+			out.Rules = append(out.Rules, compiledRule{
 				domain:  domain,
 				match:   match,
 				risk:    risk,
@@ -112,14 +136,35 @@ func loadRulesFromPath(path string, cfg Config) ([]compiledRule, rulesFileSnapsh
 			})
 		}
 	}
+	for _, r := range root.Excludes {
+		match := strings.ToLower(strings.TrimSpace(r.Match))
+		if match == "" {
+			match = "exact"
+		}
+		if match != "exact" && match != "suffix" {
+			continue
+		}
+		domains := normalizeMatcherDomains(r.Domain, r.Domains)
+		if len(domains) == 0 {
+			continue
+		}
+		for _, domain := range domains {
+			out.Excludes = append(out.Excludes, compiledMatcher{
+				domain:  domain,
+				match:   match,
+				reason:  strings.TrimSpace(r.Reason),
+				enabled: r.Enabled,
+			})
+		}
+	}
 	snapshot, err := statRulesFile(path)
 	if err != nil {
-		return nil, rulesFileSnapshot{}, err
+		return compiledRuleset{}, rulesFileSnapshot{}, err
 	}
 	return out, snapshot, nil
 }
 
-func refreshRulesIfChanged(cfg Config, current []compiledRule, prev rulesFileSnapshot) (rulesReloadResult, error) {
+func refreshRulesIfChanged(cfg Config, current compiledRuleset, prev rulesFileSnapshot) (rulesReloadResult, error) {
 	path := rulesPath()
 	snapshot, err := statRulesFile(path)
 	if err != nil {
@@ -144,12 +189,15 @@ func refreshRulesIfChanged(cfg Config, current []compiledRule, prev rulesFileSna
 }
 
 func normalizeRuleDomains(r RiskRule) []string {
-	candidates := make([]string, 0, 1+len(r.Domains))
-	if strings.TrimSpace(r.Domain) != "" {
-		candidates = append(candidates, r.Domain)
-	}
-	candidates = append(candidates, r.Domains...)
+	return normalizeMatcherDomains(r.Domain, r.Domains)
+}
 
+func normalizeMatcherDomains(domain string, domains []string) []string {
+	candidates := make([]string, 0, 1+len(domains))
+	if strings.TrimSpace(domain) != "" {
+		candidates = append(candidates, domain)
+	}
+	candidates = append(candidates, domains...)
 	seen := map[string]struct{}{}
 	out := make([]string, 0, len(candidates))
 	for _, raw := range candidates {
@@ -170,6 +218,16 @@ func countEnabledRules(rules []compiledRule) int {
 	total := 0
 	for _, r := range rules {
 		if r.enabled {
+			total++
+		}
+	}
+	return total
+}
+
+func countEnabledMatchers(matchers []compiledMatcher) int {
+	total := 0
+	for _, m := range matchers {
+		if m.enabled {
 			total++
 		}
 	}
@@ -202,6 +260,32 @@ func matchRule(domain string, rules []compiledRule) (compiledRule, bool) {
 	return best, found
 }
 
+func matchExclude(domain string, excludes []compiledMatcher) (compiledMatcher, bool) {
+	normalized := normalizeDomain(domain)
+	var best compiledMatcher
+	found := false
+	for _, r := range excludes {
+		if !r.enabled {
+			continue
+		}
+		ok := false
+		switch r.match {
+		case "exact":
+			ok = normalized == r.domain
+		case "suffix":
+			ok = normalized == r.domain || strings.HasSuffix(normalized, "."+r.domain)
+		}
+		if !ok {
+			continue
+		}
+		if !found || len(r.domain) > len(best.domain) {
+			best = r
+			found = true
+		}
+	}
+	return best, found
+}
+
 func normalizeDomain(s string) string {
 	s = strings.ToLower(strings.TrimSpace(s))
 	s = strings.TrimPrefix(s, ".")
@@ -209,16 +293,26 @@ func normalizeDomain(s string) string {
 	return s
 }
 
-func rulesSignature(rules []compiledRule) string {
-	if len(rules) == 0 {
+func rulesSignature(set compiledRuleset) string {
+	if len(set.Rules) == 0 && len(set.Excludes) == 0 {
 		return ""
 	}
-	parts := make([]string, 0, len(rules))
-	for _, r := range rules {
+	parts := make([]string, 0, len(set.Rules)+len(set.Excludes))
+	for _, r := range set.Rules {
 		parts = append(parts, strings.Join([]string{
+			"rule",
 			r.domain,
 			r.match,
 			strconv.Itoa(r.risk),
+			r.reason,
+			strconv.FormatBool(r.enabled),
+		}, "|"))
+	}
+	for _, r := range set.Excludes {
+		parts = append(parts, strings.Join([]string{
+			"exclude",
+			r.domain,
+			r.match,
 			r.reason,
 			strconv.FormatBool(r.enabled),
 		}, "|"))

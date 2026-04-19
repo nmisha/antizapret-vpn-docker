@@ -185,13 +185,13 @@ func findNotificationOwners(usersStore *UsersStore, profileKind, profileName str
 func formatRiskUserMessage(evt riskNotificationEvent) string {
 	title := "Обнаружена подозрительная DNS-активность."
 	if evt.Action == "block" {
-		title = "Обнаружена опасная DNS-активность. Профиль будет отключён."
+		title = "Обнаружена опасная DNS-активность. Профиль будет отключён." //LEGACY
 	} else if evt.Action == "block_applied" {
 		title = "Блокировка профиля фактически применена."
 	} else if evt.Action == "block_failed" {
 		title = "Попытка блокировки профиля завершилась ошибкой."
 	} else if evt.Action == "block_pending" {
-		title = "Обнаружена опасная DNS-активность, профиль может быть заблокирован."
+		title = "Обнаружена опасная DNS-активность. Профиль будет отключён."
 	}
 	lines := []string{
 		html.EscapeString(title),
