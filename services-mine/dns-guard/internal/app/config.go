@@ -9,32 +9,35 @@ import (
 )
 
 type Config struct {
-	Enabled              bool                `json:"enabled"`
-	PollIntervalSeconds  int                 `json:"poll_interval_seconds"`
-	HTTPListenAddr       string              `json:"http_listen_addr"`
-	HTTPAPIToken         string              `json:"http_api_token"`
-	QueryLogSource       string              `json:"querylog_source"`
-	QueryLogPath         string              `json:"querylog_path"`
-	StatePath            string              `json:"state_path"`
-	NotificationAPIURL   string              `json:"notification_api_url"`
-	NotificationAPIToken string              `json:"notification_api_token"`
-	NotificationCooldown int                 `json:"notification_cooldown_seconds"`
-	DebugLogEnabled      bool                `json:"debug_log_enabled"`
-	TrackSkippedEvents   bool                `json:"track_skipped_events"`
-	MinRuleRisk          int                 `json:"min_rule_risk"`
-	MaxRuleRisk          int                 `json:"max_rule_risk"`
-	ScoreNotifyAt        int                 `json:"score_notify_at"`
-	ScoreBlockAt15m      int                 `json:"score_block_at_15m"`
-	ScoreBlockAt24h      int                 `json:"score_block_at_24h"`
-	BlockDelaySeconds    int                 `json:"block_delay_seconds"`
-	PredictBlockETA      bool                `json:"predict_block_eta"`
-	Subnets              map[string][]string `json:"subnets"`
-	IgnoreIPs            []string            `json:"ignore_ips"`
-	ProfileWhitelist     map[string][]string `json:"profile_whitelist"`
-	AdGuard              AdGuardAPIConfig    `json:"adguard"`
-	WG                   GuardAPIConfig      `json:"wg"`
-	AWG                  GuardAPIConfig      `json:"awg"`
-	OVPN                 OVPNAPIConfig       `json:"ovpn"`
+	Enabled                     bool                `json:"enabled"`
+	PollIntervalSeconds         int                 `json:"poll_interval_seconds"`
+	HTTPListenAddr              string              `json:"http_listen_addr"`
+	HTTPAPIToken                string              `json:"http_api_token"`
+	QueryLogSource              string              `json:"querylog_source"`
+	QueryLogPath                string              `json:"querylog_path"`
+	StatePath                   string              `json:"state_path"`
+	NotificationAPIURL          string              `json:"notification_api_url"`
+	NotificationAPIToken        string              `json:"notification_api_token"`
+	NotificationCooldown        int                 `json:"notification_cooldown_seconds"`
+	DebugLogEnabled             bool                `json:"debug_log_enabled"`
+	TrackSkippedEvents          bool                `json:"track_skipped_events"`
+	HistoryCatchupEnabled       bool                `json:"history_catchup_enabled"`
+	HistoryCatchupMaxAgeMinutes int                 `json:"history_catchup_max_age_minutes"`
+	HistoryCatchupMaxRecords    int                 `json:"history_catchup_max_records"`
+	MinRuleRisk                 int                 `json:"min_rule_risk"`
+	MaxRuleRisk                 int                 `json:"max_rule_risk"`
+	ScoreNotifyAt               int                 `json:"score_notify_at"`
+	ScoreBlockAt15m             int                 `json:"score_block_at_15m"`
+	ScoreBlockAt24h             int                 `json:"score_block_at_24h"`
+	BlockDelaySeconds           int                 `json:"block_delay_seconds"`
+	PredictBlockETA             bool                `json:"predict_block_eta"`
+	Subnets                     map[string][]string `json:"subnets"`
+	IgnoreIPs                   []string            `json:"ignore_ips"`
+	ProfileWhitelist            map[string][]string `json:"profile_whitelist"`
+	AdGuard                     AdGuardAPIConfig    `json:"adguard"`
+	WG                          GuardAPIConfig      `json:"wg"`
+	AWG                         GuardAPIConfig      `json:"awg"`
+	OVPN                        OVPNAPIConfig       `json:"ovpn"`
 }
 
 type AdGuardAPIConfig struct {
@@ -143,6 +146,12 @@ func loadConfigFromPath(path string) (Config, configFileSnapshot, error) {
 	}
 	if cfg.NotificationCooldown <= 0 {
 		cfg.NotificationCooldown = int((6 * time.Hour).Seconds())
+	}
+	if cfg.HistoryCatchupMaxAgeMinutes <= 0 {
+		cfg.HistoryCatchupMaxAgeMinutes = 10
+	}
+	if cfg.HistoryCatchupMaxRecords <= 0 {
+		cfg.HistoryCatchupMaxRecords = 1000
 	}
 	if cfg.AdGuard.Scheme == "" {
 		cfg.AdGuard.Scheme = "http"

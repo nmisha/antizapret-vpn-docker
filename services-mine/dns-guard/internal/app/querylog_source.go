@@ -12,8 +12,20 @@ import (
 
 type QueryLogSource interface {
 	Sync(cursor *CursorState) error
-	Process(cursor *CursorState, handler func(QueryLogEntry) error) error
+	Process(cursor *CursorState, opts QueryLogProcessOptions, handler func(QueryLogRecord) error) error
 	Description() string
+}
+
+type QueryLogProcessOptions struct {
+	CycleNow   time.Time
+	Catchup    bool
+	MaxAge     time.Duration
+	MaxRecords int
+}
+
+type QueryLogRecord struct {
+	Entry      QueryLogEntry
+	Historical bool
 }
 
 func newQueryLogSource(cfg Config) (QueryLogSource, error) {
@@ -35,8 +47,13 @@ func (s *fileQueryLogSource) Sync(cursor *CursorState) error {
 	return syncCursorToEOF(s.path, cursor)
 }
 
-func (s *fileQueryLogSource) Process(cursor *CursorState, handler func(QueryLogEntry) error) error {
-	readResult, err := processNewEntries(s.path, *cursor, handler)
+func (s *fileQueryLogSource) Process(cursor *CursorState, _ QueryLogProcessOptions, handler func(QueryLogRecord) error) error {
+	readResult, err := processNewEntries(s.path, *cursor, func(entry QueryLogEntry) error {
+		if handler == nil {
+			return nil
+		}
+		return handler(QueryLogRecord{Entry: entry})
+	})
 	if err != nil {
 		return err
 	}
@@ -102,8 +119,12 @@ func (s *adGuardQueryLogSource) Sync(cursor *CursorState) error {
 	return nil
 }
 
-func (s *adGuardQueryLogSource) Process(cursor *CursorState, handler func(QueryLogEntry) error) error {
+func (s *adGuardQueryLogSource) Process(cursor *CursorState, opts QueryLogProcessOptions, handler func(QueryLogRecord) error) error {
 	lastSeen := parseEventTime(cursor.LastSeenTime)
+	catchupCutoff := time.Time{}
+	if opts.Catchup && opts.MaxAge > 0 {
+		catchupCutoff = opts.CycleNow.UTC().Add(-opts.MaxAge)
+	}
 	olderThan := ""
 	stop := false
 	entries := make([]QueryLogEntry, 0, s.pageLimit)
@@ -123,7 +144,15 @@ func (s *adGuardQueryLogSource) Process(cursor *CursorState, handler func(QueryL
 				stop = true
 				break
 			}
+			if !catchupCutoff.IsZero() && !eventTime.IsZero() && eventTime.Before(catchupCutoff) {
+				stop = true
+				break
+			}
 			entries = append(entries, entry)
+			if opts.Catchup && opts.MaxRecords > 0 && len(entries) >= opts.MaxRecords {
+				stop = true
+				break
+			}
 		}
 		if stop || strings.TrimSpace(page.Oldest) == "" {
 			break
@@ -135,7 +164,7 @@ func (s *adGuardQueryLogSource) Process(cursor *CursorState, handler func(QueryL
 		if handler == nil {
 			continue
 		}
-		if err := handler(entries[i]); err != nil {
+		if err := handler(QueryLogRecord{Entry: entries[i], Historical: opts.Catchup}); err != nil {
 			return err
 		}
 	}

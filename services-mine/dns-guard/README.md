@@ -61,6 +61,9 @@ Main fields in `config-mine/dns-guard/config.json`:
 - `notification_cooldown_seconds`: cooldown for repeated score notifications
 - `debug_log_enabled`: write detailed debug log next to `state.json`
 - `track_skipped_events`: store selected skipped-event counters in `state.json`
+- `history_catchup_enabled`: on startup or after source errors, try to backfill a limited amount of missed API history
+- `history_catchup_max_age_minutes`: how far back catch-up is allowed to go
+- `history_catchup_max_records`: max number of API querylog entries to process in one catch-up cycle
 - `min_rule_risk`: lower clamp for `risk` loaded from rules file
 - `max_rule_risk`: upper clamp for `risk` loaded from rules file
 - `score_notify_at`: notification threshold
@@ -169,6 +172,8 @@ If `dns-guard` restarts:
 - in API mode it resumes from the current newest event returned by AdGuard
 - in file mode it resumes from current end of `querylog.json`
 - existing `state.json` is used to preserve buckets and pending blocks
+- when `history_catchup_enabled=true`, API mode can backfill limited missed history on startup and after source errors
+- catch-up history affects score and notifications, but does not schedule automatic blocking
 
 ## Debug Log
 
@@ -185,6 +190,8 @@ The debug log includes:
 - API mode avoids delays from `querylog.json` flush latency because AdGuard serves in-memory entries too.
 - File mode still exists as a fallback for backward compatibility.
 - API mode may fetch multiple pages per cycle if many new events arrive between polls.
+- Catch-up mode is bounded by both age and record count to avoid replaying too much history after restart or recovery.
+- Automatic blocking is suppressed for catch-up events; only live events can schedule blocks.
 - Large query log tails should not blow up memory in file mode: processing is streaming, not batch-loading into slices.
 - Large file tails can still increase one poll cycle duration because the file is processed line by line.
 - Pending blocks are checked every second independently from `poll_interval_seconds`.
