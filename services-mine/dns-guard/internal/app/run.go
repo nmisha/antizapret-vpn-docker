@@ -10,7 +10,6 @@ import (
 )
 
 const maxRecentEventKeys = 512
-const skippedEventsResetInterval = 36 * time.Hour
 
 func Run() error {
 	cfg, err := loadConfig()
@@ -49,8 +48,8 @@ func Run() error {
 		return err
 	}
 	startAPIServer(cfg)
-	log.Printf("dns-guard started: querylog=%s rules=%d enabled_rules=%d notify=%s notify_score=%d block15m=%d block24h=%d min_rule_risk=%d max_rule_risk=%d",
-		querySource.Description(), len(rules), countEnabledRules(rules), cfg.NotificationAPIURL, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.MinRuleRisk, cfg.MaxRuleRisk)
+	log.Printf("dns-guard started: querylog=%s rules=%d enabled_rules=%d excludes=%d enabled_excludes=%d notify=%s notify_score=%d block15m=%d block24h=%d min_rule_risk=%d max_rule_risk=%d",
+		querySource.Description(), len(rules.Rules), countEnabledRules(rules.Rules), len(rules.Excludes), countEnabledMatchers(rules.Excludes), cfg.NotificationAPIURL, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.MinRuleRisk, cfg.MaxRuleRisk)
 	pollTicker := time.NewTicker(time.Duration(cfg.PollIntervalSeconds) * time.Second)
 	blockTicker := time.NewTicker(1 * time.Second)
 	defer pollTicker.Stop()
@@ -104,13 +103,15 @@ func Run() error {
 				rules = reloadResult.Rules
 				rulesSnapshot = reloadResult.Snapshot
 				if reloadResult.Changed {
-					log.Printf("dns-guard rules reloaded: rules=%d enabled_rules=%d", len(rules), countEnabledRules(rules))
-					writeDebugLog(cfg, "rules_reloaded path=%s size=%d mod_time=%s rules=%d enabled_rules=%d signature=%q",
+					log.Printf("dns-guard rules reloaded: rules=%d enabled_rules=%d excludes=%d enabled_excludes=%d", len(rules.Rules), countEnabledRules(rules.Rules), len(rules.Excludes), countEnabledMatchers(rules.Excludes))
+					writeDebugLog(cfg, "rules_reloaded path=%s size=%d mod_time=%s rules=%d enabled_rules=%d excludes=%d enabled_excludes=%d signature=%q",
 						reloadResult.Snapshot.Path,
 						reloadResult.Snapshot.Size,
 						reloadResult.Snapshot.ModTime.Format(time.RFC3339Nano),
-						len(rules),
-						countEnabledRules(rules),
+						len(rules.Rules),
+						countEnabledRules(rules.Rules),
+						len(rules.Excludes),
+						countEnabledMatchers(rules.Excludes),
 						truncateForLog(rulesSignature(rules), 512),
 					)
 				}
@@ -132,9 +133,9 @@ func Run() error {
 	}
 }
 
-func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *State, cycleNow time.Time, catchup bool) error {
+func runOnce(cfg Config, source QueryLogSource, rules compiledRuleset, state *State, cycleNow time.Time, catchup bool) error {
 	cleanupState(state, cycleNow)
-	cleanupSkippedEvents(state, cycleNow, cfg.TrackSkippedEvents)
+	cleanupSkippedEvents(state, cycleNow, cfg.TrackSkippedEvents, time.Duration(cfg.SkippedEventsResetHours)*time.Hour)
 	allowedSubnets, err := parseAllowedSubnets(cfg.Subnets)
 	if err != nil {
 		return err
@@ -168,7 +169,12 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 		if !ipAllowed(ip, allowedSubnets) {
 			return nil
 		}
-		rule, matched := matchRule(entry.QH, rules)
+		if exclude, excluded := matchExclude(entry.QH, rules.Excludes); excluded {
+			writeDebugLog(cfg, "domain_excluded profile_ip=%s domain=%s match=%s exclude=%s reason=%q", ip, normalizeDomain(entry.QH), exclude.match, exclude.domain, exclude.reason)
+			incrementSkippedEvent(state, cfg, "excluded_domain")
+			return nil
+		}
+		rule, matched := matchRule(entry.QH, rules.Rules)
 		if !matched {
 			return nil
 		}
@@ -282,7 +288,7 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 				Domains:         []string{normalizeDomain(entry.QH)},
 				MatchedRule:     rule.domain,
 				DetectedAt:      nonEmpty(entry.T, time.Now().UTC().Format(time.RFC3339)),
-				Action:          "block",
+				Action:          "block_pending",
 				ActionResult:    fmt.Sprintf("block decision applied immediately; technical execution delay %ds until %s", cfg.BlockDelaySeconds, scheduledAt.Format(time.RFC3339)),
 			}
 			if err := deliverNotificationEvent(cfg, evt); err != nil {
@@ -297,7 +303,7 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 			ps.PendingBlockWindow = blockWindow
 			ps.PendingBlockScore = blockScore
 			ps.LastNotificationEvent = evt.ID
-			ps.LastAction = "block"
+			ps.LastAction = "block_pending"
 		}
 
 		state.Profiles[profileKey] = ps
@@ -615,7 +621,7 @@ func incrementSkippedEvent(state *State, cfg Config, reason string) {
 	state.SkippedEvents[reason]++
 }
 
-func cleanupSkippedEvents(state *State, now time.Time, enabled bool) {
+func cleanupSkippedEvents(state *State, now time.Time, enabled bool, resetInterval time.Duration) {
 	if !enabled {
 		state.SkippedEvents = map[string]int{}
 		state.SkippedEventsResetAt = ""
@@ -629,7 +635,10 @@ func cleanupSkippedEvents(state *State, now time.Time, enabled bool) {
 		state.SkippedEventsResetAt = now.UTC().Format(time.RFC3339)
 		return
 	}
-	if now.UTC().Sub(lastReset) < skippedEventsResetInterval {
+	if resetInterval <= 0 {
+		resetInterval = 36 * time.Hour
+	}
+	if now.UTC().Sub(lastReset) < resetInterval {
 		return
 	}
 	state.SkippedEvents = map[string]int{}

@@ -61,6 +61,7 @@ Main fields in `config-mine/dns-guard/config.json`:
 - `notification_cooldown_seconds`: cooldown for repeated score notifications
 - `debug_log_enabled`: write detailed debug log next to `state.json`
 - `track_skipped_events`: store selected skipped-event counters in `state.json`
+- `skipped_events_reset_hours`: how often to reset `skipped_events` counters
 - `history_catchup_enabled`: on startup or after source errors, try to backfill a limited amount of missed API history
 - `history_catchup_max_age_minutes`: how far back catch-up is allowed to go
 - `history_catchup_max_records`: max number of API querylog entries to process in one catch-up cycle
@@ -128,6 +129,17 @@ Rule examples:
 
 When `domains` is used, one logical rule is expanded into multiple domain matchers with the same `match`, `risk`, `reason`, and `enabled` settings.
 
+Optional top-level exclusions can also be defined in the same file:
+
+- `excludes`: list of domain matchers that suppress risk scoring
+- each exclude supports:
+  - `domain` or `domains`
+  - `match`: `exact` or `suffix`
+  - `reason`
+  - `enabled`
+
+Exclude matching is checked before risk rules. If a domain matches an enabled exclude, it does not increase risk score even if it also matches a risk rule.
+
 ## Practical Starting Thresholds
 
 Conservative starting point:
@@ -159,6 +171,7 @@ Tracked skipped-event reasons:
 
 - `empty_ip`
 - `ignored_ip`
+- `excluded_domain`
 - `duplicate_event`
 - `resolve_error`
 - `profile_not_found`

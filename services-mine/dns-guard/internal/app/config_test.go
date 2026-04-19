@@ -87,3 +87,48 @@ func TestRefreshConfigIfChangedReloadsModifiedFile(t *testing.T) {
 		t.Fatalf("expected reloaded notify score 7, got %d", nextCfg.ScoreNotifyAt)
 	}
 }
+
+func TestLoadConfigAppliesSkippedEventsResetDefaultAndOverride(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+	if err := os.WriteFile(path, []byte(`{
+		"enabled": true,
+		"querylog_source": "file",
+		"querylog_path": "/adguard/querylog.json",
+		"state_path": "/state/state.json",
+		"notification_api_url": "http://example",
+		"wg": {"enabled": true},
+		"awg": {"enabled": true},
+		"ovpn": {"enabled": true}
+	}`), 0644); err != nil {
+		t.Fatalf("write config: %v", err)
+	}
+	cfg, _, err := loadConfigFromPath(path)
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	if cfg.SkippedEventsResetHours != 36 {
+		t.Fatalf("expected default skipped reset 36h, got %d", cfg.SkippedEventsResetHours)
+	}
+
+	if err := os.WriteFile(path, []byte(`{
+		"enabled": true,
+		"querylog_source": "file",
+		"querylog_path": "/adguard/querylog.json",
+		"state_path": "/state/state.json",
+		"notification_api_url": "http://example",
+		"skipped_events_reset_hours": 12,
+		"wg": {"enabled": true},
+		"awg": {"enabled": true},
+		"ovpn": {"enabled": true}
+	}`), 0644); err != nil {
+		t.Fatalf("rewrite config: %v", err)
+	}
+	cfg, _, err = loadConfigFromPath(path)
+	if err != nil {
+		t.Fatalf("reload config: %v", err)
+	}
+	if cfg.SkippedEventsResetHours != 12 {
+		t.Fatalf("expected overridden skipped reset 12h, got %d", cfg.SkippedEventsResetHours)
+	}
+}
