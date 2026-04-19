@@ -176,7 +176,7 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 		fmt.Sprintf("Profile: <b>%s</b>", html.EscapeString(evt.ProfileName)),
 		fmt.Sprintf("Type: <code>%s</code>", html.EscapeString(strings.ToUpper(evt.ProfileKind))),
 		fmt.Sprintf("Risk Score: <b>%d</b>", evt.Risk),
-		fmt.Sprintf("Reason: %s", html.EscapeString(nonEmptyString(evt.Reason, "domain risk match"))),
+		// fmt.Sprintf("Reason: %s", html.EscapeString(nonEmptyString(evt.Reason, "domain risk match"))),
 	}
 	if evt.Score15m > 0 || evt.Score24h > 0 {
 		lines = append(lines,
@@ -184,12 +184,12 @@ func formatRiskUserMessage(evt riskNotificationEvent) string {
 			fmt.Sprintf("Score 24h: <b>%d</b>", evt.Score24h),
 		)
 	}
-	if len(evt.Domains) > 0 {
-		lines = append(lines, "Last domain:")
-		for _, d := range limitStrings(evt.Domains, 5) {
-			lines = append(lines, "• <code>"+html.EscapeString(d)+"</code>")
-		}
-	}
+	// if len(evt.Domains) > 0 {
+	// 	lines = append(lines, "Last domain:")
+	// 	for _, d := range limitStrings(evt.Domains, 5) {
+	// 		lines = append(lines, "• <code>"+html.EscapeString(d)+"</code>")
+	// 	}
+	// }
 	if evt.TriggeredWindow != "" {
 		lines = append(lines, fmt.Sprintf("Triggered window: <code>%s</code>", html.EscapeString(evt.TriggeredWindow)))
 	}
