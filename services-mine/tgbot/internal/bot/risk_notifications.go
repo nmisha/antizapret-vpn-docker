@@ -112,6 +112,9 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 			continue
 		}
 		ownerIDs[owner.TelegramID] = struct{}{}
+		if !shouldSendRiskNotificationToOwner(evt) {
+			continue
+		}
 		if !owner.GuardNotificationsEnabled() {
 			continue
 		}
@@ -127,10 +130,7 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 		if admin.TelegramID <= 0 {
 			continue
 		}
-		if _, ok := ownerIDs[admin.TelegramID]; ok {
-			continue
-		}
-		if !admin.GuardNotMeNotificationsEnabled() {
+		if !shouldSendRiskNotificationToAdmin(evt, admin, ownerIDs) {
 			continue
 		}
 		if !admin.GuardNotificationsEnabled() {
@@ -144,6 +144,31 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 		}
 	}
 	return nil
+}
+
+func shouldSendRiskNotificationToOwner(evt riskNotificationEvent) bool {
+	switch strings.TrimSpace(strings.ToLower(evt.Action)) {
+	case "", "notify", "block", "block_pending":
+		return true
+	default:
+		return false
+	}
+}
+
+func shouldSendRiskNotificationToAdmin(evt riskNotificationEvent, admin User, ownerIDs map[int64]struct{}) bool {
+	action := strings.TrimSpace(strings.ToLower(evt.Action))
+	switch action {
+	case "block_applied", "block_failed":
+		return true
+	}
+	_, isOwner := ownerIDs[admin.TelegramID]
+	if isOwner {
+		return false
+	}
+	if !admin.GuardNotMeNotificationsEnabled() {
+		return false
+	}
+	return true
 }
 
 func findNotificationOwners(usersStore *UsersStore, profileKind, profileName string) ([]User, error) {
@@ -285,4 +310,3 @@ func formatETASeconds(seconds int) string {
 	}
 	return fmt.Sprintf("%d h %d min", hours, minutes)
 }
-
