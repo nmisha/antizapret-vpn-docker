@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestAdGuardQueryLogSourceSyncMarksCurrentHead(t *testing.T) {
@@ -77,7 +78,8 @@ func TestAdGuardQueryLogSourceProcessLoadsOnlyNewEntries(t *testing.T) {
 	}
 
 	var got []string
-	err := source.Process(&cursor, func(entry QueryLogEntry) error {
+	err := source.Process(&cursor, QueryLogProcessOptions{}, func(record QueryLogRecord) error {
+		entry := record.Entry
 		got = append(got, entry.T+"|"+entry.IP+"|"+entry.QH+"|"+entry.QT)
 		return nil
 	})
@@ -89,6 +91,56 @@ func TestAdGuardQueryLogSourceProcessLoadsOnlyNewEntries(t *testing.T) {
 		"2026-04-19T10:01:00Z|10.1.166.10|same-ts.example|A",
 		"2026-04-19T10:02:00Z|10.1.166.11|newer.example|A",
 		"2026-04-19T10:03:00Z|10.1.166.12|newest.example|A",
+	}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func TestAdGuardQueryLogSourceProcessCatchupRespectsAgeAndRecordLimits(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("older_than") {
+		case "":
+			_ = json.NewEncoder(w).Encode(adGuardQueryLogResponse{
+				Oldest: "2026-04-19T10:06:00Z",
+				Data: []adGuardQueryLogEntry{
+					makeAPIEntry("10.1.166.14", "2026-04-19T10:10:00Z", "ten.example", "A", "rule-10"),
+					makeAPIEntry("10.1.166.13", "2026-04-19T10:09:00Z", "nine.example", "A", "rule-9"),
+					makeAPIEntry("10.1.166.12", "2026-04-19T10:08:00Z", "eight.example", "A", "rule-8"),
+					makeAPIEntry("10.1.166.11", "2026-04-19T10:07:00Z", "seven.example", "A", "rule-7"),
+					makeAPIEntry("10.1.166.10", "2026-04-19T10:06:00Z", "six.example", "A", "rule-6"),
+				},
+			})
+		default:
+			t.Fatalf("unexpected older_than=%q", r.URL.Query().Get("older_than"))
+		}
+	}))
+	defer srv.Close()
+
+	cfg := testAdGuardConfig(srv.URL)
+	source := newAdGuardQueryLogSource(cfg)
+	cursor := CursorState{LastSeenTime: "2026-04-19T10:00:00Z"}
+
+	var got []string
+	err := source.Process(&cursor, QueryLogProcessOptions{
+		CycleNow:   mustParseRFC3339ForSource(t, "2026-04-19T10:10:00Z"),
+		Catchup:    true,
+		MaxAge:     3 * time.Minute,
+		MaxRecords: 2,
+	}, func(record QueryLogRecord) error {
+		if !record.Historical {
+			t.Fatal("expected historical record in catchup mode")
+		}
+		got = append(got, record.Entry.T)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("process: %v", err)
+	}
+
+	want := []string{
+		"2026-04-19T10:09:00Z",
+		"2026-04-19T10:10:00Z",
 	}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Fatalf("got %v, want %v", got, want)
@@ -153,4 +205,13 @@ func testAdGuardConfig(serverURL string) AdGuardAPIConfig {
 		PageLimit:      3,
 		TimeoutSeconds: 5,
 	}
+}
+
+func mustParseRFC3339ForSource(t *testing.T, raw string) time.Time {
+	t.Helper()
+	ts, err := time.Parse(time.RFC3339, raw)
+	if err != nil {
+		t.Fatalf("parse time: %v", err)
+	}
+	return ts
 }

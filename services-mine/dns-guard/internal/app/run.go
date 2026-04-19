@@ -41,8 +41,8 @@ func Run() error {
 	if err != nil {
 		return err
 	}
-
-	if err := querySource.Sync(&state.Cursor); err != nil {
+	startupCatchupPending, err := initializeQueryLogCursor(cfg, querySource, state)
+	if err != nil {
 		return err
 	}
 	if err := saveState(cfg.StatePath, state); err != nil {
@@ -55,6 +55,7 @@ func Run() error {
 	blockTicker := time.NewTicker(1 * time.Second)
 	defer pollTicker.Stop()
 	defer blockTicker.Stop()
+	sourceCatchupPending := false
 
 	for {
 		select {
@@ -79,7 +80,7 @@ func Run() error {
 					continue
 				}
 				if changed && querySource.Description() != prevSourceDesc {
-					if err := querySource.Sync(&state.Cursor); err != nil {
+					if startupCatchupPending, err = initializeQueryLogCursor(cfg, querySource, state); err != nil {
 						log.Printf("dns-guard querylog source sync error: %v", err)
 						continue
 					}
@@ -114,8 +115,15 @@ func Run() error {
 					)
 				}
 			}
-			if err := runOnce(cfg, querySource, rules, state, time.Now().UTC()); err != nil {
-				log.Printf("dns-guard cycle error: %v", err)
+			cycleNow := time.Now().UTC()
+			catchup := startupCatchupPending || sourceCatchupPending
+			cycleErr := runOnce(cfg, querySource, rules, state, cycleNow, catchup)
+			if cycleErr != nil {
+				log.Printf("dns-guard cycle error: %v", cycleErr)
+				sourceCatchupPending = true
+			} else {
+				startupCatchupPending = false
+				sourceCatchupPending = false
 			}
 			if err := saveState(cfg.StatePath, state); err != nil {
 				log.Printf("dns-guard save state error: %v", err)
@@ -124,7 +132,7 @@ func Run() error {
 	}
 }
 
-func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *State, cycleNow time.Time) error {
+func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *State, cycleNow time.Time, catchup bool) error {
 	cleanupState(state, cycleNow)
 	cleanupSkippedEvents(state, cycleNow, cfg.TrackSkippedEvents)
 	allowedSubnets, err := parseAllowedSubnets(cfg.Subnets)
@@ -138,7 +146,14 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 			ignoreIPs[ip] = struct{}{}
 		}
 	}
-	err = source.Process(&state.Cursor, func(entry QueryLogEntry) error {
+	processOpts := QueryLogProcessOptions{
+		CycleNow:   cycleNow,
+		Catchup:    catchup && cfg.HistoryCatchupEnabled,
+		MaxAge:     time.Duration(cfg.HistoryCatchupMaxAgeMinutes) * time.Minute,
+		MaxRecords: cfg.HistoryCatchupMaxRecords,
+	}
+	err = source.Process(&state.Cursor, processOpts, func(record QueryLogRecord) error {
+		entry := record.Entry
 		defer advanceCursorEvent(entry, &state.Cursor)
 
 		ip := strings.TrimSpace(entry.IP)
@@ -241,7 +256,11 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 		}
 
 		blockWindow, blockScore := evaluateBlockThresholds(cfg, score15m, score24h)
-		if blockWindow != "" && canScheduleBlock(ref.Kind, cfg) && ps.LastBlockAt == "" && ps.PendingBlockAt == "" {
+		if record.Historical && blockWindow != "" {
+			writeDebugLog(cfg, "historical_block_suppressed profile=%s kind=%s domain=%s matched_rule=%s score15m=%d score24h=%d effective_score=%d block_window=%s block_score=%d",
+				ref.Name, ref.Kind, normalizeDomain(entry.QH), rule.domain, score15m, score24h, effectiveScore, blockWindow, blockScore)
+		}
+		if blockWindow != "" && !record.Historical && canScheduleBlock(ref.Kind, cfg) && ps.LastBlockAt == "" && ps.PendingBlockAt == "" {
 			scheduledAt := cycleNow.Add(time.Duration(cfg.BlockDelaySeconds) * time.Second).UTC()
 			evt := NotificationEvent{
 				ID:              fmt.Sprintf("block-%s-%s-%d", ref.Kind, sanitizeFilename(ref.Name), time.Now().UnixNano()),
@@ -277,6 +296,27 @@ func runOnce(cfg Config, source QueryLogSource, rules []compiledRule, state *Sta
 		return err
 	}
 	return nil
+}
+
+func initializeQueryLogCursor(cfg Config, source QueryLogSource, state *State) (bool, error) {
+	if queryLogSource(cfg) != "api" || !cfg.HistoryCatchupEnabled {
+		if err := source.Sync(&state.Cursor); err != nil {
+			return false, err
+		}
+		return false, nil
+	}
+	if lastSeen := parseEventTime(state.Cursor.LastSeenTime); !lastSeen.IsZero() {
+		state.Cursor.Offset = 0
+		state.Cursor.FileSize = 0
+		state.Cursor.FileModTime = ""
+		return true, nil
+	}
+	state.Cursor.Offset = 0
+	state.Cursor.FileSize = 0
+	state.Cursor.FileModTime = ""
+	state.Cursor.LastSeenTime = time.Now().UTC().Add(-time.Duration(cfg.HistoryCatchupMaxAgeMinutes) * time.Minute).Format(time.RFC3339Nano)
+	state.Cursor.RecentEventKeys = nil
+	return true, nil
 }
 
 func parseAllowedSubnets(src map[string][]string) ([]*net.IPNet, error) {
