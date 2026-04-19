@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -36,6 +37,7 @@ func Run() error {
 	if err != nil {
 		return err
 	}
+	var stateMu sync.RWMutex
 	querySource, err := newQueryLogSource(cfg)
 	if err != nil {
 		return err
@@ -47,7 +49,7 @@ func Run() error {
 	if err := saveState(cfg.StatePath, state); err != nil {
 		return err
 	}
-	startAPIServer(cfg)
+	startAPIServer(cfg, state, &stateMu)
 	log.Printf("dns-guard started: querylog=%s rules=%d enabled_rules=%d excludes=%d enabled_excludes=%d notify=%s notify_score=%d block15m=%d block24h=%d min_rule_risk=%d max_rule_risk=%d",
 		querySource.Description(), len(rules.Rules), countEnabledRules(rules.Rules), len(rules.Excludes), countEnabledMatchers(rules.Excludes), cfg.NotificationAPIURL, cfg.ScoreNotifyAt, cfg.ScoreBlockAt15m, cfg.ScoreBlockAt24h, cfg.MinRuleRisk, cfg.MaxRuleRisk)
 	pollTicker := time.NewTicker(time.Duration(cfg.PollIntervalSeconds) * time.Second)
@@ -62,11 +64,13 @@ func Run() error {
 			if !cfg.Enabled {
 				continue
 			}
+			stateMu.Lock()
 			if changed := processPendingBlocks(cfg, state, time.Now().UTC()); changed {
 				if err := saveState(cfg.StatePath, state); err != nil {
 					log.Printf("dns-guard save state error: %v", err)
 				}
 			}
+			stateMu.Unlock()
 		case <-pollTicker.C:
 			if freshCfg, freshSnapshot, changed, err := refreshConfigIfChanged(cfg, configSnapshot); err != nil {
 				log.Printf("dns-guard reload config error: %v", err)
@@ -79,7 +83,10 @@ func Run() error {
 					continue
 				}
 				if changed && querySource.Description() != prevSourceDesc {
-					if startupCatchupPending, err = initializeQueryLogCursor(cfg, querySource, state); err != nil {
+					stateMu.Lock()
+					startupCatchupPending, err = initializeQueryLogCursor(cfg, querySource, state)
+					stateMu.Unlock()
+					if err != nil {
 						log.Printf("dns-guard querylog source sync error: %v", err)
 						continue
 					}
@@ -118,6 +125,7 @@ func Run() error {
 			}
 			cycleNow := time.Now().UTC()
 			catchup := startupCatchupPending || sourceCatchupPending
+			stateMu.Lock()
 			cycleErr := runOnce(cfg, querySource, rules, state, cycleNow, catchup)
 			if cycleErr != nil {
 				log.Printf("dns-guard cycle error: %v", cycleErr)
@@ -129,6 +137,7 @@ func Run() error {
 			if err := saveState(cfg.StatePath, state); err != nil {
 				log.Printf("dns-guard save state error: %v", err)
 			}
+			stateMu.Unlock()
 		}
 	}
 }
