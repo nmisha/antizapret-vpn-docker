@@ -180,7 +180,7 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		Allow:        true, // default (adds @@)
 		Suffix:       true,
 		Raw:          false,
-		DnsRewrite:   "",
+		DnsRewrite:   "SERVFAIL",
 	}
 
 	if err := decoder.Decode(&req, r.URL.Query()); err != nil {
