@@ -60,15 +60,15 @@ services:
     environment:
       - WIREGUARD_PASSWORD=strongpassword
 
-  socks-local:
-    hostname: socks-local.antizapret
+  proxy-local:
+    hostname: proxy-local.antizapret
     extends:
-      file: services/socks/compose.yml
-      service: socks
+      file: services/proxy/compose.yml
+      service: proxy
     environment:
-      # Omit SOCKS_USERNAME and SOCKS_PASSWORD to disable authentication
-      - SOCKS_USERNAME=admin
-      - SOCKS_PASSWORD=password
+      # Use strong password because HTTPS proxy available from internet
+      - PROXY_LOGIN=
+      - PROXY_PASSWORD=
     deploy:
       mode: replicated
       replicas: 1
@@ -76,15 +76,15 @@ services:
       placement:
         constraints: [ node.labels.location == local ]
 
-  socks-world:
-    hostname: socks-world.antizapret
+  proxy-world:
+    hostname: proxy-world.antizapret
     extends:
-      file: services/socks/compose.yml
-      service: socks
+      file: services/proxy/compose.yml
+      service: proxy
     environment:
-      # Omit SOCKS_USERNAME and SOCKS_PASSWORD to disable authentication
-      - SOCKS_USERNAME=admin
-      - SOCKS_PASSWORD=password
+      # Use strong password because HTTPS proxy available from internet
+      - PROXY_LOGIN=
+      - PROXY_PASSWORD=
     deploy:
       mode: replicated
       replicas: 1

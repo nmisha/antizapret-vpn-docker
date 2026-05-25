@@ -29,12 +29,13 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
     - [Adding Domains via rules](#adding-domains-via-rules)
     - [Adding Domains via lists](#adding-domains-via-lists)
   - [Adding IPs/Subnets](#adding-ipssubnets)
-  - [SOCKS5 Proxy (per-application routing)](#socks5-proxy-per-application-routing)
+  - [SOCKS5 and HTTP(S) Proxy (per-application routing)](#socks5-and-https-proxy-per-application-routing)
     - [How it works](#how-it-works-1)
-    - [When to use Dante instead of DNS-based routing](#when-to-use-dante-instead-of-dns-based-routing)
+    - [When to use proxy instead of DNS-based routing](#when-to-use-proxy-instead-of-dns-based-routing)
     - [Configuration](#configuration)
     - [Client setup](#client-setup)
-    - [Example use cases](#example-use-cases)     
+    - [Example use cases](#example-use-cases)
+  - [HTTP(S) Proxy](#https-proxy)
   - [Environment Variables](#environment-variables)
   - [DNS](#dns)
     - [Adguard Upstream DNS](#adguard-upstream-dns)
@@ -461,6 +462,7 @@ Options for adapter:
  - `allow=1` - disable this option, to block domains from list for this exit node.
  - `raw=0` - dont modify rules
  - `suffix=1` - add "$dnsrewrite,client=xxx" to rules
+ - `dnsrewrite=` - set custom dnsrewrite value
 
 ## Adding IPs/Subnets
 Add ips and subnets to `./config/antizapret/custom/include-ips-custom.txt`. 
@@ -468,47 +470,54 @@ Containers periodically check changes in config folder (every 5-10 seconds) and 
 
 Trigger update manually: `docker exec $(docker ps -q --filter=name=az | head -n1) doall`
 
-## SOCKS5 Proxy (per-application routing)
+## SOCKS5 and HTTP(S) Proxy (per-application routing)
 
 AntiZapret uses DNS-based split tunneling, which works only for domain-based connections.
 If an application connects directly by IP address, DNS interception does not work and traffic is not routed through the VPN tunnel.
 
-Adding large number of IPs to `include-ips-custom.txt` can cause issues with OpenVPN (push routes limit), so Dante SOCKS5 proxy was added as an alternative solution.
+`proxy` service is based on [3proxy](https://github.com/3proxy/3proxy) [container](https://github.com/tarampampam/3proxy-docker)
+It's a solution for per-application routing.
 
 ### How it works
 
 1. Connect to VPN (OpenVPN, WireGuard or Amnezia WireGuard)
-2. Configure your application to use SOCKS5 proxy via tools like [AntizapretSOCKS5](https://github.com/danayer/AntizapretSOCKS5) (Windows), ProxyBridge, Proxifier, or browser proxy settings
+2. Configure your application to use SOCKS5 or HTTP/HTTPS proxy via proxy settings or tools like [ProxiFyre](https://github.com/wiresock/proxifyre)
 3. All traffic from that application (including direct IP connections) will exit through the selected server node
 
-Two socks5 proxy containers are available:
-- **`socks-local.antizapret:8118`** — traffic exits through the **local** server
-- **`socks-world.antizapret:8118`** — traffic exits through the **world** server
+Two proxy containers are available:
+- **`proxy-local.antizapret`** — traffic exits through the **local** server
+    - SOCKS5 port: `8118`
+    - HTTP port: `8180`
+    - HTTPS (local) via `https` container: `https://%your_ip%:8143`
+- **`proxy-world.antizapret`** — traffic exits through the **world** server
+    - SOCKS5 port: `8118`
+    - HTTP port: `8180`
+    - HTTPS (world) via `https` container: `https://%your_ip%:8243`
 
-Authentication: SOCKS5 with username/password (configured via environment variables).
-To disable authentication, omit `SOCKS_USERNAME` and `SOCKS_PASSWORD` (or leave them empty).
+Authentication: Basic (SOCKS5/HTTP/HTTPS) configured via environment variables.
+Authentication is required because the HTTPS proxy is accessible from the internet.
 
-### When to use Dante instead of DNS-based routing
+### When to use proxy instead of DNS-based routing
 
-| Scenario | DNS routing | Dante SOCKS5 |
-|---|---|---|
-| Application connects by domain | ✅ Works | ✅ Works |
-| Application connects by IP | ❌ Not routed | ✅ Works |
-| Large number of IPs to route | ❌ OpenVPN push routes limit | ✅ No limit |
+| Scenario | DNS routing | Proxy |
+|---|---|--------------------------|
+| Application connects by domain | ✅ Works | ✅ Works                  |
+| Application connects by IP | ❌ Not routed | ✅ Works                  |
+| Large number of IPs to route | ❌ OpenVPN push routes limit | ✅ No limit               |
 | Per-application exit node selection | ❌ | ✅ Choose local or world per app |
 
 ### Configuration
 
-Add socks5 services to `docker-compose.override.yml`:
+Add proxy services to `docker-compose.override.yml`:
 ```yml
-  socks-local:
-    hostname: socks-local.antizapret
+  proxy-local:
+    hostname: proxy-local.antizapret
     extends:
-      file: services/socks/compose.yml
-      service: socks
+      file: services/proxy/compose.yml
+      service: proxy
     environment:
-      - SOCKS_USERNAME=admin
-      - SOCKS_PASSWORD=password
+      - PROXY_LOGIN=admin
+      - PROXY_PASSWORD=password
     deploy:
       mode: replicated
       replicas: 1
@@ -516,14 +525,14 @@ Add socks5 services to `docker-compose.override.yml`:
       placement:
         constraints: [ node.labels.location == local ]
 
-  socks-world:
-    hostname: socks-world.antizapret
+  proxy-world:
+    hostname: proxy-world.antizapret
     extends:
-      file: services/socks/compose.yml
-      service: socks
+      file: services/proxy/compose.yml
+      service: proxy
     environment:
-      - SOCKS_USERNAME=admin
-      - SOCKS_PASSWORD=password
+      - PROXY_LOGIN=admin
+      - PROXY_PASSWORD=password
     deploy:
       mode: replicated
       replicas: 1
@@ -532,34 +541,18 @@ Add socks5 services to `docker-compose.override.yml`:
         constraints: [ node.labels.location == world ]
 ```
 
-> **Note:** `socks-world` requires [Docker Swarm mode](#docker-swarm-multiple-exit-nodes-advanced) with two nodes.
-> On a single server only `socks-local` will work.
+> **Note:** `proxy-world` requires [Docker Swarm mode](#docker-swarm-multiple-exit-nodes-advanced) with two nodes.
+> On a single server only `proxy-local` will work.
 
 ### Client setup
 
 1. Connect to VPN
-2. Configure SOCKS5 proxy in your application or proxy manager:
-    - **Host:** `socks-local.antizapret` or `socks-world.antizapret`
-    - **Port:** `8118`
-    - **Type:** SOCKS5
-    - **Username:** value of `SOCKS_USERNAME`
-    - **Password:** value of `SOCKS_PASSWORD`
-
-#### Windows
-
-For Windows clients, use [AntizapretSOCKS5](https://github.com/danayer/AntizapretSOCKS5) — a GUI application for configuring per-application SOCKS5 routing using [ProxiFyre](https://github.com/wiresock/proxifyre).
-
-1. Download and extract [AntizapretSOCKS5](https://github.com/danayer/AntizapretSOCKS5)
-2. Run `ConfigEditor.exe` and install the Windows Packet Filter driver when prompted
-3. Add proxy configurations — select applications, choose proxy server (`socks-local.antizapret:8118` or `socks-world.antizapret:8118`), and set credentials
-4. Save configuration and start ProxiFyre
-
-### Example use cases
-
-- **Game client** that connects to servers by IP — route through `socks-world` to bypass geo-restrictions
-- **Torrent client** — route through `socks-world` for foreign IP
-- **Browser** — use proxy extension to route specific sites through `socks-local` or `socks-world`
-- **Application with many hardcoded IPs** — instead of adding hundreds of IPs to `include-ips-custom.txt`, just proxy the whole app through socks5
+2. Configure SOCKS5 or HTTP/HTTPS proxy in your application or browser:
+    - **Host:** `proxy-local.antizapret` or `proxy-world.antizapret`
+    - **SOCKS5 Port:** `1080`
+    - **HTTP/HTTPS Port:** `3128`
+    - **Username:** value of `PROXY_LOGIN`
+    - **Password:** value of `PROXY_PASSWORD`
 
 ## Environment Variables
 
@@ -586,10 +579,9 @@ Consists of two containers: az-local and az-world. This is VPN exit nodes.
 - `FILEBROWSER_PORT=admin`
 - `FILEBROWSER_PASSWORD=password`
 
-### Proxy:
+### Https:
 - `PROXY_DOMAIN=` - create letsencrypt https certificate for domain. If not set host ip is used for self-signed certificate.
 - `PROXY_EMAIL=` - email for letsecnrypt certificate.
-- `SOCKS_EXTERNAL_IFACES` - comma-separated list of external network interfaces for the SOCKS proxy (e.g. `eth0,eth1`). If omitted, interfaces are auto-detected; falls back to `eth0` when none are found
 
 ### Openvpn
 - `ROUTES`
@@ -621,9 +613,17 @@ Consists of two containers: az-local and az-world. This is VPN exit nodes.
 - `OVERRIDE_AUTO_AWG=awg`- environment variable to force the tunnel type: `awg` to always use AmneziaWG, `wg` to always use standard WireGuard; by default it’s unset and automatic detection is used, useful to override auto-selection and lock the mode.
 - `BGP_ENABLE=false` - start bird BGP server. Server will push routes to clients (some routers). Clients will receive route updates without updating wg/awg config.
 
-### SOCKS5 Proxy
+### SOCKS5 Proxy (depricated, use proxy below)
 - `SOCKS_USERNAME` - username for SOCKS5 authentication (omit to disable authentication)
 - `SOCKS_PASSWORD` - password for SOCKS5 authentication (omit to disable authentication)
+
+### Proxy (http + socks5)
+- `PROXY_LOGIN` - username for HTTP authentication (omitting disable authentication)
+- `PROXY_PASSWORD` - password for HTTP authentication (omitting disable authentication)
+- `PROXY_PORT=8180` - HTTP port to listen
+- `SOCKS_PORT=8118` - HTTPS port to listen
+- `EXTRA_ACCOUNTS` - Additional login:passord pairs. Example: `login:password;login2:password2`
+- `EXTRA_CONFIG` - Raw 3proxy config lines injected before proxy/socks directives (empty by default)
 
 ## DNS
 ### Adguard Upstream DNS
