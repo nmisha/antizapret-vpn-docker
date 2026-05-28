@@ -86,7 +86,7 @@ querylog:
   dir_path: ""
   ignored:
     - cloud.mikrotik.com
-  interval: 2160h
+  interval: 168h
   size_memory: 1000
   enabled: true
   file_enabled: true
@@ -94,7 +94,7 @@ statistics:
   dir_path: ""
   ignored:
     - cloud.mikrotik.com
-  interval: 2160h
+  interval: 168h
   enabled: true
 filters:
   - enabled: true
@@ -441,15 +441,24 @@ whitelist_filters: []
 user_rules:
   - '||*^$dnsrewrite=SERVFAIL,client=az-local'
   - '||*^$dnsrewrite=SERVFAIL,client=az-world'
+  - '#@@||2ip.ru^$dnsrewrite,client=az-local'
+  - '#@@||2ip.io^$dnsrewrite,client=az-world'
   - '||ntc.party^$dnsrewrite=130.255.77.28,client=az-local,important'
   - '||raw.githubusercontent.com^$dnsrewrite=185.199.108.133,client=coredns,important'
   - '#||*^$dnstype=HTTPS'
 
   - '||max.ru^'
   - '||api.oneme.ru^'
+  - '||calls.okcdn.ru^'
+  - '||pimg.mycdn.me^'
+  - '||vk-analytics.ru^'
   - '||ip.mail.ru^'
   - '||ifconfig.me^'
   - '||checkip.amazonaws.com^'
+  - '||api-ipv4.ip.sb^'
+  - '||api-ipv6.ip.sb^'
+  - '||ip.sb^'
+  - '||ifconfig.co^'
   - '||ipv4-internet.yandex.net^'
 
   - '||tracker.my.com^'
@@ -468,8 +477,22 @@ user_rules:
   - '||ntv.ru^'
   - '||boom.ru^'
   - '||rt.com^'
-  - '@@||rustore.ru^$client=''10.1.166.30'''
-  - '@@||rustore.ru^$client=''10.1.166.31'''
+
+  - '||quic-api.vk.com^'
+  - '||okcdn.ru^'
+  - '||oneme.ru^'
+  - '#||ott.yandex.ru^'
+  - '||tracking.ott.yandex.ru^'
+  - '||music.vk.com^'
+  - '||music.vk.ru^'
+  - '#||dzen.ru^'
+  - '#@@||rustore.ru^$client=''10.1.166.30'''
+  - '#@@||rustore.ru^$client=''10.1.166.31'''
+  - '#||apple.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  - '||facetime-apple-com.we.apple-dns.net^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  - '||facetime.apple.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  - '||facetime.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  - '||facetime.net^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
 
 dhcp:
   enabled: false
@@ -746,6 +769,9 @@ filtering:
       enabled: true
     - domain: immich.mi
       answer: 10.1.0.65
+      enabled: true
+    - domain: syncthing.mi
+      answer: 10.1.0.46
       enabled: true
   safe_fs_patterns:
     - /*
