@@ -110,7 +110,7 @@ filters:
     name: Block DOH DNS
     id: 3
 
-  - enabled: false
+  - enabled: true
     url: http://az-local.antizapret/list/?file=/root/antizapret/config/custom/include-hosts-custom.txt
     name: Custom Local Rules
     id: 4
@@ -444,6 +444,9 @@ user_rules:
   - '||ntc.party^$dnsrewrite=130.255.77.28,client=az-local|az-world,important'
   - '||raw.githubusercontent.com^$dnsrewrite=185.199.108.133,client=coredns,important'
   - '#||*^$dnstype=HTTPS'
+
+  - '#@@||2ip.ru^$dnsrewrite,client=az-local'
+  - '#@@||2ip.io^$dnsrewrite,client=az-world'
 
   - '||max.ru^'
   - '||api.oneme.ru^'

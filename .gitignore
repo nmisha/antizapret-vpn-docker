@@ -8,3 +8,4 @@
 /docker-compose.override.yml*
 services-mine/tgbot_old/
 stack.rendered.yml
+*.log
