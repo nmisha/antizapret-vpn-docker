@@ -8,7 +8,7 @@ services:
       - "51820:51820/udp"
     environment:
       - WG_PORT=51820
-      - WG_MTU=1360
+      - WG_MTU=1280
       - WG_DEFAULT_ADDRESS=10.1.166.x
     volumes:
       - $PWD/config/wireguard:/etc/wireguard
@@ -22,7 +22,7 @@ services:
       - "51830:51830/udp"
     environment:
       - WG_PORT=51830
-      - WG_MTU=1360
+      - WG_MTU=1280
       - WG_DEFAULT_ADDRESS=10.1.167.x
       - EXPERIMENTAL_AWG=true
       - OVERRIDE_AUTO_AWG=awg
