@@ -21,7 +21,7 @@ function download_list() {
     for url in ${urls//;/ }; do
         url=$(echo "$url" | tr -d '[:space:]')
         if [ -z "$url" ]; then continue; fi
-        if ! curl -L -f -s "$url" >> "$tmp_file"; then
+        if ! curl --max-time 60 -L -f -s "$url" >> "$tmp_file"; then
             echo "Failed to download $url"
             success=false
             break
@@ -34,6 +34,10 @@ function download_list() {
     else
         echo "Failed to download some URLs or resulting file is empty, keeping old file"
         rm -f "$tmp_file"
+        if [ ! -f "$output_file" ]; then
+          echo "File not found. Creating empty: $output_file"
+          touch "$output_file"
+        fi
         return 1
     fi
 }

@@ -31,11 +31,15 @@ Antizapret создан для того, чтобы перенаправлять
   - [Добавление IP/подсетей](#добавление-ipподсетей)
   - [SOCKS5 и HTTP(S) прокси (маршрутизация для конкретных приложений)](#socks5-и-https-прокси-маршрутизация-для-конкретных-приложений)
     - [Как это работает](#как-это-работает-1)
+    - [Как отключить HTTPS-доступ из интернета](#как-отключить-https-доступ-из-интернета)
     - [Когда использовать proxy вместо DNS-маршрутизации](#когда-использовать-proxy-вместо-dns-маршрутизации)
     - [Конфигурация](#конфигурация)
     - [Настройка клиента](#настройка-клиента)
     - [Примеры использования](#примеры-использования)
   - [HTTP(S) Прокси](#https-прокси)
+  - [Использование zapret2](#zapret2)
+    - [Изменение конфигураций](#изменение-конфигураций)
+    - [Подбор стратегий](#подбор-стратегий)
   - [Переменные окружения](#переменные-окружения)
   - [DNS](#dns)
     - [Upstream DNS для Adguard](#upstream-dns-для-adguard)
@@ -64,7 +68,8 @@ https://t.me/antizapret_support
 - Многосерверная архитектура для обхода гео-ограничений сервисов. Разные домены используют разные серверы в качестве узлов выхода.
 - Файрвол для защиты от сканирования портов.
 - Поддержка модулей ядра для OpenVPN и Amnezia Wireguard для снижения нагрузки на процессор.
-- SOCKS5 прокси (Dante) для маршрутизации конкретных приложений через локальные или зарубежные узлы выхода.
+- SOCKS5 и HTTP(S) прокси для маршрутизации конкретных приложений через локальные или зарубежные узлы выхода.
+- Встроенная поддержка anti-DPI через [bol-van/zapret2](https://github.com/bol-van/zapret2) для HTTP-, TLS- и QUIC-трафика. Конфигурация от [vernette/ss-zapret2](https://github.com/vernette/ss-zapret2).
 
 # Как это работает?
 
@@ -79,6 +84,9 @@ https://t.me/antizapret_support
 6) VPN-туннели настроены с раздельным туннелированием. Только трафик в подсеть 14.16.0.0/14 маршрутизируется через VPN.
 
 # Установка
+
+> [!IMPORTANT]
+> Команды должны выполняться от имени root пользователя. Иначе у конфигурационных файлов будут некорректные права, и некоторые контейнеры будут бесконечно перезапускаться.
 
 ## Один сервер (Просто)
 
@@ -146,6 +154,9 @@ Docker swarm используется для построения единой �
     ```
 8. [Первичный] Добавьте метки для узлов `docker node update --label-add location=local az-local && docker node update --label-add location=world az-world`
 9. [Первичный]: запустите swarm `   docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret`
+10. [Первичный]: Docker Swarm не поддерживает передачу устройств хоста в сервисы так же, как Docker Compose, поэтому для работы VPN-контейнеров требуются DKMS-модули ядра:
+    - [Включение OpenVPN Data Channel Offload (DCO)](#включение-openvpn-data-channel-offload-dco)
+    - [Включение расширения ядра Amnezia Wireguard](#включение-расширения-ядра-amnezia-wireguard)
 
 ## Блокировка VPN / Хостинга
 Большинство провайдеров сейчас блокируют VPN-соединения с зарубежными IP-адресами. Обфускация в Amnezia или OpenVpn не всегда решает проблему.
@@ -268,8 +279,15 @@ services:
    docker system prune -af
    ```
 2. Обновите клиентов:
-   - Wireguard/Amnezia - нужно скачать новые конфигурации клиентов или вручную добавить `14.16.0.0/14` в AllowedIps в старых конфигурациях.
-   - OpenVPN - нужно нажать save на странице конфигурации сервера openvpn-ui: http://openvpn-ui.antizapret:8080/ov/config/ а затем перезапустить сервер openvpn.
+   - Wireguard/Amnezia
+     - Проверьте, что ваш пароль длиннее 12 символов. Обновите при необходимости в docker-compose.override.yml
+     - Скачайте новые конфигурации клиентов или вручную добавьте `14.16.0.0/14` в AllowedIps в старых конфигурациях.
+   - OpenVPN
+     - Нажмите save на странице конфигурации сервера openvpn-ui: http://openvpn-ui.antizapret:8080/ov/config/ а затем перезапустите сервер openvpn.
+     - Установите новый dkms модуль на хост: `apt remove openvpn-dkms-dco` + https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/README.md?tab=readme-ov-file#enable-openvpn-data-channel-offload-dco
+   - Socks
+   Замените его на контейнер proxy и переименуйте переменные окружения. См. пример: https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/docker-compose.override.sample.yml#L63-L93
+   Убедитесь, что используете надежный пароль, потому что теперь HTTPS прокси доступен из интернета.
 
 ## Сброс:
 Удалить все настройки, VPN-конфигурации и вернуть начальное состояние сервиса:
@@ -335,7 +353,7 @@ git restore config
           1. Сохраните конфигурацию и перезапустите сервер.
           1. Добавьте `link-mtu 1200` в ваш client.conf
    7. Если ничего не помогает, попробуйте другой хостинг и/или [каскад](#блокировка-vpn--хостинга)
-4. Как отладить проблемы с VPN?
+5. Как отладить проблемы с VPN?
     1. Проверьте, установлено ли VPN-соединение и работает ли DNS-сервер:
        ```shell
        > nslookup youtube.com
@@ -495,6 +513,12 @@ AntiZapret использует DNS-маршрутизацию (split tunneling)
 Аутентификация: Basic (SOCKS5/HTTP/HTTPS), настраивается через переменные окружения.
 Аутентификация обязательна, потому что HTTPS-прокси доступен из интернета.
 
+### Как отключить HTTPS-доступ из интернета
+Есть два варианта:
+- Очистите переменные окружения контейнера `https` для `proxy-local.antizapret` и `proxy-world.antizapret`.
+- Измените `hostname` в `docker-compose.override.yml`, чтобы `caddy`/`https` не мог обращаться к ним по стандартным именам `proxy-local.antizapret` и `proxy-world.antizapret`.
+Без HTTPS безопасно использовать прокси с пустыми именем пользователя и паролем.
+
 ### Когда использовать proxy вместо DNS-маршрутизации
 
 | Сценарий | DNS-маршрутизация | Proxy |
@@ -552,16 +576,75 @@ AntiZapret использует DNS-маршрутизацию (split tunneling)
     - **Имя пользователя:** значение `PROXY_LOGIN`
     - **Пароль:** значение `PROXY_PASSWORD`
 
+## zapret2
+
+Поддержка zapret2 основана на [bol-van/zapret2](https://github.com/bol-van/zapret2), наборе инструментов anti-DPI для модификации HTTP-, TLS- и QUIC-трафика, и использует Docker-упаковку из [vernette/ss-zapret2](https://github.com/vernette/ss-zapret2) как источник встроенных файлов zapret2. В этом контейнере zapret2 работает с трафиком узлов выхода antizapret и настраивается переменными ниже.
+
+По умолчанию zapret2 отключен, так как может вызывать проблемы на некоторых хостингах. Чтобы включить anti-DPI обработку HTTP-, TLS- и QUIC-трафика, проходящего через узел выхода antizapret, добавьте настройку в `docker-compose.override.yml`:
+
+```yaml
+services:
+  az-local:
+    environment:
+      - ZAPRET_ENABLED=1
+```
+Если используется compose mode и az-world нода так же страдает от DPI, то для нее тоже стоит включить:
+```yaml
+services:
+  az-world:
+    environment:
+      - ZAPRET_ENABLED=1
+```
+
+При первом запуске конфигурация zapret2 создается в `./config/antizapret/zapret2/zapret.conf`. 
+
+### Изменение конфигураций
+Изменяйте `NFQWS2_OPT` в этом файле, чтобы подобрать стратегии для HTTP, TLS и QUIC. Чтобы снова отключить zapret2, установите `ZAPRET_ENABLED=0`.
+
+
+Примените изменения командой для вашего режима запуска:
+
+- Режим Compose:
+```shell
+# Docker Compose
+docker compose up -d
+docker compose restart antizapret
+```
+
+- Режим Swarm, выполнять на primary/manager-узле
+```shell
+docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+docker service update --force antizapret_az-local
+docker service update --force antizapret_az-world
+```
+
+### Подбор стратегий
+Для поиска рабочих стратегий остановите zapret2, запустите `blockcheck.sh`, затем снова запустите zapret2. В режиме Docker Compose:
+
+```sh
+docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/zapret2 stop
+docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/blockcheck.sh
+docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/zapret2 start
+```
+
+Для более быстрого точечного поиска передайте домены и параметры поиска:
+
+```sh
+docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="youtube.com discord.com" /opt/zapret2/blockcheck.sh'
+```
+
 ## Переменные окружения
 
 Вы можете определить эти переменные в файле docker-compose.override.yml для своих нужд:
 
 ### Antizapret:
-Состоит из двух контейнеров: az-local и az-world. Это VPN-узлы выхода.
 - `DNS=adguard` - Upstream DNS для разрешения заблокированных сайтов (adguard по умолчанию)
 - `AZ_SUBNET=14.16.0.0/14` Подсеть для виртуальных адресов заблокированных хостов.
 - `ROUTES` - список VPN-контейнеров и их виртуальных адресов. Используется для iperf3 сервера.
 - `DOALL_DISABLED=` - пропустить запуск на узле az-world.
+- `IPTABLES_SAVE_DISABLED=` - пропустить восстановление правил iptables при запуске и сохранение при остановке.
+- `ZAPRET_ENABLED=0` - установите `1`, чтобы включить модификацию проходящего через контейнер HTTP-, HTTPS- и QUIC-трафика с помощью zapret2.
+- `ZAPRET_CONFIG=/opt/zapret2/config/zapret.conf` - путь внутри контейнера к файлу конфигурации zapret2. Конфигурация по умолчанию создается автоматически при первом запуске и сохраняется в `./config/antizapret/zapret2/zapret.conf`.
 
 ### Adguard:
 - `ROUTES` - список VPN-контейнеров и их виртуальных адресов. Используется для уникальных клиентских адресов в логах adguard
@@ -614,6 +697,14 @@ AntiZapret использует DNS-маршрутизацию (split tunneling)
 ### SOCKS5 прокси (устарело, используйте proxy ниже)
 - `SOCKS_USERNAME` - имя пользователя для аутентификации SOCKS5 (пропустите, чтобы отключить аутентификацию)
 - `SOCKS_PASSWORD` - пароль для аутентификации SOCKS5 (пропустите, чтобы отключить аутентификацию)
+
+### Proxy (http + socks5)
+- `PROXY_LOGIN` - имя пользователя для HTTP аутентификации (пропуск отключает аутентификацию)
+- `PROXY_PASSWORD` - пароль для HTTP аутентификации (пропуск отключает аутентификацию)
+- `PROXY_PORT=8180` - HTTP порт для прослушивания
+- `SOCKS_PORT=8118` - SOCKS5 порт для прослушивания
+- `EXTRA_ACCOUNTS` - Дополнительные пары логин:пароль. Пример: `login:password;login2:password2`
+- `EXTRA_CONFIG` - Сырые строки конфигурации 3proxy, внедряемые перед директивами proxy/socks (по умолчанию пусто)
 
 ## DNS
 ### Upstream DNS для Adguard

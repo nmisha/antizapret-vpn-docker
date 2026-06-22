@@ -31,11 +31,15 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
   - [Adding IPs/Subnets](#adding-ipssubnets)
   - [SOCKS5 and HTTP(S) Proxy (per-application routing)](#socks5-and-https-proxy-per-application-routing)
     - [How it works](#how-it-works-1)
+    - [How to disable HTTPS access from the internet](#how-to-disable-https-access-from-the-internet)
     - [When to use proxy instead of DNS-based routing](#when-to-use-proxy-instead-of-dns-based-routing)
     - [Configuration](#configuration)
     - [Client setup](#client-setup)
     - [Example use cases](#example-use-cases)
   - [HTTP(S) Proxy](#https-proxy)
+  - [Using zapret2](#zapret2)
+    - [Changing configuration](#changing-configuration)
+    - [Strategy selection](#strategy-selection)
   - [Environment Variables](#environment-variables)
   - [DNS](#dns)
     - [Adguard Upstream DNS](#adguard-upstream-dns)
@@ -64,7 +68,8 @@ https://t.me/antizapret_support
 - Multi-Server Architecture to bypass services geo restrictions. Different domains use different servers as exit nodes.
 - Firewall to protect from port scanning
 - Support for kernel modules for OpenVPN and Amnezia Wireguard to decrease CPU usage.
-- SOCKS5 proxy (Dante) for per-application routing through local or world exit nodes
+- SOCKS5 and HTTP(S) proxies for per-application routing through local or world exit nodes
+- Built-in anti-DPI support with [bol-van/zapret2](https://github.com/bol-van/zapret2) for HTTP, TLS, and QUIC traffic. Config bundled from [vernette/ss-zapret2](https://github.com/vernette/ss-zapret2)
 
 # How it works?
 
@@ -80,6 +85,9 @@ https://t.me/antizapret_support
 
 
 # Installation
+
+> [!IMPORTANT]
+> Commands must be run as root. Otherwise, config files will have inconsistent rights, and some containers will reboot infinitely.
 
 ## Single Server (Easy)
 
@@ -146,6 +154,9 @@ Some of the sites, which use geoip to block users, will be proxied through **for
     ```
 1. [Primary] Add labels for nodes `docker node update --label-add location=local az-local && docker node update --label-add location=world az-world`
 1. [Primary]: start swarm `   docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret`
+1. [Primary]: Docker Swarm does not support passing host devices to services in the same way as Docker Compose, so VPN containers require DKMS kernel modules:
+    - [Enable OpenVPN Data Channel Offload (DCO)](#enable-openvpn-data-channel-offload-dco)
+    - [Enable Amnezia Wireguard Kernel Extension](#enable-amnezia-wireguard-kernel-extension)
 
 ## VPN / Hosting block
 Most providers now block vpn connections to foreign IPs. Obfuscation in Amnezia or OpenVpn not always fix the issue.
@@ -262,15 +273,28 @@ Some containers have same ports. So you need to choose unique external port in d
    docker system prune -af
    ```
 - Swarm mode:
-   ```shell
-   docker stack rm antizapret && sleep 10
-   git fetch && git checkout v6 && git pull --rebase
-   docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
-   docker system prune -af
+   - master node:
+  ```shell
+  docker stack rm antizapret && sleep 10
+  git fetch && git checkout v6 && git pull --rebase
+  docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+  docker system prune -af
    ```
+  - worker nodes:
+  ```shell
+  git fetch && git checkout v6 && git pull --rebase
+  ```
+
 2. Update clients:
-   - Wireguard/Amnezia - need to download new client configs, or add `14.16.0.0/14` to AllowedIps manually in old configs.
-   - OpenVPN - need to click save at openvpn-ui server config page: http://openvpn-ui.antizapret:8080/ov/config/ and then restart openvpn server.
+   - Wireguard/Amnezia 
+     - Check if your password is longer than 12 symbols. Update if needed in docker-compose.override.yml
+     - Download new client configs, or add `14.16.0.0/14` to AllowedIps manually in old configs.
+   - OpenVPN 
+     - Click save at openvpn-ui server config page: http://openvpn-ui.antizapret:8080/ov/config/ and then restart openvpn server.
+     - Install new dkms module on host: `apt remove openvpn-dkms-dco` + https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/README.md?tab=readme-ov-file#enable-openvpn-data-channel-offload-dco
+   - Socks 
+   Replace it with proxy container and rename ENV variables. See example: https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/docker-compose.override.sample.yml#L63-L93
+   Make sure you use strong password, because now HTTPS proxy accessible from internet.
 
 ## Reset:
 Remove all settings, vpn configs and return initial state of service:
@@ -481,7 +505,7 @@ It's a solution for per-application routing.
 ### How it works
 
 1. Connect to VPN (OpenVPN, WireGuard or Amnezia WireGuard)
-2. Configure your application to use SOCKS5 or HTTP/HTTPS proxy via proxy settings or tools like [ProxiFyre](https://github.com/wiresock/proxifyre)
+2. Configure your application to use SOCKS5 or HTTP/HTTPS proxy via proxy settings or tools like [AntizapretSOCKS5](https://github.com/danayer/AntizapretSOCKS5) (Windows), ProxyBridge, Proxifier or proxy settings in a web browser.
 3. All traffic from that application (including direct IP connections) will exit through the selected server node
 
 Two proxy containers are available:
@@ -496,6 +520,15 @@ Two proxy containers are available:
 
 Authentication: Basic (SOCKS5/HTTP/HTTPS) configured via environment variables.
 Authentication is required because the HTTPS proxy is accessible from the internet.
+
+### How to disable HTTPS access from the internet
+
+Without HTTPS it's safe to use a proxy with an empty username and password.
+
+There are two options:
+- Make https container ENV variables for proxy-local.antizapret and proxy-world.antizapret empty.
+- Change the hostname in your docker-compose.override.yml, so caddy/https can't reach them by default proxy-local.antizapret.
+
 
 ### When to use proxy instead of DNS-based routing
 
@@ -554,16 +587,76 @@ Add proxy services to `docker-compose.override.yml`:
     - **Username:** value of `PROXY_LOGIN`
     - **Password:** value of `PROXY_PASSWORD`
 
+## zapret2
+zapret2 support is based on [bol-van/zapret2](https://github.com/bol-van/zapret2), an anti-DPI toolkit that can modify HTTP, TLS, and QUIC traffic, and uses the Docker packaging from [vernette/ss-zapret2](https://github.com/vernette/ss-zapret2) as the source of the bundled zapret2 files. In this container it runs on antizapret exit-node traffic and can be tuned with the variables below.
+
+It is disabled by default because it can cause problems on some hostings. To enable anti-DPI processing for HTTP, TLS, and QUIC traffic passing through the antizapret exit node, add it to `docker-compose.override.yml`:
+
+```yaml
+services:
+  az-local:
+    environment:
+      - ZAPRET_ENABLED=1
+```
+
+If you use compose mode and the az-world node also suffers from DPI, enable it there too:
+```yaml
+services:
+  az-world:
+    environment:
+      - ZAPRET_ENABLED=1
+```
+
+On the first start, the default zapret2 config is created at `./config/antizapret/zapret2/zapret.conf`.
+
+### Changing configuration
+Edit `NFQWS2_OPT` in this file to tune HTTP, TLS, and QUIC strategies. To disable zapret2 again, set `ZAPRET_ENABLED=0`.
+
+
+Apply config changes with the command for your deployment mode:
+
+- Compose mode:
+```shell
+# Docker Compose
+docker compose up -d
+docker compose restart antizapret
+```
+
+- Swarm mode, run on the primary/manager node
+```shell
+docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+docker service update --force antizapret_az-local
+docker service update --force antizapret_az-world
+```
+
+### Strategy selection
+To search for working strategies, stop zapret2, run `blockcheck.sh`, then start zapret2 again. In Docker Compose mode:
+
+```sh
+docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/zapret2 stop
+docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/blockcheck.sh
+docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/zapret2 start
+```
+
+For a faster targeted search, pass domains and search options:
+
+```sh
+docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="youtube.com discord.com" /opt/zapret2/blockcheck.sh'
+```
+
+
 ## Environment Variables
 
 You can define these variables in docker-compose.override.yml file for your needs:
 
 ### Antizapret:
-Consists of two containers: az-local and az-world. This is VPN exit nodes.
 - `DNS=adguard` - Upstream DNS for resolving blocked sites (adguard by default)
 - `AZ_SUBNET=14.16.0.0/14` Subnet for virtual addresses for blocked hosts.
 - `ROUTES` - list of VPN containers and their virtual addresses. Used for iperf3 server.
 - `DOALL_DISABLED=` - skip run on az-world node.
+- `IPTABLES_SAVE_DISABLED=` - skip iptables rules restore on startup and save on shutdown.
+- `ZAPRET_ENABLED=0` - set to `1` to enable zapret2 traffic modification for HTTP, HTTPS, and QUIC traffic passing through the container. 
+- `ZAPRET_CONFIG=/opt/zapret2/config/zapret.conf` - path inside the container to the zapret2 configuration file. The default config is created automatically on first start and is persisted at `./config/antizapret/zapret2/zapret.conf`.
 
 ### Adguard: 
 - `ROUTES` - list of VPN containers and their virtual addresses. Used for unique client addresses in adguard logs
@@ -621,8 +714,8 @@ Consists of two containers: az-local and az-world. This is VPN exit nodes.
 - `PROXY_LOGIN` - username for HTTP authentication (omitting disable authentication)
 - `PROXY_PASSWORD` - password for HTTP authentication (omitting disable authentication)
 - `PROXY_PORT=8180` - HTTP port to listen
-- `SOCKS_PORT=8118` - HTTPS port to listen
-- `EXTRA_ACCOUNTS` - Additional login:passord pairs. Example: `login:password;login2:password2`
+- `SOCKS_PORT=8118` - SOCKS5 port to listen
+- `EXTRA_ACCOUNTS` - Additional login:password pairs. Example: `login:password;login2:password2`
 - `EXTRA_CONFIG` - Raw 3proxy config lines injected before proxy/socks directives (empty by default)
 
 ## DNS

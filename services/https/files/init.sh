@@ -56,7 +56,6 @@ generate_global_config() {
     if [ "$IS_SELF_SIGNED" -eq 1 ]; then
         cat <<EOF >>"$CONFIG_FILE"
 {
-  auto_https disable_redirects
   servers {
   		listener_wrappers {
   			http_redirect
@@ -69,7 +68,8 @@ EOF
         cat <<EOF >>"$CONFIG_FILE"
 {
   email $PROXY_EMAIL
-  auto_https disable_redirects
+  http_port 80
+  https_port 443
 }
 EOF
     fi
@@ -176,10 +176,15 @@ add_services_to_config() {
 }
 EOF
     else
+        if [ "$external_port" -eq 443 ]; then
+          external_port=''
+        else
+          external_port=":$external_port"
+        fi
         cat <<EOF >>"$CONFIG_FILE"
 
 #$name#
-https://$PROXY_DOMAIN:$external_port {
+$PROXY_DOMAIN$external_port {
   header {
     -X-Frame-Options
   }
@@ -191,6 +196,8 @@ https://$PROXY_DOMAIN:$external_port {
 	}
 
   reverse_proxy {
+    header_up Authorization {http.request.header.Authorization}
+    header_up Proxy-Authorization {http.request.header.Proxy-Authorization}
     dynamic a {
       name $internal_host
       port $internal_port
