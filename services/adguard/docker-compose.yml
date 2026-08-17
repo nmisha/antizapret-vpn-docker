@@ -1,6 +1,6 @@
 services:
   adguard:
-    image: xtrime/antizapret-vpn-adguard:6.8.2
+    image: nmisha/antizapret-vpn-adguard:6.8.2
     build:
       context: .
       x-bake:
@@ -21,6 +21,7 @@ services:
       - "github.io=185.199.110.153"
       - "xtrime-ru.github.io=185.199.110.153"
       - "adguardteam.github.io=185.199.110.153"
+      - "nmisha.github.io=185.199.110.153"
     healthcheck:
       test: (timeout 10m /root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
       interval: 10s
