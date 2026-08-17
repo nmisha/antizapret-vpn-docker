@@ -17,6 +17,7 @@ Antizapret создан для того, чтобы перенаправлять
   - [После установки](#после-установки)
   - [Доступ к админ-панелям](#доступ-к-админ-панелям)
     - [HTTPS](#https)
+      - [Собственные сайты на портах 80 и 444](#собственные-сайты-на-портах-80-и-444)
     - [Локальная сеть](#локальная-сеть)
     - [HTTP](#http)
   - [Обновление](#обновление)
@@ -28,6 +29,7 @@ Antizapret создан для того, чтобы перенаправлять
   - [Добавление доменов](#добавление-доменов)
     - [Добавление доменов через правила](#добавление-доменов-через-правила)
     - [Добавление доменов через списки](#добавление-доменов-через-списки)
+    - [Перенаправление сайта через VPN для отдельного клиента](#перенаправление-сайта-через-vpn-для-отдельного-клиента)
   - [Добавление IP/подсетей](#добавление-ipподсетей)
   - [SOCKS5 и HTTP(S) прокси (маршрутизация для конкретных приложений)](#socks5-и-https-прокси-маршрутизация-для-конкретных-приложений)
     - [Как это работает](#как-это-работает-1)
@@ -44,6 +46,7 @@ Antizapret создан для того, чтобы перенаправлять
   - [DNS](#dns)
     - [Upstream DNS для Adguard](#upstream-dns-для-adguard)
     - [CDN + ECS](#cdn--ecs)
+  - [OpenConnect (ocserv)](#openconnect-ocserv)
   - [OpenVPN](#openvpn)
     - [Создание клиентских сертификатов](#создание-клиентских-сертификатов)
     - [Включение OpenVPN Data Channel Offload (DCO)](#включение-openvpn-data-channel-offload-dco)
@@ -63,7 +66,7 @@ https://t.me/antizapret_support
 
 - Модульный дизайн. В качестве строительных блоков нашей системы используются внешние высококачественные open-source модули/контейнеры.
 - Удобные веб-панели для администрирования VPN и DNS.
-- Множество VPN-транспортов: Wireguard, Amnezia Wireguard, OpenVPN.
+- Множество VPN-транспортов: WireGuard, AmneziaWG, OpenVPN и OpenConnect (ocserv).
 - AdguardHome в качестве основного DNS-резолвера и менеджера заблокированных доменов.
 - Многосерверная архитектура для обхода гео-ограничений сервисов. Разные домены используют разные серверы в качестве узлов выхода.
 - Файрвол для защиты от сканирования портов.
@@ -91,6 +94,8 @@ https://t.me/antizapret_support
 ## Один сервер (Просто)
 
 Рекомендуется использовать сервер, расположенный в западных странах. Некоторые сайты будут блокировать пользователей из других стран.
+По умолчанию Compose запускает один контейнер выхода `az-local`. Он обслуживает
+и локальный, и мировой списки доменов в диапазоне `14.16.0.0/15`.
 
 0. Установите [Docker Engine](https://docs.docker.com/engine/install/):
    ```bash
@@ -143,7 +148,7 @@ Docker swarm используется для построения единой �
 2. [Первичный] Измените имена хостов серверов на az-local и az-world для удобства: `hostnamectl set-hostname az-local`
 3. [Вторичный] Измените имена хостов серверов на az-local и az-world для удобства: `hostnamectl set-hostname az-world`
 4. [Опционально] hub.docker.com может быть недоступен на локальных хостингах. Можно использовать прокси. См. инструкции: https://dockerhub.timeweb.cloud
-   Альтернативно образы можно собрать локально на **обоих серверах**: `docker compose build`
+   Альтернативно образы можно собрать локально на **обоих серверах**: `docker compose --env-file compose.swarm.env build`
 5. [Первичный]: `docker swarm init --advertise-addr <PRIMARY_SERVER_PUBLIC_IP_ADDRESS>`
 6. [Вторичный]: Скопируйте команду из результатов и выполните ее на вторичном узле: `docker swarm join --token <TOKEN> <MANAGER_IP_ADDRESS>:<PORT>`
 7. [Первичный]: Проверьте swarm `docker node ls`
@@ -153,7 +158,10 @@ Docker swarm используется для построения единой �
     vspy2m6w4tf7uv4ywgdnzttvr     az-world   Ready     Active                          29.0.1
     ```
 8. [Первичный] Добавьте метки для узлов `docker node update --label-add location=local az-local && docker node update --label-add location=world az-world`
-9. [Первичный]: запустите swarm `   docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret`
+9. [Первичный]: запустите swarm. Последний Compose-файл добавляет `az-world` и разделяет диапазон адресов между двумя узлами выхода:
+   ```shell
+   docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+   ```
 10. [Первичный]: Docker Swarm не поддерживает передачу устройств хоста в сервисы так же, как Docker Compose, поэтому для работы VPN-контейнеров требуются DKMS-модули ядра:
     - [Включение OpenVPN Data Channel Offload (DCO)](#включение-openvpn-data-channel-offload-dco)
     - [Включение расширения ядра Amnezia Wireguard](#включение-расширения-ядра-amnezia-wireguard)
@@ -201,14 +209,35 @@ apt install -y iptables-persistent
 
 ### HTTPS
 По умолчанию все контейнеры доступны через https. Для управления сертификатами используется отдельный контейнер `https`.
-Если вы не предоставили домен и email в его переменных окружения, он сгенерирует самоподписанные сертификаты.
+Если домен не задан, Caddy определяет публичный IPv4 сервера и запрашивает для него краткосрочный сертификат Let's Encrypt. До успешной проверки ACME используется постоянный самоподписанный сертификат, поэтому HTTPS и ocserv запускаются, даже когда `80/tcp` недоступен из Интернета.
+Caddy передаёт все соединения со своего Layer 4 listener на `443/tcp` в ocserv и сообщает исходный адрес клиента через PROXY protocol v2. Dashboard использует отдельный HTTPS-порт `444/tcp`, а канал DTLS ocserv публикуется напрямую на `443/udp`.
 
-- dashboard: https://%your-server-ip%:443
+- dashboard: https://%your-server-ip%:444
 - adguard: https://%your-server-ip%:1443
 - filebrowser: https://%your-server-ip%:2443
 - openvpn: https://%your-server-ip%:3443
 - wireguard: https://%your-server-ip%:4443
 - wireguard-amnezia: https://%your-server-ip%:5443
+
+#### Собственные сайты на портах 80 и 444
+
+Дополнительные конфигурации Caddy можно сохранять в каталоге `config/https/config/sites-enabled`. Каталог создаётся автоматически при запуске контейнера `https`, а все файлы из него подключаются к основному Caddyfile.
+
+Например, чтобы опубликовать сервис `my-app`, доступный в Docker-сети на порту `8080`, создайте файл `config/https/config/sites-enabled/my-app.caddy`:
+
+```caddyfile
+example.com {
+  reverse_proxy my-app:8080
+}
+```
+
+Caddy будет принимать запросы к `example.com` на портах 80 и 444, автоматически перенаправлять HTTP на HTTPS-порт 444 и управлять TLS-сертификатом. Домен должен указывать на сервер, а сервис `my-app` должен быть доступен контейнеру `https` в общей Docker-сети.
+
+После добавления или изменения конфигурации перезапустите контейнер:
+
+```shell
+docker service update --force antizapret_https || docker compose restart https
+```
 
 
 ### Локальная сеть
@@ -256,7 +285,7 @@ services:
    ```shell
    git pull --rebase
    docker pull xtrime/antizapret-vpn:6
-      docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+   docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
    docker system prune -af
    ```
 
@@ -275,7 +304,7 @@ services:
    ```shell
    docker stack rm antizapret && sleep 10
    git fetch && git checkout v6 && git pull --rebase
-   docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+   docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
    docker system prune -af
    ```
 2. Обновите клиентов:
@@ -335,17 +364,19 @@ git restore config
    3. Убедитесь, что модули ядра для вашего VPN установлены и работают: [OVPN DCO](#включение-openvpn-data-channel-offload-dco), [расширение ядра Amnezia Wireguard](#включение-расширения-ядра-amnezia-wireguard).
    4. Некоторые недорогие хостинги имеют очень медленные процессоры, поэтому даже с установленными модулями ядра скорость соединения не превысит 100 Мбит/с.
    5. Большинство роутеров имеют медленные процессоры и обеспечивают только 30-60 Мбит/с через openvpn. Попробуйте использовать Wireguard или Amnezia Wireguard, если роутер поддерживает это, или обновите роутер до более новой модели.
-   6. В редких случаях низкий MTU между клиентом и сервером может вызывать фрагментацию пакетов.
+   6. По умолчанию новые установки wireguard и openvpn используют низкий MTU `1280` для стабильного соединения в любых условиях. Можно увеличить до `1480`, чтобы немного повысить скорость.
+      
       Сначала проверьте, есть ли у вашего VPN-соединения проблемы со стандартным MTU.
-      - MacOs: `ping -D -s 1420 google.com`
-      - Linux: `ping -M -s 1420 google.com`
-      - Windows: `ping google.com -f -l 1420`
+      - MacOs: `ping -D -s 1100 youtube.com`
+      - Linux: `ping -M -s 1100 youtube.com`
+      - Windows: `ping youtube.com -f -l 1100`
 
-      Если эта команда возвращает ошибки, продолжайте уменьшать значение, пока не заработает. Затем уменьшите MTU в настройках VPN.
+      Для старых установок нужно вручную уменьшить MTU в настройках:
       - Wireguard/Amezia:
         MTU должен быть меньше на сервере и клиенте.
-          1. Перейдите на http://wireguard.antizapret:51821 или http://wireguard-amnezia.antizapret:51821 и нажмите на иконку конфига клиента.
-          1. Уменьшите MTU до 1200 и сохраните. MTU специфичен для клиента.
+          1. Перейдите на http://wireguard.antizapret:51821 или http://wireguard-amnezia.antizapret:51821
+          1. Перейдите в `/admin/interface` и задайте MTU там тоже.
+          1. Нажмите на иконку конфига клиента. Уменьшите MTU до `1280` и сохраните.
           1. Скачайте и примените новый конфиг к вашему клиенту.
           1. [Тест скорости с iperf3](#тест-скорости-с-iperf3)
       - OpenVPN:
@@ -375,6 +406,13 @@ git restore config
 
 ![Preview](./img/chart.png)
 
+В односерверном Compose-режиме контейнер `az-local` также получает сетевые
+alias `az-world` и `az-world.antizapret`. CoreDNS определяет, что имена обоих
+узлов выхода имеют один адрес, и опрашивает контейнер только один раз; AdGuard
+создаёт для клиента `az-local` правила из локального и мирового списков. В
+Swarm-режиме короткие и полные alias разделяются между двумя сервисами, поэтому
+CoreDNS сначала опрашивает `az-world`, затем `az-local`.
+
 1. DNS-запрос поступает в AdGuardHome
 2. Adguard проверяет его правилами черного списка. Если домен в черном списке - возвращается 0.0.0.0, и клиент не может получить доступ к домену.
 3. Adguard отправляет DNS-запрос в сервис CoreDNS.
@@ -383,7 +421,7 @@ git restore config
 6. Если домен в белом списке - adguard разрешит его адрес и вернет в dnsmap.py.
 7. Если домен не в белом списке, adguard возвращает SERVFAIL.
 8. dnsmap.py отправляет ответ в adguard:
-   1. Если это валидный IP, то заменяет его на "внутренний" IP из подсети `14.16.0.0/15`, добавляет маскарадинг в iptables и возвращает внутренний ip в adguard
+   1. Если это валидный IP, то заменяет его на «внутренний» IP из подсети контейнера выхода (`14.16.0.0/15` для `az-local`), добавляет маскарадинг в iptables и возвращает внутренний IP в AdGuard.
    2. Если это SERVFAIL, он отправляет этот ответ клиенту.
 9. Если CoreDNS получает SERVFAIL, он повторяет запрос и отправляет его напрямую в Adguard. В этом случае правила с `$client=az-local` не применяются, и запрос обрабатывается нормально.
 
@@ -409,7 +447,7 @@ git restore config
    A: 14.16.13.206 (ttl=300)
    A: 14.16.13.208 (ttl=300)
    ```
-2. DNS-запрос от coredns в az-world. И запрос от az-world в Adguard:
+2. В Swarm-режиме DNS-запрос от coredns в az-world и запрос от az-world в Adguard (в односерверном Compose-режиме этот шаг пропускается):
    ```text
    Status: Rewritten
    Elapsed: 0.10 ms
@@ -455,6 +493,7 @@ git restore config
 ```
 @@||subdomain.host.com^$dnsrewrite,client=az-local
 @@||*.host.com^$dnsrewrite,client=az-local
+# правила az-world применяются только в Swarm-режиме
 @@||host.com^$dnsrewrite,client=az-world
 @@||de^$dnsrewrite,client=az-world
 
@@ -465,8 +504,31 @@ git restore config
 Также вы можете добавить любые url в blocklist. http://adguard.antizapret:3000/#dns_blocklist
 Необходимо использовать адаптер для парсинга и адаптации списка в различных форматах.
  - Добавить домены для локального узла выхода: `http://az-local.antizapret/list/?url=<ANY_URL>`
- - Добавить домены для мирового узла выхода `http://az-world.antizapret/list/?url=<ANY_URL>`
+ - Добавить домены для отдельного мирового узла выхода в Swarm-режиме: `http://az-world.antizapret/list/?url=<ANY_URL>`
+ - В односерверном Compose-режиме для обоих типов доменов используйте `az-local`.
 Поддерживаемые форматы: простой список доменов, формат adguard, формат hosts, json-массив доменов, список regex.
+
+### Перенаправление сайта через VPN для отдельного клиента
+
+Чтобы направить определенный сайт через VPN только для одного клиента:
+
+1. Найдите внутренний IP-адрес клиента в панели соответствующего VPN-сервера или в журнале запросов AdGuard Home.
+2. Откройте страницу клиентов AdGuard Home: http://adguard.antizapret:3000/#clients, добавьте найденный IP-адрес в список клиентов и задайте для него следующие upstream DNS-серверы:
+   ```text
+   coredns
+   [/*.antizapret/]127.0.0.11
+   [/example.com/]udp://coredns.antizapret
+   ```
+3. Откройте настройки DNS AdGuard Home: http://adguard.antizapret:3000/#dns и добавьте upstream для нужного домена:
+   ```text
+   [/example.com/]1.1.1.1
+   ```
+4. Добавьте `example.com` в файл `include-hosts-custom.txt`, либо добавьте на странице пользовательских правил http://adguard.antizapret:3000/#custom_rules следующее правило:
+   ```text
+   @@||example.com^$dnsrewrite,client=az-local
+   ```
+
+После настройки обычный локальный запрос в AdGuard Home будет возвращать реальный IP-адрес сайта, а запрос от указанного VPN-клиента — подменный внутренний IP-адрес, трафик к которому направляется через VPN.
 
 
 Опции для адаптера:
@@ -480,10 +542,53 @@ git restore config
  - `raw=0` - не изменять правила
  - `suffix=1` - добавить "$dnsrewrite,client=xxx" в правила
  - `dnsrewrite=SERVFAIL` - указать зачение директивы dnsrewrite
+ - `regex=0` - обернуть каждую входную строку как регулярное выражение AdGuard
+
+Файл `exclude-hosts-custom.txt` из каждого контейнера выхода также загружается в AdGuard как блокирующее DNS rewrite-правило для клиента `az-resolver`. Благодаря этому совпавший домен не маршрутизируется через VPN-узел по правилу ASN. Шаблоны используют синтаксис расширенных регулярных выражений; также поддерживаются выражения, уже обрамлённые символами `/`.
 
 ## Добавление IP/подсетей
 Добавьте ip и подсети в `./config/antizapret/custom/include-ips-custom.txt`.
 Контейнеры периодически проверяют изменения в папке config (каждые 5-10 секунд) и перезапускаются/обновляются после любых изменений.
+
+## Добавление ASN
+
+Правила ASN позволяют направлять домены через VPN-узел на основании сети, которой принадлежат
+разрешённые IPv4-адреса. Если обычный запрос AdGuard для `az-local` или `az-world` вернул
+`SERVFAIL`, `dnsmap` разрешает домен напрямую через клиента `az-resolver` и проверяет каждую
+A-запись по базе ASN MaxMind. Если хотя бы один адрес совпал с правилом, все IPv4-адреса из
+этого DNS-ответа заменяются внутренними адресами `dnsmap`, трафик к которым направляется через
+соответствующий VPN-узел. Если A-записей нет или ни одна сеть не совпала, сохраняется исходный
+отфильтрованный ответ.
+
+Файлы пользовательских правил:
+
+- Локальный узел: `./config/antizapret/custom/include-asn-custom.txt`
+- Зарубежный узел: `./config/antizapret/custom/include-asn-world-custom.txt`
+- Исключения локального узла: `./config/antizapret/custom/exclude-asn-custom.txt`
+- Исключения зарубежного узла: `./config/antizapret/custom/exclude-asn-world-custom.txt`
+
+Каждая непустая строка может содержать:
+
+- Точный номер ASN: `AS13335` или `13335`
+- Регистронезависимую подстроку исходного названия организации MaxMind: `Cloudflare`
+- Регистронезависимое регулярное выражение между символами `/`: `/\bg-?core\b/`
+
+Комментарии начинаются с `#` и могут располагаться на отдельных строках или после правила.
+Дистрибутивные правила из `ASN_URL` и `ASN_WORLD_URL` объединяются с соответствующими файлами
+пользовательских включений. Файлы исключений удаляют точные строки без учёта регистра до
+создания рабочих списков.
+
+В односерверном Compose-режиме `ASN_FILES` передаёт `az-local` оба итоговых ASN-файла, поэтому
+оба списка маршрутизируются через локальный узел выхода. В Swarm-режиме каждый сервис выхода
+получает только собственный ASN-файл.
+
+Для отладки фильтров `dnsmap` записывает в лог IP-адрес, ASN и организацию как для совпавших,
+так и для несовпавших сетей. Сообщение `ASN data not found` означает, что в MaxMind нет записи
+для адреса. Пустые адреса и `0.0.0.0` игнорируются без обращения к базе. При успешном совпадении
+в лог также выводится конкретное правило ASN, подстрока или регулярное выражение, запустившее
+маршрутизацию.
+
+[Онлайн-проверка DPI](https://hyperion-cs.github.io/dpi-checkers/ru/tcp-16-20/)
 
 Запустить обновление вручную: `docker exec $(docker ps -q --filter=name=az | head -n1) doall`
 
@@ -570,12 +675,14 @@ AntiZapret использует DNS-маршрутизацию (split tunneling)
 ### Настройка клиента
 
 1. Подключитесь к VPN
-2. Настройте SOCKS5 или HTTP/HTTPS прокси в вашем приложении или браузере:
-    - **Хост:** `proxy-local.antizapret` или `proxy-world.antizapret`
-    - **SOCKS5 порт:** `1080`
-    - **HTTP/HTTPS порт:** `3128`
+2. Настройте HTTPS-прокси, опубликованный контейнером `https`, в вашем приложении или браузере:
+    - **Хост:** IP-адрес или доменное имя вашего сервера
+    - **Порт локального прокси:** `8143`
+    - **Порт зарубежного прокси:** `8243`
     - **Имя пользователя:** значение `PROXY_LOGIN`
     - **Пароль:** значение `PROXY_PASSWORD`
+
+После подключения к VPN контейнеры прокси также доступны напрямую как `proxy-local.antizapret` и `proxy-world.antizapret`: SOCKS5 на порту `8118` и HTTP на порту `8180`.
 
 ## zapret2
 
@@ -589,7 +696,7 @@ services:
     environment:
       - ZAPRET_ENABLED=1
 ```
-Если используется compose mode и az-world нода так же страдает от DPI, то для нее тоже стоит включить:
+Если Swarm-узел `az-world` также страдает от DPI, включите настройку и для него:
 ```yaml
 services:
   az-world:
@@ -609,29 +716,29 @@ services:
 ```shell
 # Docker Compose
 docker compose up -d
-docker compose restart antizapret
+docker compose restart az-local
 ```
 
 - Режим Swarm, выполнять на primary/manager-узле
 ```shell
-docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
 docker service update --force antizapret_az-local
 docker service update --force antizapret_az-world
 ```
 
 ### Подбор стратегий
-Для поиска рабочих стратегий остановите zapret2, запустите `blockcheck.sh`, затем снова запустите zapret2. В режиме Docker Compose:
+Для поиска рабочих стратегий остановите zapret2, запустите `blockcheck2.sh`, затем снова запустите zapret2. В режиме Docker Compose:
 
 ```sh
 docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/zapret2 stop
-docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/blockcheck.sh
+docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/blockcheck2.sh
 docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/zapret2 start
 ```
 
 Для более быстрого точечного поиска передайте домены и параметры поиска:
 
 ```sh
-docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="youtube.com discord.com" /opt/zapret2/blockcheck.sh'
+docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="youtube.com discord.com" /opt/zapret2/blockcheck2.sh'
 ```
 
 ## Переменные окружения
@@ -639,16 +746,23 @@ docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="you
 Вы можете определить эти переменные в файле docker-compose.override.yml для своих нужд:
 
 ### Antizapret:
-- `DNS=adguard` - Upstream DNS для разрешения заблокированных сайтов (adguard по умолчанию)
-- `AZ_SUBNET=14.16.0.0/14` Подсеть для виртуальных адресов заблокированных хостов.
+- `DNS=adguard` - адрес AdGuard для DNS-over-HTTPS запросов (по умолчанию `adguard`, порт DoH — `3000`).
+- `CLIENT=az-local` - ClientID AdGuard, используемый dnsmap. Для зарубежного узла задаётся `az-world`.
+- `AZ_SUBNET=14.16.0.0/15` - подсеть виртуальных адресов заблокированных хостов. На зарубежном узле используется `14.18.0.0/15`.
 - `ROUTES` - список VPN-контейнеров и их виртуальных адресов. Используется для iperf3 сервера.
-- `DOALL_DISABLED=` - пропустить запуск на узле az-world.
+- `DOALL_DISABLED=` - пропустить генерацию списков внутри контейнера. Обычно оставляйте пустым: init использует owner-файл на общем volume `result`, поэтому в Docker Compose списки генерируются только один раз, а в Swarm узлы генерируют их независимо на своих локальных volumes.
 - `IPTABLES_SAVE_DISABLED=` - пропустить восстановление правил iptables при запуске и сохранение при остановке.
+- `IPS_URL=` - URL списков IP-префиксов для локального узла, разделённые точкой с запятой. Объединённый результат записывается в `result/ips.txt`.
+- `IPS_WORLD_URL=` - URL списков IP-префиксов для зарубежного узла, разделённые точкой с запятой. Объединённый результат записывается в `result/ips-world.txt`.
+- `ASN_URL=` - URL списков номеров ASN или названий организаций для локального узла, разделённые точкой с запятой. Объединённый результат записывается в `result/asn.txt`.
+- `ASN_WORLD_URL=` - URL списков номеров ASN или названий организаций для зарубежного узла, разделённые точкой с запятой. Объединённый результат записывается в `result/asn-world.txt`.
+- `ASN_FILES=` - рабочие ASN-файлы, разделённые точкой с запятой, которые читает `dnsmap`. Compose задаёт для `az-local` оба файла — `asn.txt` и `asn-world.txt`; Swarm задаёт каждому узлу выхода только соответствующий файл.
 - `ZAPRET_ENABLED=0` - установите `1`, чтобы включить модификацию проходящего через контейнер HTTP-, HTTPS- и QUIC-трафика с помощью zapret2.
 - `ZAPRET_CONFIG=/opt/zapret2/config/zapret.conf` - путь внутри контейнера к файлу конфигурации zapret2. Конфигурация по умолчанию создается автоматически при первом запуске и сохраняется в `./config/antizapret/zapret2/zapret.conf`.
 
 ### Adguard:
 - `ROUTES` - список VPN-контейнеров и их виртуальных адресов. Используется для уникальных клиентских адресов в логах adguard
+- `AZ_WORLD_ENABLED=` - включает отдельного клиента `az-world`, отслеживание его IP и checksum мировой конфигурации. Автоматически устанавливается в `1` файлом `compose.swarm.yml`; в односерверном Compose-режиме оставьте переменную пустой.
 - `ADGUARDHOME_PORT=3000`
 - `ADGUARDHOME_USERNAME=admin`
 - `ADGUARDHOME_PASSWORD=`
@@ -662,8 +776,20 @@ docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="you
 - `FILEBROWSER_PASSWORD=password`
 
 ### Https:
-- `PROXY_DOMAIN=` - создать letsencrypt https-сертификат для домена. Если не задано, для самоподписанного сертификата используется host ip.
-- `PROXY_EMAIL=` - email для сертификата letsecnrypt.
+- `PROXY_DOMAIN=` - необязательный общий домен HTTPS-сервисов и ocserv. Если значение пустое, при запуске определяется публичный IPv4 сервера.
+- `PROXY_EMAIL=` - необязательный email учётной записи Let's Encrypt.
+- `PROXY_IP=` - необязательное переопределение публичного IPv4 для окружений, где автоматическое определение недоступно.
+- `PROXY_CERT_MODE=auto` - режим сертификата: `auto` сохраняет самоподписанный fallback и запрашивает сертификат через ACME; `selfsigned` отключает ACME-запросы.
+- `PROXY_ACME_CA=https://acme-v02.api.letsencrypt.org/directory` - URL каталога ACME. Для тестирования выпуска сертификатов используйте staging-каталог Let's Encrypt.
+- `PROXY_HTTPS_PORT=444` - HTTPS-порт Dashboard и пользовательских сайтов Caddy. Порт `443/tcp` зарезервирован для Layer 4-трафика ocserv.
+
+### OpenConnect (ocserv)
+- `ROUTES` - список VPN-контейнеров и их виртуальных адресов.
+- `OC_DEFAULT_ADDRESS=10.1.164.x` - диапазон адресов клиентов; значение должно оканчиваться на `.x`.
+- `OC_PORT=443` - внутренний TCP- и UDP-порт. Caddy передаёт на него все публичные соединения с `443/tcp`, UDP публикуется напрямую.
+- `OC_USER=admin` - пользователь, создаваемый при первом запуске.
+- `OC_USERPASS=password` - пароль пользователя, задаваемый при первом запуске.
+- `OC_SECRET=kvn` - секрет маскировки ocserv.
 
 ### Openvpn
 - `ROUTES`
@@ -691,6 +817,7 @@ docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="you
 - `INSECURE=true` - разрешить доступ к админ-панели по HTTP
 - `DISABLE_IPV6=true` - отключить поддержку IPv6
 - `WG_PORT=51820` - порт сервера wireguard
+- `MTU=1280` - MTU по умолчанию для интерфейса WireGuard и новых клиентов
 - `EXPERIMENTAL_AWG=true` - включить поддержку AmneziaWG (только wireguard-amnezia)
 - `OVERRIDE_AUTO_AWG=awg`- переменная окружения для принудительного типа туннеля: `awg` для всегда AmneziaWG, `wg` для всегда стандартного WireGuard; по умолчанию не задано и используется автоматическое определение, полезно для переопределения автовыбора и фиксации режима.
 - `BGP_ENABLE=false` - запустить bird BGP сервер. Сервер будет передавать маршруты клиентам (некоторым роутерам). Клиенты будут получать обновления маршрутов без обновления конфига wg/awg.
@@ -709,18 +836,99 @@ docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="you
 
 ## DNS
 ### Upstream DNS для Adguard
-Adguard использует Google DNS и Quad9 DNS для разрешения незаблокированных доменов. Эти апстримы поддерживают ECS-запросы (подробнее ниже).
-Cloudflare DNS не поддерживает ECS и не рекомендуется к использованию.
-
-Исходный код: [Adguard upstream DNS](./antizapret/root/adguardhome/upstream_dns_file_basis)
-После запуска контейнера рабочая копия находится здесь: `./config/adguard/conf/upstream_dns_file_basis`
+Обычные клиентские запросы AdGuard отправляет через CoreDNS. Для прямого разрешения, используемого при проверке ASN, entrypoint настраивает клиент `az-resolver` с upstream-серверами Cloudflare, Google и Quad9. Сгенерированная конфигурация хранится в `./config/adguard/conf/AdGuardHome.yaml`; её можно изменить через интерфейс AdGuard Home.
 
 ### CDN + ECS
 Некоторые домены могут разрешаться по-разному в зависимости от подсети (geoip) клиента. В этом случае использование DNS, расположенного на удаленном сервере, сломает некоторые сервисы.
 ECS позволяет предоставить IP клиента в DNS-запросах к upstream-серверу и получить корректные результаты.
-По умолчанию включено в Adguard, и ip клиента указывается на Москву (подсеть Yandex).
+По умолчанию ECS отключён. Entrypoint AdGuard не включает его автоматически ни в режиме Docker Compose, ни в режиме Docker Swarm.
 
-Если вы находитесь в другом регионе, вам нужно заменить `77.88.8.8` на ваш реальный ip-адрес на этой странице `http://your-server-ip:3000/#dns`
+Чтобы включить ECS, откройте настройки DNS AdGuard Home по адресу `http://your-server-ip:3000/#dns`, включите EDNS Client Subnet и замените предзаполненный пример `77.88.8.8` на адрес, подходящий для вашего региона.
+
+## OpenConnect (ocserv)
+
+Сервис `ocserv` совместим с клиентами OpenConnect и Cisco AnyConnect. Он использует подсеть `10.1.164.0/24` и принимает TCP- и UDP-соединения на порту `443`. Caddy передаёт в ocserv все публичные соединения с `443/tcp` по внутренней Docker-сети с PROXY protocol v2, а Docker напрямую публикует UDP-канал контейнера ocserv. Dashboard доступен отдельно на `444/tcp`; разделение трафика на порту 443 по ALPN не выполняется.
+
+В полном примере `docker-compose.override.sample.yml` сервис уже включён. Для существующей установки добавьте его в `docker-compose.override.yml` и задайте пользователя и надёжный пароль до первого запуска:
+
+```yaml
+services:
+  ocserv:
+    extends:
+      file: services/ocserv/compose.yml
+      service: ocserv
+    environment:
+      - OC_USER=admin
+      - OC_USERPASS=strongpassword
+```
+
+Без дополнительных настроек сервис `https` определяет публичный IPv4 сервера и создаёт постоянный резервный самоподписанный сертификат. Caddy обслуживает им соединения на порту 444, независимо запрашивает публичный сертификат Let's Encrypt с SAN типа `IP Address`, а затем переключается на managed-сертификат без остановки сервисов. Поскольку порт 443 зарезервирован для ocserv, проверка ACME выполняется методом HTTP-01 через порт 80. Сертификаты на IP используют обязательный профиль `shortlived`, действуют 160 часов и обновляются автоматически. Неудачные ACME-попытки повторяются, а сервисы в это время остаются доступны с резервным сертификатом. Для локальной установки без публичного IP задайте `PROXY_CERT_MODE=selfsigned`, чтобы отключить ACME-запросы. Чтобы использовать один домен для HTTPS-сервисов и ocserv, задайте `PROXY_DOMAIN` сервису `https`.
+
+Разрешите входящие `443/tcp` и `443/udp`, затем запустите сервис:
+
+```shell
+docker compose up -d ocserv
+```
+
+### Управление пользователями
+
+`OC_USER` и `OC_USERPASS` создают начального пользователя, только если файла `./config/ocserv/ocpasswd` ещё нет. Чтобы добавить пользователя или сменить пароль существующего пользователя, выполните команду и дважды введите новый пароль:
+
+```shell
+docker compose exec ocserv \
+  ocpasswd -g az -c /etc/ocserv/ocpasswd username
+```
+
+Удаление, блокировка и разблокировка пользователя:
+
+```shell
+docker compose exec ocserv ocpasswd -d -c /etc/ocserv/ocpasswd username
+docker compose exec ocserv ocpasswd -l -c /etc/ocserv/ocpasswd username
+docker compose exec ocserv ocpasswd -u -c /etc/ocserv/ocpasswd username
+```
+
+Проверка состояния сервера и подключённых пользователей:
+
+```shell
+docker compose exec ocserv occtl show status
+docker compose exec ocserv occtl show users
+```
+
+База паролей сохраняется в `./config/ocserv/ocpasswd`.
+
+`./config/ocserv/ocserv.tmpl` и `./config/ocserv/az.tmpl` — постоянные редактируемые шаблоны, которые создаются только при отсутствии. При каждом запуске ENV-плейсхолдеры подставляются в `/run/ocserv/ocserv.conf` и `/run/ocserv/config-per-group/az`, после чего в сгенерированный `az` добавляются актуальные IP-маршруты. Редактировать нужно `.tmpl`-файлы, а не runtime-файлы; для применения изменений перезапустите контейнер. Шаблоны с уже подставленными значениями продолжат работать; ENV меняет параметр, только если в шаблоне оставлен соответствующий плейсхолдер.
+
+### Настройка клиента
+
+Адрес сервера имеет следующий формат:
+
+```text
+https://SERVER/?SECRET
+```
+
+Если настроен `PROXY_DOMAIN`, используйте его вместо `SERVER`; иначе укажите публичный IP сервера. `SECRET` — значение `OC_SECRET`, по умолчанию `kvn`. Строка запроса обязательна из-за режима маскировки ocserv.
+
+Для OpenConnect укажите протокол AnyConnect и созданного выше пользователя:
+
+```shell
+sudo openconnect --protocol=anyconnect --user username \
+  'https://SERVER/?kvn'
+```
+
+В графическом клиенте OpenConnect выберите протокол Cisco AnyConnect и укажите тот же полный URL. В Cisco Secure Client/AnyConnect введите `SERVER/?kvn` в поле подключения, подключитесь и укажите имя пользователя и пароль. Порт 443 выделен ocserv независимо от ALPN; Dashboard открывается по адресу `https://SERVER:444`.
+
+При использовании публичного ACME-сертификата дополнительная настройка сертификатов не нужна. Если активен резервный самоподписанный сертификат, перед подтверждением предупреждения проверьте активный сертификат:
+
+```shell
+openssl x509 -in ./config/https/data/ocserv/certificate.crt \
+  -noout -subject -issuer -fingerprint -sha256
+```
+
+OpenConnect позволяет закрепить fingerprint из предупреждения параметром `--servercert`. После переключения Caddy с fallback на managed-сертификат pin изменится.
+
+Сервис `https` хранит резервный, активный сертификат и выбранный identity в `./config/https/data/ocserv`; оригинал публичного сертификата остаётся в управляемом хранилище Caddy. Caddy копирует действующий управляемый сертификат в активный путь, а до его появления использует самоподписанный fallback. Если managed-сертификат истёк или исчез до успешного продления, Caddy возвращается на fallback и автоматически активирует managed-сертификат, когда тот снова появляется. ocserv читает тот же активный сертификат, а healthcheck перезапускает контейнер после продления, замены сертификата или изменения identity. Резервный сертификат сохраняется между перезапусками и генерируется заново только при изменении identity или приближении срока окончания. Если IP сервера изменился, перезапустите сервис `https`, чтобы он определил новый адрес.
+
+Подключение напрямую по IP поддерживается [OpenConnect](https://www.infradead.org/openconnect/manual.html) и [Cisco Secure Client](https://www.cisco.com/c/en/us/td/docs/security/vpn_client/anyconnect/Cisco-Secure-Client-5/admin/guide/b-cisco-secure-client-admin-guide-5-1/configure_vpn.html). Публичный сертификат на IP не требует ручной установки доверия или закрепления сертификата, необходимых при использовании самоподписанного сертификата.
 
 ## OpenVPN
 ### Создание клиентских сертификатов:
@@ -737,33 +945,18 @@ https://github.com/d3vilh/openvpn-ui?tab=readme-ov-file#generating-ovpn-client-p
 
 Расширения ядра можно установить только на <u>хостовую машину</u>, а не в контейнер.
 
-#### Ubuntu 24.04
+#### Ubuntu 26.04/24.04/22.04/20.04
+Ubuntu 26.04 уже имеет модуль OpenVPN DCO в штатном ядре. Установка `ovpn-dkms` из репозитория OpenVPN для 26.04 опциональна и нужна только для получения более новой версии модуля.
+
 ```bash
 sudo rm -f /etc/apt/sources.list.d/openvpn.list
 sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 noble main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
+curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo tee /etc/apt/keyrings/openvpn-repo-public.asc > /dev/null
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.asc] https://build.openvpn.net/debian/openvpn/release/2.7 $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
 sudo apt update
 sudo apt install -y ovpn-dkms
 ```
-#### Ubuntu 22.04
-```bash
-sudo rm -f /etc/apt/sources.list.d/openvpn.list
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 jammy main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
-sudo apt update
-sudo apt install -y ovpn-dkms
-```
-#### Ubuntu 20.04
-```bash
-sudo rm -f /etc/apt/sources.list.d/openvpn.list
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 focal main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
-sudo apt update
-sudo apt install -y ovpn-dkms
-```
+
 ### Поддержка устаревших клиентов
 Если ваши клиенты не поддерживают шифры GCM, вы можете использовать устаревшие шифры CBC.
 DCO несовместим с устаревшими шифрами и будет отключен. Это также увеличит нагрузку на процессор.
@@ -774,33 +967,62 @@ DCO несовместим с устаревшими шифрами и буде�
 
 https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#ubuntu
 
+Образ WireGuard основан на стабильном `wg-easy` 15.4.0 и заменяет встроенные инструменты AmneziaWG 3.0 на инструменты AmneziaWG 3.1. На хост установите только соответствующий DKMS-модуль ядра; `awg` и `awg-quick` уже включены в образ контейнера.
+
+#### Ubuntu 26.04
+
+```bash
+sudo add-apt-repository ppa:amnezia/ppa
+sudo sed -i 's/\bresolute\b/noble/g' /etc/apt/sources.list.d/amnezia-ubuntu-ppa-resolute.sources
+sudo apt update
+sudo apt install -y linux-headers-$(uname -r) amneziawg-dkms
+```
+
 #### Ubuntu 24.04
-1. `sudo add-apt-repository ppa:amnezia/ppa`
-2. `sudo apt install -y amneziawg`
-3. перезапустите сервер или `docker compose restart wireguard-amnezia`
-4. проверьте список модулей ядра `dkms status`,
-   и убедитесь, что запущена куча процессов `[kworker/X:X-wg-crypt-wg0]`.
+
+```bash
+sudo add-apt-repository ppa:amnezia/ppa
+sudo apt update
+sudo apt install -y linux-headers-$(uname -r) amneziawg-dkms
+```
 
 #### Ubuntu 20.04, 22.04
-1. Отредактируйте `etc/apt/sources.list` и раскомментируйте `deb-src http://archive.ubuntu.com/ubuntu ... main restricted`
-2. `sudo apt update`
-3. `sudo apt install -y software-properties-common python3-launchpadlib gnupg2 linux-headers-$(uname -r)`
-4. установите исходный код ядра `sudo apt-get source linux-image-$(uname -r)`
-5. `sudo add-apt-repository ppa:amnezia/ppa`
-6. `sudo apt install -y amneziawg`
-7. `sudo dkms install -m amneziawg -v 1.0.0`
-8. перезапустите сервер или `docker compose restart wireguard-amnezia`
-9. проверьте список модулей ядра `dkms status`,
-   и убедитесь, что запущена куча процессов `[kworker/X:X-wg-crypt-wg0]`.
+
+1. Отредактируйте `/etc/apt/sources.list` и раскомментируйте `deb-src http://archive.ubuntu.com/ubuntu ... main restricted`.
+2. Выполните:
+
+```bash
+sudo apt update
+sudo apt install -y software-properties-common python3-launchpadlib gnupg2 linux-headers-$(uname -r)
+sudo apt-get source linux-image-$(uname -r)
+sudo add-apt-repository ppa:amnezia/ppa
+sudo apt update
+sudo apt install -y amneziawg-dkms
+```
+
+После установки или обновления модуля перезагрузите хост: перезапуска одного контейнера недостаточно для замены загруженного модуля. Затем убедитесь, что `dkms status` показывает AmneziaWG со статусом `installed` для запущенного ядра, а команда `lsmod | grep amneziawg` находит загруженный модуль.
 
 ### Параметры AmneziaWG
 
 Описание параметров можно найти в [документации AmneziaWG](https://docs.amnezia.org/documentation/amnezia-wg) и на странице модуля ядра.
 
-Все параметры, **кроме I1–I5**, будут установлены автоматически при первом запуске. Для инструкций по настройке I1–I5 обратитесь к документации AmneziaWG.
+Для генерации уникальных параметров AmneziaWG используйте [генератор конфигурации AmneziaWG](https://architect.vai-rice.space/).
 
-- Если параметр **не задан**, он не будет включен в конфигурацию.
+Параметры `Jc`, `Jmin`, `Jmax` и `I1`-`I5` можно настроить через переменные окружения. Для `JC`, `JMIN` и `JMAX` есть значения по умолчанию; допустимые значения `I1`-`I5` смотрите в документации AmneziaWG.
+
+- Если параметр `I1`-`I5` **не задан**, он не будет включен в конфигурацию.
 - Если **все специфичные для AmneziaWG параметры отсутствуют**, AmneziaWG полностью совместим со стандартным WireGuard.
+
+Поддерживаемые переменные окружения:
+
+- `JC=3`
+- `JMIN=20`
+- `JMAX=100`
+- `I1=...`
+- `I2=...`
+- `I3=...`
+- `I4=...`
+- `I5=...`
 
 ## Таблица совместимости параметров
 
@@ -880,6 +1102,7 @@ iperf3 сервер включен в контейнер antizapret-vpn.
 - [AntiZapret VPN Container](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/) — исходный код LXD-контейнера
 - [AntiZapret PAC Generator](https://bitbucket.org/anticensority/antizapret-pac-generator-light/src/master/) — генератор автоконфигурации прокси для обхода цензуры в Российской Федерации
 - [WireGuard VPN](https://github.com/wg-easy/wg-easy) — используется для интеграции Wireguard
+- [ocserv](https://gitlab.com/openconnect/ocserv) — сервер OpenConnect
 - [OpenVPN](https://github.com/d3vilh/openvpn-ui) - используется для интеграции OpenVPN
 - [AdGuardHome](https://github.com/AdguardTeam/AdGuardHome) - DNS-резолвер
 - [filebrowser](https://github.com/filebrowser/filebrowser) - веб-браузер файлов и редактор

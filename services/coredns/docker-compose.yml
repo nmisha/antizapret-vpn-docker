@@ -1,14 +1,14 @@
 services:
   coredns:
-    image: xtrime/antizapret-vpn-coredns:6.2.0
+    image: xtrime/antizapret-vpn-coredns:6.6.4
     hostname: coredns.antizapret
     restart: unless-stopped
     init: true
     build: 
       context: .
       args:
-        - COREDNS_VERSION=v1.14.2
-        - FINALIZER_COMMIT=58ec3004e1eae73ccc0289f4067faabe8ebb77cc
+        - COREDNS_VERSION=v1.14.4
+        - FINALIZER_COMMIT=ff5520b12d228cda15948c8bb247a650d916b0be
       x-bake:
         platforms:
           - linux/amd64
@@ -16,8 +16,10 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: 100k
-        max-file: 2
+        max-size: 1m
+        max-file: 3
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     healthcheck:
       test: (/root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
       interval: 10s
@@ -32,4 +34,3 @@ services:
         constraints: [ node.labels.location == local ]
     depends_on:
       - az-local
-      - az-world

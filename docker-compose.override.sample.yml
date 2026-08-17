@@ -6,10 +6,14 @@ services:
 
   https:
     environment:
-      # If not set, will be created and used self-signed certificate
+      # Optional domain for HTTPS services. Public IPv4 is used when empty.
       - PROXY_DOMAIN=
-      # If not set, will be created and used self-signed certificate
+      # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
+      # Use selfsigned to disable ACME requests on local installations.
+      - PROXY_CERT_MODE=auto
+      # Use the staging directory while testing certificate issuance.
+      # - PROXY_ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory
 
   # cloak:
   #   extends:
@@ -31,6 +35,14 @@ services:
     environment:
       - FILEBROWSER_USERNAME=admin
       - FILEBROWSER_PASSWORD=password
+
+  ocserv:
+    extends:
+      file: services/ocserv/compose.yml
+      service: ocserv
+    environment:
+      - OC_USER=admin
+      - OC_USERPASS=strongpassword
 
   openvpn:
     extends:

@@ -7,6 +7,7 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -59,6 +60,43 @@ func doallHandler(w http.ResponseWriter, r *http.Request) {
 
 var decoder = schema.NewDecoder()
 
+var errListFileNotAllowed = errors.New("file is outside /root/antizapret")
+var allowedListRoot = "/root/antizapret"
+
+var listHTTPClient = &http.Client{Timeout: 60 * time.Second}
+
+func openAllowedListFile(path string) (*os.File, error) {
+	prefix := allowedListRoot + string(filepath.Separator)
+	if !strings.HasPrefix(path, prefix) {
+		return nil, errListFileNotAllowed
+	}
+
+	relativePath := strings.TrimPrefix(path, prefix)
+	if relativePath == "" || filepath.Clean(relativePath) != relativePath {
+		return nil, errListFileNotAllowed
+	}
+
+	root, err := os.OpenRoot(allowedListRoot)
+	if err != nil {
+		return nil, err
+	}
+	defer root.Close()
+
+	file, err := root.Open(relativePath)
+	if err != nil {
+		return nil, err
+	}
+	info, err := file.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		_ = file.Close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("list source is not a regular file")
+	}
+	return file, nil
+}
+
 type ListRequest struct {
 	Url          string `schema:"url"`
 	File         string `schema:"file"`
@@ -70,6 +108,7 @@ type ListRequest struct {
 	Raw          bool   `schema:"raw"`           //dont modify rules
 	Suffix       bool   `schema:"suffix"`        //add $dnsrewrite,client=xxx to rules
 	DnsRewrite   string `schema:"dnsrewrite"`    //value for $dnsrewrite
+	Regex        bool   `schema:"regex"`         //convert each line from an ERE to an AdGuard regex rule
 }
 
 type RegexFilter struct {
@@ -81,6 +120,7 @@ type RegexFilter struct {
 
 var excludeMatcherDist *RegexFilter
 var excludeMatcherCustom *RegexFilter
+var excludeMatchersLock sync.RWMutex
 
 const delim = "__DELIM__"
 
@@ -194,24 +234,21 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 	var reader io.ReadCloser
 	if req.Url != "" {
 		// Create a new HTTP request
-		reqRemote, err := http.NewRequest("GET", req.Url, nil)
+		reqRemote, err := http.NewRequestWithContext(r.Context(), http.MethodGet, req.Url, nil)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed to create request: %v", err), http.StatusBadRequest)
 			return
 		}
 
-		// Forward all headers from the original request
-		for name, values := range r.Header {
-			for _, value := range values {
-				reqRemote.Header.Add(name, value)
-			}
+		// Keep a useful User-Agent without forwarding credentials or internal headers.
+		if userAgent := r.Header.Get("User-Agent"); userAgent != "" {
+			reqRemote.Header.Set("User-Agent", userAgent)
 		}
 
 		// Perform the request
-		client := &http.Client{}
-		resp, err := client.Do(reqRemote)
+		resp, err := listHTTPClient.Do(reqRemote)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to download list: %v", err), http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed to download list: %v", err), http.StatusBadGateway)
 			return
 		}
 		defer resp.Body.Close()
@@ -238,11 +275,16 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		}
 
 	} else if req.File != "" {
-		file, err := os.Open(req.File)
+		file, err := openAllowedListFile(req.File)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Failed to open local file: %v", err), http.StatusInternalServerError)
+			status := http.StatusInternalServerError
+			if errors.Is(err, errListFileNotAllowed) {
+				status = http.StatusForbidden
+			}
+			http.Error(w, fmt.Sprintf("Failed to open local file: %v", err), status)
 			return
 		}
+		defer file.Close()
 		reader = file
 	} else {
 		http.Error(w, "Url or File required", http.StatusBadRequest)
@@ -264,21 +306,39 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 	processBuffer := func() {
 		filtered := buffer
 		buffer = nil
+		excludeMatchersLock.RLock()
+		defer excludeMatchersLock.RUnlock()
 		if req.FilterDist {
+			excludeMatchersLock.RLock()
 			if excludeMatcherDist == nil {
+				excludeMatchersLock.RUnlock()
 				log.Println("[ERROR] Exclude filter not initialized: dist")
 				http.Error(w, "Exclude filter not initialized: dist", http.StatusInternalServerError)
 				return
 			}
-			filtered, _ = excludeMatcherDist.Filter(filtered)
+			var err error
+			filtered, err = excludeMatcherDist.Filter(filtered)
+			excludeMatchersLock.RUnlock()
+			if err != nil {
+				log.Printf("[ERROR] Dist exclude filter failed: %v", err)
+				return
+			}
 		}
 		if req.FilterCustom {
+			excludeMatchersLock.RLock()
 			if excludeMatcherCustom == nil {
+				excludeMatchersLock.RUnlock()
 				log.Println("[ERROR] Exclude filter not initialized: custom")
 				http.Error(w, "Exclude filter not initialized: custom", http.StatusInternalServerError)
 				return
 			}
-			filtered, _ = excludeMatcherCustom.Filter(filtered)
+			var err error
+			filtered, err = excludeMatcherCustom.Filter(filtered)
+			excludeMatchersLock.RUnlock()
+			if err != nil {
+				log.Printf("[ERROR] Custom exclude filter failed: %v", err)
+				return
+			}
 		}
 
 		for _, line := range filtered {
@@ -286,7 +346,9 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 			if req.Raw || out == "" || strings.HasPrefix(out, "!") || strings.HasPrefix(out, "#") {
 				//
 			} else {
-				if !strings.HasPrefix(line, "/") {
+				if req.Regex && !(strings.HasPrefix(out, "/") && strings.HasSuffix(out, "/")) {
+					out = "/" + strings.ReplaceAll(out, "/", `\/`) + "/"
+				} else if !req.Regex && !strings.HasPrefix(out, "/") {
 					out = "||" + out + "^"
 				}
 				if req.Allow {
@@ -375,32 +437,36 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateRegexFilter() error {
-	var error error
-	if excludeMatcherDist != nil {
-		error = excludeMatcherDist.Close()
-	}
-	if error != nil {
-		return error
-	}
+	excludeMatchersLock.Lock()
+	defer excludeMatchersLock.Unlock()
 
-	excludeMatcherDist, error = NewRegexFilter(
+	newDist, err := NewRegexFilter(
 		"/root/antizapret/config/exclude-hosts-dist.txt",
 	)
-	if error != nil {
-		return error
+	if err != nil {
+		return err
 	}
 
-	if excludeMatcherCustom != nil {
-		error = excludeMatcherCustom.Close()
-	}
-	if error != nil {
-		return error
-	}
-
-	excludeMatcherCustom, error = NewRegexFilter(
+	newCustom, err := NewRegexFilter(
 		"/root/antizapret/config/custom/exclude-hosts-custom.txt",
 	)
-	return error
+	if err != nil {
+		_ = newDist.Close()
+		return err
+	}
+
+	oldDist := excludeMatcherDist
+	oldCustom := excludeMatcherCustom
+	excludeMatcherDist = newDist
+	excludeMatcherCustom = newCustom
+
+	if oldDist != nil {
+		_ = oldDist.Close()
+	}
+	if oldCustom != nil {
+		_ = oldCustom.Close()
+	}
+	return nil
 }
 
 func update(w http.ResponseWriter, r *http.Request) {

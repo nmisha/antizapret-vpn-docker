@@ -1,7 +1,6 @@
 services:
   antizapret:
-#    image: xtrime/antizapret-vpn:6.6.3
-    image: nmisha/antizapret-vpn:6.6.3
+    image: xtrime/antizapret-vpn:6.8.1
     restart: unless-stopped
     init: true
     cap_add:
@@ -9,6 +8,11 @@ services:
     sysctls:
       - net.ipv4.ip_forward=1
       - net.ipv4.conf.all.src_valid_mark=1
+    extra_hosts:
+      - "raw.githubusercontent.com=185.199.108.133"
+      - "github.io=185.199.110.153"
+      - "xtrime-ru.github.io=185.199.110.153"
+      - "adguardteam.github.io=185.199.110.153"
     build: 
       context: .
       x-bake:
@@ -18,15 +22,15 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: 100k
-        max-file: 2
+        max-size: 1m
+        max-file: 3
     healthcheck:
       test: /healthcheck.sh
       interval: 10s
       timeout: 15m
-      start_period: 5s
-      start_interval: 1s
+      start_period: 10m
     volumes:
+      - /etc/localtime:/etc/localtime:ro
       - $PWD/config/antizapret/custom:/root/antizapret/config/custom
       - $PWD/config/antizapret/result:/root/antizapret/result
       - $PWD/config/antizapret/iptables:/root/antizapret/iptables
@@ -37,6 +41,7 @@ services:
       - TINI_KILL_PROCESS_GROUP=1
       - |
         ROUTES=
+        ocserv:10.1.164.0/24;
         openvpn:10.1.165.0/24;
         wireguard:10.1.166.0/24;
         wireguard-amnezia:10.1.167.0/24;
@@ -51,9 +56,13 @@ services:
       - ZAPRET_CONFIG
       - |
         IPS_URL=
-        https://raw.githubusercontent.com/nmisha/antizapret-vpn-docker/refs/heads/v6-mine/lists/ips.txt;
-#        https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/ips.txt;
+        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips.txt;
       - |
         IPS_WORLD_URL=
-        https://raw.githubusercontent.com/nmisha/antizapret-vpn-docker/refs/heads/v6-mine/lists/ips-world.txt;
-#        https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/ips-world.txt;
+        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips-world.txt;
+      - |
+        ASN_URL=
+        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn.txt;
+      - |
+        ASN_WORLD_URL=
+        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn-world.txt;

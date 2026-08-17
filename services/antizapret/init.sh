@@ -3,7 +3,9 @@
 set -e
 set -x
 
-rm -rf /tmp/*
+# Docker restarts preserve the container filesystem. Remove all previous runtime
+# state, including hidden healthcheck and doall files, while keeping /tmp itself.
+find /tmp -mindepth 1 -delete
 
 # run commands after start
 function postrun () {
@@ -25,6 +27,9 @@ ZAPRET_ENABLED=${ZAPRET_ENABLED:-"0"}
 export ZAPRET_CONFIG='${ZAPRET_CONFIG:-"/opt/zapret2/config/zapret.conf"}'
 IPS_URL='${IPS_URL:-""}'
 IPS_WORLD_URL='${IPS_WORLD_URL:-""}'
+ASN_URL='${ASN_URL:-""}'
+ASN_WORLD_URL='${ASN_WORLD_URL:-""}'
+ASN_FILES='${ASN_FILES:-""}'
 AZ_SUBNET=${AZ_SUBNET:-"14.16.0.0/15"}
 LC_ALL=C.UTF-8
 EOF
@@ -34,10 +39,44 @@ ln -sf /etc/default/antizapret /etc/profile.d/antizapret.sh
 
 
 # creating custom hosts files if they have not yet been initialized
-for file in $(echo {exclude,include}-{hosts,ips,ips-world}-custom.txt); do
+for file in $(echo {exclude,include}-{hosts,ips,ips-world,asn,asn-world}-custom.txt); do
     path=/root/antizapret/config/custom/$file
     [ ! -f $path ] && touch $path
 done
+
+mkdir -p /root/antizapret/result
+for file in ips ips-world asn asn-world; do
+    path=/root/antizapret/result/$file.txt
+    [ ! -f $path ] && touch $path
+done
+
+DOALL_OWNER_FILE="/root/antizapret/result/.doall_owner"
+DOALL_LOCAL_OWNER_FILE="/tmp/.doall_owner"
+DOALL_OWNER_ID="$(date +%s%N)-$(head -c 8 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+
+function configure_doall_owner () {
+    [ -n "$DOALL_DISABLED" ] && return 0
+
+    echo "$DOALL_OWNER_ID $CLIENT" > "$DOALL_LOCAL_OWNER_FILE"
+
+    owner="$(awk '{print $2}' "$DOALL_OWNER_FILE" 2>/dev/null || true)"
+    if [ -z "$owner" ] || [ "$owner" = "$CLIENT" ]; then
+        cp -f "$DOALL_LOCAL_OWNER_FILE" "$DOALL_OWNER_FILE"
+        return 0
+    fi
+
+    echo "DoAll result volume is owned by $owner. This container will reload dnsmap only."
+}
+
+function cleanup_doall_owner () {
+    if [ -f "$DOALL_LOCAL_OWNER_FILE" ] && [ "$(cat "$DOALL_OWNER_FILE" 2>/dev/null || true)" = "$(cat "$DOALL_LOCAL_OWNER_FILE" 2>/dev/null || true)" ]; then
+        rm -f "$DOALL_OWNER_FILE"
+    fi
+    rm -f "$DOALL_LOCAL_OWNER_FILE" /tmp/.doall_lock
+}
+
+configure_doall_owner
+trap cleanup_doall_owner EXIT HUP INT QUIT PIPE TERM
 
 ( cat /root/antizapret/result/* /root/antizapret/config/custom/* 2>/dev/null | md5sum ) > /.config_md5
 
@@ -53,19 +92,31 @@ done
 HOSTNAME=$(hostname -s)
 IPTABLES_SAVE="/root/antizapret/iptables/$HOSTNAME.rules"
 
+set +x
 if [ "$IPTABLES_SAVE_DISABLED" != "1" ] && [ -f "$IPTABLES_SAVE" ]; then
-  LINES=$(cat "$IPTABLES_SAVE" | wc -l)
+  LINES=$(wc -l < "$IPTABLES_SAVE")
+  echo "restoring iptables rules: $LINES"
   if [ "$LINES" -gt 130000 ]; then
     echo "iptables-save too big. removing old file."
     rm -rf "$IPTABLES_SAVE"
   else
-    while IFS= read -r rule; do
-      if [[ "$rule" =~ ^-A[[:space:]]"$CHAIN" ]]; then
-        iptables -t "nat" $rule || echo "cant add iptables rule: $rule"
-      fi
-    done < "$IPTABLES_SAVE"
+    IPTABLES_RESTORE_FILE=$(mktemp)
+    {
+      printf '*nat\n'
+      grep -E "^-A $CHAIN " "$IPTABLES_SAVE" || true
+      printf 'COMMIT\n'
+    } > "$IPTABLES_RESTORE_FILE"
+
+    if iptables-restore --noflush "$IPTABLES_RESTORE_FILE"; then
+      echo "iptables rules restored"
+    else
+      echo "cant restore iptables rules"
+    fi
+    rm -f "$IPTABLES_RESTORE_FILE"
   fi
 fi
+set -x
+
 function save_iptables () {
     [ "$IPTABLES_SAVE_DISABLED" = "1" ] && return 0
     echo "saving iptables..."
@@ -75,6 +126,7 @@ function save_iptables () {
 ZAPRET_STARTED=0
 function stop_services () {
     trap - EXIT HUP INT QUIT PIPE TERM
+    cleanup_doall_owner
     if [ "$ZAPRET_STARTED" = "1" ]; then
         /opt/zapret2/init.d/sysv/zapret2 stop || true
     fi
@@ -100,4 +152,4 @@ postrun 'while true; do /opt/api/app; done'
 postrun 'while true; do sleep 6h; timeout 10m /usr/bin/doall; done'
 postrun 'while true; do /usr/bin/iperf3 -s -1; done'
 
-/usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET"
+/usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET" --asn-file "$ASN_FILES"

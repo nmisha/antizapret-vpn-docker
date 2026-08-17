@@ -1,8 +1,7 @@
 services:
   https:
     restart: unless-stopped
-#    image: xtrime/antizapret-vpn-https:6.4.2
-    image: nmisha/antizapret-vpn-https:6.4.2
+    image: xtrime/antizapret-vpn-https:6.7.9
     build: 
       context: .
       x-bake:
@@ -11,7 +10,8 @@ services:
           - linux/arm64
     ports:
       - "80:80"
-      - "443:443"
+      - "443:443/tcp"
+      - "444:444/tcp"
       - "1443:1443"
       - "2443:2443"
       - "3443:3443"
@@ -20,12 +20,17 @@ services:
       - "8143:8143"
       - "8243:8243"
     environment:
-      # If not set, will be created and used self-signed certificate
+      # Optional domain for HTTPS services. Public IPv4 is used when empty.
       - PROXY_DOMAIN=
-      # If not set, will be created and used self-signed certificate
+      # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
+      - PROXY_IP=${PROXY_IP:-}
+      # auto requests an ACME certificate; selfsigned disables ACME.
+      - PROXY_CERT_MODE=auto
+      - PROXY_ACME_CA=https://acme-v02.api.letsencrypt.org/directory
+      - PROXY_HTTPS_PORT=444
       # PROXY_SERVICE_N=external_port:internal_hostname:internal_port
-      - PROXY_SERVICE_1=Dashboard:443:dashboard.antizapret:80
+      - PROXY_SERVICE_1=Dashboard:444:dashboard.antizapret:80
       - PROXY_SERVICE_2=AdGuard:1443:adguard.antizapret:3000
       - PROXY_SERVICE_3=File Browser:2443:filebrowser.antizapret:80
       - PROXY_SERVICE_4=OpenVPN UI:3443:openvpn-ui.antizapret:8080
@@ -34,7 +39,7 @@ services:
       - PROXY_SERVICE_7=HTTP PROXY LOCAL:8143:proxy-local.antizapret:8180
       - PROXY_SERVICE_8=HTTP PROXY WORLD:8243:proxy-world.antizapret:8180
     volumes:
-      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
       - $PWD/config/https/data:/data
       - $PWD/config/https/config:/config
     depends_on:

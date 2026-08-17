@@ -14,12 +14,17 @@ services:
       endpoint_mode: dnsrr
     network_mode: host
     extra_hosts:
-      - "raw.githubusercontent.com:185.199.108.133"
+      - "raw.githubusercontent.com=185.199.108.133"
+      - "github.io=185.199.110.153"
+      - "xtrime-ru.github.io=185.199.110.153"
+      - "adguardteam.github.io=185.199.110.153"
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
     working_dir: /root
     entrypoint: /root/entrypoint.sh
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
     environment:
       - INTERVAL=3h
       - V4_URL=https://raw.githubusercontent.com/C24Be/AS_Network_List/refs/heads/main/blacklists/blacklist-v4.txt

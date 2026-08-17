@@ -5,10 +5,6 @@ rm -f "$INIT_FILE"
 
 cp -n /root/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
 
-CONFIG_LOCAL=$(curl -s "http://az-local.antizapret/config-md5/" || echo "")
-CONFIG_WORLD=$(curl -s "http://az-world.antizapret/config-md5/" || echo "")
-echo "$CONFIG_LOCAL $CONFIG_WORLD" > /.config_md5
-
 ADGUARDHOME_PORT=${ADGUARDHOME_PORT:-"3000"}
 ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
 if [[ -n $ADGUARDHOME_PASSWORD ]]; then
@@ -36,24 +32,83 @@ function resolve () {
     fi
 }
 
+if [ "$AZ_WORLD_ENABLED" = "1" ]; then
+    WAITING_MESSAGE="Waiting for az-local and az-world containers to register in DNS..."
+else
+    WAITING_MESSAGE="Waiting for az-local container to register in DNS..."
+fi
+
 while :; do
     AZ_LOCAL_HOST=$(resolve az-local '')
     AZ_WORLD_HOST=$(resolve az-world '')
     COREDNS_HOST=$(resolve coredns '169.0.0.3')
-    [ -n "${AZ_LOCAL_HOST}" ] && [ -n "${AZ_WORLD_HOST}" ] && break
+    if [ -n "${AZ_LOCAL_HOST}" ] && [ -n "${COREDNS_HOST}" ] && { [ "$AZ_WORLD_ENABLED" != "1" ] || [ -n "${AZ_WORLD_HOST}" ]; }; then
+        break
+    fi
     sleep 1;
-    echo "Waiting az-local/az-world and coredns containers to register in DNS..."
+    echo "$WAITING_MESSAGE"
 done;
 
+CONFIG_LOCAL=$(curl -s "http://az-local.antizapret/config-md5/" || echo "")
+CONFIG_MD5="$CONFIG_LOCAL"
+AZ_WORLD_CLIENT_IDS='["az-world"]'
+if [ "$AZ_WORLD_ENABLED" = "1" ]; then
+    CONFIG_WORLD=$(curl -s "http://az-world.antizapret/config-md5/" || echo "")
+    CONFIG_MD5="$CONFIG_LOCAL $CONFIG_WORLD"
+    AZ_WORLD_CLIENT_IDS='["az-world", "'$AZ_WORLD_HOST'"]'
+fi
+echo "$CONFIG_MD5" > /.config_md5
 
+function ensure_filter () {
+    local filter_url="$1"
+    local filter_name="$2"
+    local filter_id
+
+    if FILTER_URL="$filter_url" yq -e '.filters[] | select(.url == strenv(FILTER_URL))' /opt/adguardhome/conf/AdGuardHome.yaml >/dev/null; then
+        return
+    fi
+
+    filter_id=$(yq -r '([.filters[].id] | max // 0) + 1' /opt/adguardhome/conf/AdGuardHome.yaml)
+    FILTER_URL="$filter_url" FILTER_NAME="$filter_name" FILTER_ID="$filter_id" yq -i '
+        .filters += [{
+            "enabled": true,
+            "url": strenv(FILTER_URL),
+            "name": strenv(FILTER_NAME),
+            "id": env(FILTER_ID)
+        }]
+    ' /opt/adguardhome/conf/AdGuardHome.yaml || exit 1
+}
+
+ensure_filter 'http://az-local.antizapret/list/?regex=1&allow=0&client=az-resolver&filter_custom=0&filter_dist=0&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'Excluded Custom Local Rules'
+ensure_filter 'http://az-world.antizapret/list/?regex=1&allow=0&client=az-resolver&filter_custom=0&filter_dist=0&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'Excluded Custom World Rules'
+
+ADGUARDHOME_PORT="$ADGUARDHOME_PORT" \
+ADGUARDHOME_USERNAME="$ADGUARDHOME_USERNAME" \
+ADGUARDHOME_PASSWORD_HASH="$ADGUARDHOME_PASSWORD_HASH" \
+AZ_LOCAL_HOST="$AZ_LOCAL_HOST" \
+AZ_WORLD_CLIENT_IDS="$AZ_WORLD_CLIENT_IDS" \
+COREDNS_HOST="$COREDNS_HOST" \
 yq -i '
-    .http.address="0.0.0.0:'$ADGUARDHOME_PORT'" |
-    .users[0].name="'$ADGUARDHOME_USERNAME'" |
-    .users[0].password="'$ADGUARDHOME_PASSWORD_HASH'" |
-    (.clients.persistent[] | select(.name == "az-local") | .ids) = ["'$AZ_LOCAL_HOST'"] |
-    (.clients.persistent[] | select(.name == "az-world") | .ids) = ["'$AZ_WORLD_HOST'"] |
-    (.clients.persistent[] | select(.name == "coredns") | .ids) = ["'$COREDNS_HOST'"]
-    ' /opt/adguardhome/conf/AdGuardHome.yaml
+    .http.address = "0.0.0.0:" + strenv(ADGUARDHOME_PORT) |
+    .http.doh.insecure_enabled=true |
+    .dns.use_private_ptr_resolvers=false |
+    .dns.local_ptr_upstreams=[] |
+    .users[0].name=strenv(ADGUARDHOME_USERNAME) |
+    .users[0].password=strenv(ADGUARDHOME_PASSWORD_HASH) |
+    (.clients.persistent[] | select(.name == "az-local") | .ids) = ["az-local", strenv(AZ_LOCAL_HOST)] |
+    (.clients.persistent[] | select(.name == "az-world") | .ids) = env(AZ_WORLD_CLIENT_IDS) |
+    (.clients.persistent[] | select(.name == "coredns") | .ids) = [strenv(COREDNS_HOST)] |
+    .clients.persistent = (
+      [.clients.persistent[] | select(.name != "az-resolver")] + [{
+        "name": "az-resolver",
+        "ids": ["az-resolver"],
+        "tags": [],
+        "upstreams": ["1.1.1.1", "8.8.8.8", "8.8.4.4", "9.9.9.11", "149.112.112.11"],
+        "use_global_settings": true,
+        "use_global_blocked_services": true
+      }]
+    )
+    ' /opt/adguardhome/conf/AdGuardHome.yaml || exit 1
 
 sed -i 's/antizapret-vpn-docker\/v5/antizapret-vpn-docker\/v6/g' /opt/adguardhome/conf/AdGuardHome.yaml
 
