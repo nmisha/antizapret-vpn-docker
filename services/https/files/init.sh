@@ -344,13 +344,9 @@ main() {
     generate_global_config
     add_http_redirect
 
-#        generate_authelia_proxy
-#        generate_authelia_proxy
+
     generate_authelia_proxy   # add authelia proxy
     add_services_to_config
-#    add_services_to_config_subnames_2
-#    add_services_to_config_subnames_2
-#    add_services_to_config_subnames_test
     add_ocserv_certificate_site
 
     cat <<EOF >>"$CONFIG_FILE"
