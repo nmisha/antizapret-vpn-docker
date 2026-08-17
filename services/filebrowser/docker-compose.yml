@@ -12,10 +12,10 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: 100k
-        max-file: 2
+        max-size: 1m
+        max-file: 3
     volumes:
-      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
       - $PWD/config/antizapret/custom:/srv
     depends_on:
       - az-local

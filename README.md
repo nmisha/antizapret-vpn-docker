@@ -17,6 +17,7 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
   - [After installation](#after-installation)
   - [Access admin panels](#access-admin-panels)
     - [HTTPS](#https)
+      - [Custom sites on ports 80 and 444](#custom-sites-on-ports-80-and-444)
     - [Local network](#local-network)
     - [HTTP](#http)
   - [Update](#update)
@@ -28,6 +29,7 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
   - [Adding Domains](#adding-domains)
     - [Adding Domains via rules](#adding-domains-via-rules)
     - [Adding Domains via lists](#adding-domains-via-lists)
+    - [Routing a website through VPN for a specific client](#routing-a-website-through-vpn-for-a-specific-client)
   - [Adding IPs/Subnets](#adding-ipssubnets)
   - [SOCKS5 and HTTP(S) Proxy (per-application routing)](#socks5-and-https-proxy-per-application-routing)
     - [How it works](#how-it-works-1)
@@ -44,6 +46,7 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
   - [DNS](#dns)
     - [Adguard Upstream DNS](#adguard-upstream-dns)
     - [CDN + ECS](#cdn--ecs)
+  - [OpenConnect (ocserv)](#openconnect-ocserv)
   - [OpenVPN](#openvpn)
     - [Create client certificates](#create-client-certificates)
     - [Enable OpenVPN Data Channel Offload (DCO)](#enable-openvpn-data-channel-offload-dco)
@@ -63,7 +66,7 @@ https://t.me/antizapret_support
 
 - Modular design. External and high quality opensource modules/containers are used as builing blocks of our system. 
 - User friendly web panels for administration of VPN's and DNS.
-- Multiple VPN transports: Wireguard, Amnezia Wireguard, OpenVPN
+- Multiple VPN transports: WireGuard, AmneziaWG, OpenVPN, and OpenConnect (ocserv).
 - AdguardHome as main DNS resolver and blocked domains manager
 - Multi-Server Architecture to bypass services geo restrictions. Different domains use different servers as exit nodes.
 - Firewall to protect from port scanning
@@ -92,6 +95,8 @@ https://t.me/antizapret_support
 ## Single Server (Easy)
 
 Recommended to use server located in western countries. Some sites will block users from other countries. 
+The default Compose configuration runs one `az-local` exit container. It handles
+both the local and world domain lists using the `14.16.0.0/15` range.
 
 0. Install [Docker Engine](https://docs.docker.com/engine/install/):
    ```bash
@@ -143,7 +148,7 @@ Some of the sites, which use geoip to block users, will be proxied through **for
 1. [Primary] Change hostnames of servers to az-local and az-world for ease of use: `hostnamectl set-hostname az-local`
 1. [Secondary] Change hostnames of servers to az-local and az-world for ease of use: `hostnamectl set-hostname az-world`
 1. [Optionally] hub.docker.com can be unreachable on local hostings. Proxy can be used. See instructions: https://dockerhub.timeweb.cloud
-    Alternatively images can be build locally on **both servers**: `docker compose build`
+    Alternatively images can be built locally on **both servers**: `docker compose --env-file compose.swarm.env build`
 1. [Primary]: `docker swarm init --advertise-addr <PRIMARY_SERVER_PUBLIC_IP_ADDRESS>`
 1. [Secondary]: Copy command from results  and run it on secondary node: `docker swarm join --token <TOKEN> <MANAGER_IP_ADDRESS>:<PORT>`
 1. [Primary]: Inspect swarm `docker node ls`
@@ -153,7 +158,10 @@ Some of the sites, which use geoip to block users, will be proxied through **for
     vspy2m6w4tf7uv4ywgdnzttvr     az-world   Ready     Active                          29.0.1
     ```
 1. [Primary] Add labels for nodes `docker node update --label-add location=local az-local && docker node update --label-add location=world az-world`
-1. [Primary]: start swarm `   docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret`
+1. [Primary]: start swarm. The last Compose file adds `az-world` and splits the address range between both exit nodes:
+   ```shell
+   docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+   ```
 1. [Primary]: Docker Swarm does not support passing host devices to services in the same way as Docker Compose, so VPN containers require DKMS kernel modules:
     - [Enable OpenVPN Data Channel Offload (DCO)](#enable-openvpn-data-channel-offload-dco)
     - [Enable Amnezia Wireguard Kernel Extension](#enable-amnezia-wireguard-kernel-extension)
@@ -202,14 +210,35 @@ apt install -y iptables-persistent
 
 ### HTTPS
 By default, all container can be accessed via https. For certificated management separate `https` container is used.
-If you did not provide domain and email in its env it will generate self-signed certificates
+If no domain is configured, Caddy detects the server's public IPv4 address and requests a short-lived Let's Encrypt certificate for that address. A persistent self-signed certificate is served until ACME validation succeeds, so HTTPS and ocserv can still start when `80/tcp` is not reachable from the Internet.
+Caddy forwards all connections from its Layer 4 listener on `443/tcp` to ocserv and passes the original client address through PROXY protocol v2. The Dashboard uses the separate HTTPS port `444/tcp`, while the ocserv DTLS channel is exposed directly on `443/udp`.
 
-- dashboard: https://%your-server-ip%:443
+- dashboard: https://%your-server-ip%:444
 - adguard: https://%your-server-ip%:1443
 - filebrowser: https://%your-server-ip%:2443
 - openvpn: https://%your-server-ip%:3443
 - wireguard: https://%your-server-ip%:4443
 - wireguard-amnezia: https://%your-server-ip%:5443
+
+#### Custom sites on ports 80 and 444
+
+Additional Caddy configurations can be stored in `config/https/config/sites-enabled`. The directory is created automatically when the `https` container starts, and all files in it are imported into the main Caddyfile.
+
+For example, to expose the `my-app` service available on port `8080` in the Docker network, create `config/https/config/sites-enabled/my-app.caddy`:
+
+```caddyfile
+example.com {
+  reverse_proxy my-app:8080
+}
+```
+
+Caddy will accept requests for `example.com` on ports 80 and 444, automatically redirect HTTP to HTTPS port 444, and manage the TLS certificate. The domain must point to the server, and the `my-app` service must be reachable from the `https` container through the shared Docker network.
+
+Restart the container after adding or changing a configuration:
+
+```shell
+docker service update --force antizapret_https || docker compose restart https
+```
 
 
 ### Local network
@@ -257,7 +286,7 @@ Some containers have same ports. So you need to choose unique external port in d
    ```shell
    git pull --rebase
    docker pull xtrime/antizapret-vpn:6
-   docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+   docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
    docker system prune -af
    ```
 
@@ -277,7 +306,7 @@ Some containers have same ports. So you need to choose unique external port in d
   ```shell
   docker stack rm antizapret && sleep 10
   git fetch && git checkout v6 && git pull --rebase
-  docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+  docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
   docker system prune -af
    ```
   - worker nodes:
@@ -342,17 +371,19 @@ git restore config
    3. Ensure kernel modules for your VPN are installed and working: [OVPN DCO](#enable-openvpn-data-channel-offload-dco),  [Amnezia Wireguard Kernel Extension](#enable-amnezia-wireguard-kernel-extension). 
    4. Some inexpensive hostings have very slow CPUs, so even with all kernel modules installed, connection speed will not exceed 100 Mbit/s.
    5. Most routers have slow CPUs and provide only 30-60 Mbit/s via openvpn. Try to use Wireguard or Amnezia Wireguard if router supports it or update router to newer model.
-   6. In rare cases low MTU between client and server can cause packet fragmentation.
-      First, check if your VPN connection has issues with default MTU.  
-      - MacOs: `ping -D -s 1420 google.com`
-      - Linux: `ping -M -s 1420 google.com`
-      - Windows: `ping google.com -f -l 1420`
+   6. By default, new wireguard and openvpn setups use low MTU `1280`,  to ensure stable connection in all conditions. You can increase up to `1480` to sligtly increase speed.
       
-      If this command returns errors, then keep lowering the value until it works. Then lower MTU in VPN settings.
+      First, check if your VPN connection has issues with default MTU.  
+      - MacOs: `ping -D -s 1100 youtube.com`
+      - Linux: `ping -M -s 1100 youtube.com`
+      - Windows: `ping youtube.com -f -l 1100`
+
+      For old setups you need manually reduce MTU in settings:
       - Wireguard/Amezia:
         MTU Must be lower on both server and client.
-          1. Go to http://wireguard.antizapret:51821 or http://wireguard-amnezia.antizapret:51821 and click on client config icon.
-          1. Lower MTU to 1200 and save. MTU is client-specific.
+          1. Go to http://wireguard.antizapret:51821 or http://wireguard-amnezia.antizapret:51821 
+          1. Go to `/admin/interface` and set MTU there too.
+          1. click on client config icon. Lower MTU to `1280` and save.
           1. Download and apply new config to your client.
           1. [Test speed with iperf3](#test-speed-with-iperf3)
       - OpenVPN:
@@ -383,6 +414,13 @@ git restore config
 
 ![Preview](./img/chart.png)
 
+In single-server Compose mode `az-local` also has the `az-world` and
+`az-world.antizapret` network aliases. CoreDNS detects that both exit names
+have the same address and queries the container only once; AdGuard generates
+both local and world list rules for the `az-local` client. In Swarm mode the
+short and fully qualified aliases are split between two services, so CoreDNS
+queries `az-world` and then `az-local`.
+
 1. DNS Request arrives into AdGuardHome
 1. Adguard check it with blacklist rules. If domain in blacklist - return 0.0.0.0 and client not able to access domain.
 1. Adguard Send DNS request to CoreDNS service.
@@ -391,7 +429,7 @@ git restore config
 1. If domain in whitelist - adguard will resolve its address and return to dnsmap.py
 1. If domain not in whitelist adguard return SERVFAIL
 1. dnsmap.py send response to adguard:
-   1. If it is valid IP, then replaces it with "internal" IP from `14.16.0.0/15` subnet, add masquerade to iptables and return internal ip to adguard 
+   1. If it is valid IP, then replaces it with an "internal" IP from the exit container's subnet (`14.16.0.0/15` for `az-local`), adds masquerade to iptables and returns the internal IP to AdGuard.
    1. If is is SERVFAIL it sends this response to client.
 1. If CoreDNS receives SERVFAIL it retries request and send it directly to Adguard. In this case rules with `$client=az-local` do not applied and request processed normally.
 
@@ -417,7 +455,7 @@ We requested `youtube.com`, which should be routed via az-local node.
    A: 14.16.13.206 (ttl=300)
    A: 14.16.13.208 (ttl=300)
    ```
-2. DNS request from coredns to az-world. And az-world request to Adguard:
+2. In Swarm mode, DNS request from coredns to az-world, and az-world request to Adguard (this step is skipped in single-server Compose mode):
    ```text
    Status: Rewritten
    Elapsed: 0.10 ms
@@ -463,6 +501,7 @@ Examples:
 ```
 @@||subdomain.host.com^$dnsrewrite,client=az-local
 @@||*.host.com^$dnsrewrite,client=az-local
+# az-world rules apply only in Swarm mode
 @@||host.com^$dnsrewrite,client=az-world
 @@||de^$dnsrewrite,client=az-world
 
@@ -473,8 +512,31 @@ Examples:
 Also you can add any urls to blocklist. http://adguard.antizapret:3000/#dns_blocklist
 Need to use adapter, to parse and adapt list in different formats.
  - Add domains for local exit node: `http://az-local.antizapret/list/?url=<ANY_URL>`
- - Add domains for world exit node `http://az-world.antizapret/list/?url=<ANY_URL>`
+ - Add domains for the separate world exit node in Swarm mode: `http://az-world.antizapret/list/?url=<ANY_URL>`
+ - In single-server Compose mode, use `az-local` for both kinds of domains.
 Supported formats: simple list of domains, adguard format, hosts format, json array of domains, regex list.
+
+### Routing a website through VPN for a specific client
+
+To route a specific website through VPN for only one client:
+
+1. Find the client's internal IP address in the corresponding VPN server panel or in the AdGuard Home query log.
+2. Open the AdGuard Home clients page: http://adguard.antizapret:3000/#clients, add the IP address to the client list, and configure the following upstream DNS servers for it:
+   ```text
+   coredns
+   [/*.antizapret/]127.0.0.11
+   [/example.com/]udp://coredns.antizapret
+   ```
+3. Open the AdGuard Home DNS settings: http://adguard.antizapret:3000/#dns and add an upstream for the required domain:
+   ```text
+   [/example.com/]1.1.1.1
+   ```
+4. Add `example.com` to `include-hosts-custom.txt`, or add the following rule on the custom filtering rules page: http://adguard.antizapret:3000/#custom_rules
+   ```text
+   @@||example.com^$dnsrewrite,client=az-local
+   ```
+
+After configuration, a regular local query in AdGuard Home returns the website's real IP address, while a query from the specified VPN client returns a rewritten internal IP address whose traffic is routed through the VPN.
 
 
 Options for adapter: 
@@ -488,10 +550,50 @@ Options for adapter:
  - `raw=0` - dont modify rules
  - `suffix=1` - add "$dnsrewrite,client=xxx" to rules
  - `dnsrewrite=SERVFAIL` - set custom dnsrewrite value
+ - `regex=0` - wrap each input line as an AdGuard regular expression rule
+
+The `exclude-hosts-custom.txt` file from each exit container is also loaded into AdGuard as a blocking DNS rewrite for the `az-resolver` client. This prevents a matching domain from being routed through a VPN node by an ASN rule. Patterns use extended regular expression syntax; already slash-delimited expressions are accepted as well.
 
 ## Adding IPs/Subnets
 Add ips and subnets to `./config/antizapret/custom/include-ips-custom.txt`. 
 Containers periodically check changes in config folder (every 5-10 seconds) and restart/update after any change.
+
+## Adding ASNs
+
+ASN rules route domains through a VPN node based on the network that owns their resolved IPv4
+addresses. When the regular AdGuard request for `az-local` or `az-world` returns `SERVFAIL`,
+`dnsmap` resolves the domain directly through the `az-resolver` client and looks up every A
+record in the MaxMind ASN database. If at least one address matches a rule, all IPv4 addresses
+from that DNS response are mapped through the corresponding VPN node. If there are no A records
+or none of their networks match, the original filtered response is preserved.
+
+Custom rule files:
+
+- Local node: `./config/antizapret/custom/include-asn-custom.txt`
+- World node: `./config/antizapret/custom/include-asn-world-custom.txt`
+- Remove local rules: `./config/antizapret/custom/exclude-asn-custom.txt`
+- Remove world rules: `./config/antizapret/custom/exclude-asn-world-custom.txt`
+
+Each non-empty line may contain:
+
+- An exact ASN number: `AS13335` or `13335`
+- A case-insensitive substring of the raw MaxMind organization name: `Cloudflare`
+- A case-insensitive regular expression enclosed in `/`: `/\bg-?core\b/`
+
+Comments start with `#` and may be placed on separate lines or after a rule. Distribution rules
+from `ASN_URL` and `ASN_WORLD_URL` are combined with the respective custom include files. Exclude
+files remove exact lines case-insensitively before the runtime lists are generated.
+
+In single-server Compose mode, `ASN_FILES` points `az-local` to both resulting ASN files, so both
+lists are routed through the local exit node. In Swarm mode, each exit service receives only its own
+ASN file.
+
+For filter debugging, `dnsmap` logs the IP address, ASN, and organization for both matching and
+non-matching networks. `ASN data not found` means that MaxMind has no record for the address.
+Empty addresses and `0.0.0.0` are ignored without a database lookup. A successful match also
+prints the exact ASN, substring, or regex rule that triggered routing.
+
+[Online DPI check](https://hyperion-cs.github.io/dpi-checkers/ru/tcp-16-20/)
 
 Trigger update manually: `docker exec $(docker ps -q --filter=name=az | head -n1) doall`
 
@@ -581,12 +683,14 @@ Add proxy services to `docker-compose.override.yml`:
 ### Client setup
 
 1. Connect to VPN
-2. Configure SOCKS5 or HTTP/HTTPS proxy in your application or browser:
-    - **Host:** `proxy-local.antizapret` or `proxy-world.antizapret`
-    - **SOCKS5 Port:** `1080`
-    - **HTTP/HTTPS Port:** `3128`
+2. Configure the HTTPS proxy exposed by the `https` container in your application or browser:
+    - **Host:** your server IP address or domain name
+    - **Local proxy port:** `8143`
+    - **World proxy port:** `8243`
     - **Username:** value of `PROXY_LOGIN`
     - **Password:** value of `PROXY_PASSWORD`
+
+When connected to the VPN, the proxy containers are also available directly as `proxy-local.antizapret` and `proxy-world.antizapret`: SOCKS5 on port `8118` and HTTP on port `8180`.
 
 ## zapret2
 zapret2 support is based on [bol-van/zapret2](https://github.com/bol-van/zapret2), an anti-DPI toolkit that can modify HTTP, TLS, and QUIC traffic, and uses the Docker packaging from [vernette/ss-zapret2](https://github.com/vernette/ss-zapret2) as the source of the bundled zapret2 files. In this container it runs on antizapret exit-node traffic and can be tuned with the variables below.
@@ -600,7 +704,7 @@ services:
       - ZAPRET_ENABLED=1
 ```
 
-If you use compose mode and the az-world node also suffers from DPI, enable it there too:
+If the `az-world` Swarm node also suffers from DPI, enable it there too:
 ```yaml
 services:
   az-world:
@@ -620,29 +724,29 @@ Apply config changes with the command for your deployment mode:
 ```shell
 # Docker Compose
 docker compose up -d
-docker compose restart antizapret
+docker compose restart az-local
 ```
 
 - Swarm mode, run on the primary/manager node
 ```shell
-docker compose config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
 docker service update --force antizapret_az-local
 docker service update --force antizapret_az-world
 ```
 
 ### Strategy selection
-To search for working strategies, stop zapret2, run `blockcheck.sh`, then start zapret2 again. In Docker Compose mode:
+To search for working strategies, stop zapret2, run `blockcheck2.sh`, then start zapret2 again. In Docker Compose mode:
 
 ```sh
 docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/zapret2 stop
-docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/blockcheck.sh
+docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/blockcheck2.sh
 docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/zapret2 start
 ```
 
 For a faster targeted search, pass domains and search options:
 
 ```sh
-docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="youtube.com discord.com" /opt/zapret2/blockcheck.sh'
+docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="youtube.com discord.com" /opt/zapret2/blockcheck2.sh'
 ```
 
 
@@ -651,16 +755,23 @@ docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="you
 You can define these variables in docker-compose.override.yml file for your needs:
 
 ### Antizapret:
-- `DNS=adguard` - Upstream DNS for resolving blocked sites (adguard by default)
-- `AZ_SUBNET=14.16.0.0/14` Subnet for virtual addresses for blocked hosts.
+- `DNS=adguard` - AdGuard host used for DNS-over-HTTPS requests (default: `adguard`; DoH port: `3000`).
+- `CLIENT=az-local` - AdGuard ClientID used by dnsmap. Set to `az-world` on the world node.
+- `AZ_SUBNET=14.16.0.0/15` - subnet for virtual addresses of blocked hosts. The world node uses `14.18.0.0/15`.
 - `ROUTES` - list of VPN containers and their virtual addresses. Used for iperf3 server.
-- `DOALL_DISABLED=` - skip run on az-world node.
+- `DOALL_DISABLED=` - skip list generation inside the container. Normally leave unset: init uses a shared `result` owner file so Docker Compose generates lists only once, while Swarm nodes generate them independently on their local volumes.
 - `IPTABLES_SAVE_DISABLED=` - skip iptables rules restore on startup and save on shutdown.
+- `IPS_URL=` - semicolon-separated URLs with IP prefixes for the local node. The merged result is written to `result/ips.txt`.
+- `IPS_WORLD_URL=` - semicolon-separated URLs with IP prefixes for the world node. The merged result is written to `result/ips-world.txt`.
+- `ASN_URL=` - semicolon-separated URLs with ASN numbers or organization names for the local node. The merged result is written to `result/asn.txt`.
+- `ASN_WORLD_URL=` - semicolon-separated URLs with ASN numbers or organization names for the world node. The merged result is written to `result/asn-world.txt`.
+- `ASN_FILES=` - semicolon-separated runtime ASN files read by `dnsmap`. Compose sets both `asn.txt` and `asn-world.txt` for `az-local`; Swarm sets only the corresponding file for each exit service.
 - `ZAPRET_ENABLED=0` - set to `1` to enable zapret2 traffic modification for HTTP, HTTPS, and QUIC traffic passing through the container. 
 - `ZAPRET_CONFIG=/opt/zapret2/config/zapret.conf` - path inside the container to the zapret2 configuration file. The default config is created automatically on first start and is persisted at `./config/antizapret/zapret2/zapret.conf`.
 
 ### Adguard: 
 - `ROUTES` - list of VPN containers and their virtual addresses. Used for unique client addresses in adguard logs
+- `AZ_WORLD_ENABLED=` - enables the separate `az-world` client, IP tracking, and world configuration checksum. Set automatically to `1` by `compose.swarm.yml`; leave unset in single-server Compose mode.
 - `ADGUARDHOME_PORT=3000`
 - `ADGUARDHOME_USERNAME=admin`
 - `ADGUARDHOME_PASSWORD=`
@@ -674,8 +785,20 @@ You can define these variables in docker-compose.override.yml file for your need
 - `FILEBROWSER_PASSWORD=password`
 
 ### Https:
-- `PROXY_DOMAIN=` - create letsencrypt https certificate for domain. If not set host ip is used for self-signed certificate.
-- `PROXY_EMAIL=` - email for letsecnrypt certificate.
+- `PROXY_DOMAIN=` - optional domain shared by the HTTPS services and ocserv. If empty, the public IPv4 address is detected at startup.
+- `PROXY_EMAIL=` - optional email for the Let's Encrypt account.
+- `PROXY_IP=` - optional public IPv4 override for environments where automatic detection is unavailable.
+- `PROXY_CERT_MODE=auto` - certificate mode: `auto` keeps a self-signed fallback while requesting an ACME certificate; `selfsigned` disables ACME requests.
+- `PROXY_ACME_CA=https://acme-v02.api.letsencrypt.org/directory` - ACME directory URL. Use the Let's Encrypt staging directory while testing certificate issuance.
+- `PROXY_HTTPS_PORT=444` - HTTPS port for the Dashboard and custom Caddy sites. Port `443/tcp` is reserved for ocserv Layer 4 traffic.
+
+### OpenConnect (ocserv)
+- `ROUTES` - list of VPN containers and their virtual addresses.
+- `OC_DEFAULT_ADDRESS=10.1.164.x` - client address range; the value must end in `.x`.
+- `OC_PORT=443` - internal TCP and UDP port. Caddy forwards all public `443/tcp` connections to it; UDP is published directly.
+- `OC_USER=admin` - user created on the first start.
+- `OC_USERPASS=password` - password assigned on the first start.
+- `OC_SECRET=kvn` - ocserv camouflage secret.
 
 ### Openvpn
 - `ROUTES`
@@ -703,6 +826,7 @@ You can define these variables in docker-compose.override.yml file for your need
 - `INSECURE=true` - allow HTTP access to admin panel
 - `DISABLE_IPV6=true` - disable IPv6 support
 - `WG_PORT=51820` - wireguard server port
+- `MTU=1280` - default MTU for WireGuard interface and new clients
 - `EXPERIMENTAL_AWG=true` - enable AmneziaWG support (wireguard-amnezia only)
 - `OVERRIDE_AUTO_AWG=awg`- environment variable to force the tunnel type: `awg` to always use AmneziaWG, `wg` to always use standard WireGuard; by default it’s unset and automatic detection is used, useful to override auto-selection and lock the mode.
 - `BGP_ENABLE=false` - start bird BGP server. Server will push routes to clients (some routers). Clients will receive route updates without updating wg/awg config.
@@ -721,20 +845,99 @@ You can define these variables in docker-compose.override.yml file for your need
 
 ## DNS
 ### Adguard Upstream DNS
-Adguard uses Google DNS and Quad9 DNS to resolve unblocked domains. This upstreams support ECS requests (more info below).
-Cloudflare DNS do not support ECS and is not recommended for use.  
-
-Source code: [Adguard upstream DNS](./antizapret/root/adguardhome/upstream_dns_file_basis)
-After container is started working copy is located here: `./config/adguard/conf/upstream_dns_file_basis`
+AdGuard sends regular client queries through CoreDNS. For direct resolution used by ASN matching, the entrypoint configures the `az-resolver` client with Cloudflare, Google, and Quad9 upstreams. The generated configuration is stored in `./config/adguard/conf/AdGuardHome.yaml` and can be changed through the AdGuard Home UI.
 
 ### CDN + ECS
 Some domains can resolve differently, depending on subnet (geoip) of client. In this case using of DNS located on remote server will break some services.
 ECS allow to provide client IP in DNS requests to upstream server and get correct results.
-Its enabled by default in Adguard and client ip is pointed to Moscow (Yandex Subnet).
+ECS is disabled by default. The AdGuard entrypoint does not enable it automatically in either Docker Compose or Docker Swarm mode.
 
-If you located in other region, you need to replace `77.88.8.8` with your real ip address on this page `http://your-server-ip:3000/#dns`
+To enable ECS, open the AdGuard Home DNS settings at `http://your-server-ip:3000/#dns`, enable EDNS Client Subnet, and replace the preconfigured example address `77.88.8.8` with an address appropriate for your location.
 
+## OpenConnect (ocserv)
 
+The `ocserv` service is compatible with OpenConnect and Cisco AnyConnect clients. It uses the `10.1.164.0/24` subnet and listens on TCP and UDP port `443`. Caddy forwards every public `443/tcp` connection to ocserv over the internal Docker network with PROXY protocol v2, while Docker publishes the UDP channel directly from the ocserv container. The Dashboard is available separately on `444/tcp`; no ALPN-based multiplexing is performed on port 443.
+
+The service is already enabled in the complete `docker-compose.override.sample.yml`. For an existing installation, add it to `docker-compose.override.yml` and set a user and a strong password before the first start:
+
+```yaml
+services:
+  ocserv:
+    extends:
+      file: services/ocserv/compose.yml
+      service: ocserv
+    environment:
+      - OC_USER=admin
+      - OC_USERPASS=strongpassword
+```
+
+Without additional settings, the `https` service detects the server's public IPv4 address and creates a persistent self-signed fallback certificate. Caddy serves it on port 444 while independently requesting a public Let's Encrypt certificate containing an `IP Address` SAN, then switches to the managed certificate without stopping the services. Because port 443 is reserved for ocserv, ACME validation uses HTTP-01 on port 80. IP certificates use the mandatory `shortlived` profile, are valid for 160 hours, and are renewed automatically. Failed ACME attempts are retried while the services remain available with the fallback. For a local installation without a public IP, set `PROXY_CERT_MODE=selfsigned` to disable ACME attempts. To use a domain for both HTTPS services and ocserv, set `PROXY_DOMAIN` for the `https` service.
+
+Allow incoming `443/tcp` and `443/udp`, then start the service:
+
+```shell
+docker compose up -d ocserv
+```
+
+### User management
+
+`OC_USER` and `OC_USERPASS` create the initial user only when `./config/ocserv/ocpasswd` does not exist. To add a user or change an existing user's password, run the following command and enter the new password twice:
+
+```shell
+docker compose exec ocserv \
+  ocpasswd -g az -c /etc/ocserv/ocpasswd username
+```
+
+To delete, lock, or unlock a user:
+
+```shell
+docker compose exec ocserv ocpasswd -d -c /etc/ocserv/ocpasswd username
+docker compose exec ocserv ocpasswd -l -c /etc/ocserv/ocpasswd username
+docker compose exec ocserv ocpasswd -u -c /etc/ocserv/ocpasswd username
+```
+
+To inspect the server and currently connected users:
+
+```shell
+docker compose exec ocserv occtl show status
+docker compose exec ocserv occtl show users
+```
+
+The password database is persisted in `./config/ocserv/ocpasswd`.
+
+`./config/ocserv/ocserv.tmpl` and `./config/ocserv/az.tmpl` are persistent, editable templates created only when absent. On every start, environment placeholders are rendered into `/run/ocserv/ocserv.conf` and `/run/ocserv/config-per-group/az`; the generated `az` file is then extended with the current IP routes. Edit the `.tmpl` files, not the generated runtime files, and restart the container to apply changes. Templates containing literal values continue to work; an environment variable changes a setting only when its placeholder is present in the template.
+
+### Client setup
+
+The server address has the following format:
+
+```text
+https://SERVER/?SECRET
+```
+
+Use `PROXY_DOMAIN` as `SERVER` when configured; otherwise use the server's public IP. `SECRET` is the configured `OC_SECRET` and defaults to `kvn`. The query string is required by ocserv camouflage mode.
+
+For OpenConnect, specify the AnyConnect protocol and the user created above:
+
+```shell
+sudo openconnect --protocol=anyconnect --user username \
+  'https://SERVER/?kvn'
+```
+
+In an OpenConnect GUI, select the Cisco AnyConnect protocol and enter the same complete URL. In Cisco Secure Client/AnyConnect, enter `SERVER/?kvn` in the connection field, connect, and provide the username and password. Port 443 is dedicated to ocserv regardless of ALPN; open the Dashboard at `https://SERVER:444`.
+
+With a public ACME certificate, no additional certificate setup is needed. When the self-signed fallback is active, inspect the active certificate before accepting the client warning:
+
+```shell
+openssl x509 -in ./config/https/data/ocserv/certificate.crt \
+  -noout -subject -issuer -fingerprint -sha256
+```
+
+OpenConnect can pin the fingerprint offered in its warning with the `--servercert` option. The pin changes when Caddy switches from the fallback to a managed certificate.
+
+The `https` service stores the fallback, active certificate, and selected identity in `./config/https/data/ocserv`; the original public certificate remains in Caddy's managed storage. Caddy copies a valid managed certificate to the active path and uses the self-signed fallback until one is available. If the managed certificate expires or disappears before renewal succeeds, Caddy switches back to the fallback and automatically activates the managed certificate when it becomes available again. ocserv reads the same active certificate, and its healthcheck restarts the container after renewal, certificate replacement, or an identity change. The fallback is retained between container restarts and regenerated only when the identity changes or it approaches expiration. If the server IP changes, restart the `https` service so it detects the new address.
+
+Direct IP connections are supported by [OpenConnect](https://www.infradead.org/openconnect/manual.html) and [Cisco Secure Client](https://www.cisco.com/c/en/us/td/docs/security/vpn_client/anyconnect/Cisco-Secure-Client-5/admin/guide/b-cisco-secure-client-admin-guide-5-1/configure_vpn.html). A public IP certificate avoids the manual trust or certificate pinning required by a self-signed certificate.
 
 ## OpenVPN
 ### Create client certificates:
@@ -751,33 +954,18 @@ https://github.com/d3vilh/openvpn-ui?tab=readme-ov-file#generating-ovpn-client-p
 
 Kernel extensions can be installed only on <u>a host machine</u>, not in a container.
 
-#### Ubuntu 24.04
+#### Ubuntu 26.04/24.04/22.04/20.04
+Ubuntu 26.04 already includes the OpenVPN DCO kernel module in the stock kernel. Installing `ovpn-dkms` from the OpenVPN repository for 26.04 is optional and is needed only to get a newer module version.
+
 ```bash
 sudo rm -f /etc/apt/sources.list.d/openvpn.list
 sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 noble main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
+curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo tee /etc/apt/keyrings/openvpn-repo-public.asc > /dev/null
+echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.asc] https://build.openvpn.net/debian/openvpn/release/2.7 $(lsb_release -sc) main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
 sudo apt update
 sudo apt install -y ovpn-dkms
 ```
-#### Ubuntu 22.04
-```bash
-sudo rm -f /etc/apt/sources.list.d/openvpn.list
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 jammy main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
-sudo apt update
-sudo apt install -y ovpn-dkms
-```
-#### Ubuntu 20.04
-```bash
-sudo rm -f /etc/apt/sources.list.d/openvpn.list
-sudo mkdir -p /etc/apt/keyrings
-curl -fsSL https://swupdate.openvpn.net/repos/repo-public.gpg | sudo gpg --dearmor --yes -o /etc/apt/keyrings/openvpn-repo-public.gpg
-echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/openvpn-repo-public.gpg] http://build.openvpn.net/debian/openvpn/release/2.7 focal main" | sudo tee /etc/apt/sources.list.d/openvpn-aptrepo.list > /dev/null
-sudo apt update
-sudo apt install -y ovpn-dkms
-```
+
 ### Legacy clients support
 If your clients do not have GCM ciphers support you can use legacy CBC ciphers.
 DCO is incompatible with legacy ciphers and will be disabled. This is also increase CPU load.
@@ -789,33 +977,62 @@ DCO is incompatible with legacy ciphers and will be disabled. This is also incre
 
 https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#ubuntu
 
+The WireGuard image is based on stable `wg-easy` 15.4.0 and replaces its AmneziaWG 3.0 tools with AmneziaWG 3.1 tools. Install only the matching DKMS kernel module on the host; `awg` and `awg-quick` are already included in the container image.
+
+#### Ubuntu 26.04
+
+```bash
+sudo add-apt-repository ppa:amnezia/ppa
+sudo sed -i 's/\bresolute\b/noble/g' /etc/apt/sources.list.d/amnezia-ubuntu-ppa-resolute.sources
+sudo apt update
+sudo apt install -y linux-headers-$(uname -r) amneziawg-dkms
+```
+
 #### Ubuntu 24.04
-1. `sudo add-apt-repository ppa:amnezia/ppa`
-2. `sudo apt install -y amneziawg`
-3. restart server or `docker compose restart wireguard-amnezia`
-4. check the list of kernel modules `dkms status`, 
-   and check that bunch of `[kworker/X:X-wg-crypt-wg0]` processes are now running.
+
+```bash
+sudo add-apt-repository ppa:amnezia/ppa
+sudo apt update
+sudo apt install -y linux-headers-$(uname -r) amneziawg-dkms
+```
 
 #### Ubuntu 20.04, 22.04
-1. Edit `etc/apt/sources.list` and uncomment `deb-src http://archive.ubuntu.com/ubuntu ... main restricted`
-2. `sudo apt update`
-3. `sudo apt install -y software-properties-common python3-launchpadlib gnupg2 linux-headers-$(uname -r)`
-4. install source for kernel `sudo apt-get source linux-image-$(uname -r)`
-5. `sudo add-apt-repository ppa:amnezia/ppa`
-6. `sudo apt install -y amneziawg`
-7. `sudo dkms install -m amneziawg -v 1.0.0`
-8. restart server or `docker compose restart wireguard-amnezia`
-9. check the list of kernel modules `dkms status`, 
-   and check that bunch of `[kworker/X:X-wg-crypt-wg0]` processes are now running.
+
+1. Edit `/etc/apt/sources.list` and uncomment `deb-src http://archive.ubuntu.com/ubuntu ... main restricted`.
+2. Run:
+
+```bash
+sudo apt update
+sudo apt install -y software-properties-common python3-launchpadlib gnupg2 linux-headers-$(uname -r)
+sudo apt-get source linux-image-$(uname -r)
+sudo add-apt-repository ppa:amnezia/ppa
+sudo apt update
+sudo apt install -y amneziawg-dkms
+```
+
+Reboot the host after installing or updating the kernel module; restarting only the container does not replace a loaded module. Then verify that `dkms status` reports AmneziaWG as `installed` for the running kernel and that `lsmod | grep amneziawg` finds the loaded module.
    
 ### AmneziaWG Parameters
 
 Parameter descriptions can be found in the [AmneziaWG documentation](https://docs.amnezia.org/documentation/amnezia-wg) and on the kernel module page.
 
-All parameters **except I1–I5** will be set automatically at first startup. For instructions on configuring I1–I5, refer to the AmneziaWG documentation.
+Use [AmneziaWG Config Generator](https://architect.vai-rice.space/) to generate unique AmneziaWG parameters.
 
-- If a parameter is **not set**, it will not be included in the configuration.
+Parameters `Jc`, `Jmin`, `Jmax`, and `I1`-`I5` can be configured with environment variables. `JC`, `JMIN`, and `JMAX` have defaults; use the AmneziaWG documentation for valid `I1`-`I5` values.
+
+- If an `I1`-`I5` parameter is **not set**, it will not be included in the configuration.
 - If **all AmneziaWG-specific parameters are absent**, AmneziaWG is fully compatible with standard WireGuard.
+
+Supported environment variables:
+
+- `JC=3`
+- `JMIN=20`
+- `JMAX=100`
+- `I1=...`
+- `I2=...`
+- `I3=...`
+- `I4=...`
+- `I5=...`
 
 ## Parameter Compatibility Table
 
@@ -895,6 +1112,7 @@ iperf3 server is included in antizapret-vpn container.
 - [AntiZapret VPN Container](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/) — source code of the LXD-based container
 - [AntiZapret PAC Generator](https://bitbucket.org/anticensority/antizapret-pac-generator-light/src/master/) — proxy auto-configuration generator to bypass censorship of Russian Federation
 - [WireGuard VPN](https://github.com/wg-easy/wg-easy) — used for Wireguard integration
+- [ocserv](https://gitlab.com/openconnect/ocserv) — OpenConnect server
 - [OpenVPN](https://github.com/d3vilh/openvpn-ui) - used for OpenVPN integration
 - [AdGuardHome](https://github.com/AdguardTeam/AdGuardHome) - DNS resolver
 - [filebrowser](https://github.com/filebrowser/filebrowser) - web file browser & editor

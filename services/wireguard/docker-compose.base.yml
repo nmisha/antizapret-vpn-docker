@@ -2,11 +2,12 @@ services:
   base:
     init: true
     restart: unless-stopped
-    image: xtrime/antizapret-vpn-wireguard:6.5.3
+    image: xtrime/antizapret-vpn-wireguard:6.8.1
     build:
       context: .
       args:
-        - IMAGE=ghcr.io/wg-easy/wg-easy:15
+        - IMAGE=ghcr.io/wg-easy/wg-easy:15.4.0
+        - AWG_TOOLS_VERSION=v3.1.20260812
       x-bake:
         platforms:
           - linux/amd64
@@ -14,8 +15,8 @@ services:
     logging:
       driver: json-file
       options:
-        max-size: 100k
-        max-file: 2
+        max-size: 1m
+        max-file: 3
     healthcheck:
       test: (/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
       interval: 10s
@@ -33,6 +34,7 @@ services:
     depends_on:
       - az-local
     volumes:
+      - /etc/localtime:/etc/localtime:ro
       - $PWD/config/antizapret/result:/opt/antizapret/result
     deploy:
       mode: replicated
@@ -45,12 +47,14 @@ services:
       - INSECURE=true
       - DISABLE_IPV6=true
       - WG_PORT=51820
+      - MTU=1280
       - WG_DEFAULT_DNS=14.16.0.1
       - AZ_SUBNET=14.16.0.0/14
       - WG_PERSISTENT_KEEPALIVE=25
       - BGP_ENABLE=false
       - |
         ROUTES=
+        ocserv:10.1.164.0/24;
         openvpn:10.1.165.0/24;
         wireguard:10.1.166.0/24;
         wireguard-amnezia:10.1.167.0/24;

@@ -1,0 +1,50 @@
+networks:
+  default:
+    driver: overlay
+    driver_opts:
+      encrypted: "true"
+      com.docker.network.driver.mtu: 1500
+  host:
+    name: host
+    external: true
+
+services:
+  az-local:
+    networks:
+      default:
+        aliases: !override
+          - az-local
+          - az-local.antizapret
+    environment:
+      - AZ_SUBNET=14.16.0.0/15
+      - ASN_FILES=/root/antizapret/result/asn.txt
+
+  az-world:
+    hostname: az-world.antizapret
+    networks:
+      default:
+        aliases:
+          - az-world
+          - az-world.antizapret
+    extends:
+      file: services/antizapret/docker-compose.yml
+      service: antizapret
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == world ]
+    environment:
+      - CLIENT=az-world
+      - AZ_SUBNET=14.18.0.0/15
+      - ASN_FILES=/root/antizapret/result/asn-world.txt
+
+  adguard:
+    environment:
+      - AZ_WORLD_ENABLED=1
+
+  firewall:
+    network_mode: !reset null
+    networks:
+      - host

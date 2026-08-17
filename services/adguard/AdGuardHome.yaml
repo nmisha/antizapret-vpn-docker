@@ -1,4 +1,6 @@
 http:
+  doh:
+    insecure_enabled: true
   pprof:
     port: 6060
     enabled: false
@@ -58,9 +60,8 @@ dns:
   bootstrap_prefer_ipv6: false
   upstream_timeout: 1s
   private_networks: []
-  use_private_ptr_resolvers: true
-  local_ptr_upstreams:
-    - 127.0.0.11
+  use_private_ptr_resolvers: false
+  local_ptr_upstreams: []
   use_dns64: false
   dns64_prefixes: []
   serve_http3: false
@@ -106,7 +107,7 @@ filters:
     name: AdAway Default Blocklist
     id: 2
   - enabled: true
-    url: http://az-local.antizapret/list/?allow=0&suffix=0&url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/dns.txt
+    url: http://az-local.antizapret/list/?allow=0&suffix=0&url=https://xtrime-ru.github.io/antizapret-vpn-docker/lists/dns.txt
     name: Block DOH DNS
     id: 3
 
@@ -129,19 +130,19 @@ filters:
   #   id: 5
 
   - enabled: true
-    url: http://az-local.antizapret/list/?url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/local.txt
+    url: http://az-local.antizapret/list/?url=https://xtrime-ru.github.io/antizapret-vpn-docker/lists/local.txt
     name: Dist Local Rules
     id: 6
   - enabled: true
-    url: http://az-world.antizapret/list/?url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/world.txt
+    url: http://az-world.antizapret/list/?url=https://xtrime-ru.github.io/antizapret-vpn-docker/lists/world.txt
     name: Dist World Rules
     id: 7
   - enabled: true
-    url: http://az-local.antizapret/list/?raw=1&url=https://raw.githubusercontent.com/xtrime-ru/antizapret-vpn-docker/v6/lists/block.txt
+    url: http://az-local.antizapret/list/?raw=1&url=https://xtrime-ru.github.io/antizapret-vpn-docker/lists/block.txt
     name: Block Spyware
     id: 8
   - enabled: true
-    url: http://az-local.antizapret/list/?url=https://community.antifilter.download/list/domains.lst
+    url: http://az-world.antizapret/list/?url=https://community.antifilter.download/list/domains.lst
     name: Antifilter Community Rules
     id: 9
   - enabled: true
@@ -156,6 +157,14 @@ filters:
     url: http://az-local.antizapret/list/?filter_dist=1&url=https://blockedin.org/api/v3/domains/
     name: Blockedin.org List
     id: 12
+  - enabled: true
+    url: http://az-local.antizapret/list/?regex=1&allow=0&client=az-resolver&filter_custom=0&filter_dist=0&file=/root/antizapret/config/custom/exclude-hosts-custom.txt
+    name: Excluded Custom Local Rules
+    id: 13
+  - enabled: true
+    url: http://az-world.antizapret/list/?regex=1&allow=0&client=az-resolver&filter_custom=0&filter_dist=0&file=/root/antizapret/config/custom/exclude-hosts-custom.txt
+    name: Excluded Custom World Rules
+    id: 14
 
   - enabled: true
     url: http://az-local.antizapret/list/?url=https://raw.githubusercontent.com/nmisha/antizapret-vpn-docker/refs/heads/v6-mine/lists-mine/local.txt
@@ -796,7 +805,8 @@ clients:
     hosts: true
   persistent:
     - name: az-world
-      ids: [ ]
+      ids:
+        - az-world
       tags: [ ]
       upstreams:
         - 1.1.1.1
@@ -809,7 +819,8 @@ clients:
       use_global_settings: true
       use_global_blocked_services: true
     - name: az-local
-      ids: [ ]
+      ids:
+        - az-local
       tags: [ ]
       upstreams:
         - 1.1.1.1
@@ -834,6 +845,18 @@ clients:
         - '[/akamai.net/akamaiedge.net/akadns.net/microsoft.com/ru/su/xn--p1ai/]77.88.8.8 62.76.76.62'
         - '[/themoviedb.org/tmdb.org/tmdb-image-prod.b-cdn.net/]9.9.9.10'
         - '[/warthunder.com/gaijin.net/]77.88.8.8'
+      use_global_settings: true
+      use_global_blocked_services: true
+    - name: az-resolver
+      ids:
+        - az-resolver
+      tags: []
+      upstreams:
+        - 1.1.1.1
+        - 8.8.8.8
+        - 8.8.4.4
+        - 9.9.9.11
+        - 149.112.112.11
       use_global_settings: true
       use_global_blocked_services: true
 log:
