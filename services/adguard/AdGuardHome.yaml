@@ -754,7 +754,7 @@ filtering:
       answer: 78.153.7.99
       enabled: true
     - domain: doorbell.mi
-      answer: 10.1.0.74
+      answer: 10.1.0.52
       enabled: true
     - domain: ca.di
       answer: 10.2.0.1
@@ -782,6 +782,54 @@ filtering:
       enabled: true
     - domain: syncthing.mi
       answer: 10.1.0.46
+      enabled: true
+    - domain: authelia.mi
+      answer: 10.1.0.68
+      enabled: true
+    - domain: camera_bedroom.mi
+      answer: 10.1.0.98
+      enabled: true
+    - domain: capacity.mi
+      answer: 10.1.0.104
+      enabled: true
+    - domain: gate.cbr.mi
+      answer: 10.1.0.92
+      enabled: true
+    - domain: ha2.mi
+      answer: 10.1.0.89
+      enabled: true
+    - domain: hallway_camera_1.mi
+      answer: 10.1.0.80
+      enabled: true
+    - domain: hallway_camera_2.mi
+      answer: 10.1.0.82
+      enabled: true
+    - domain: hwrouter.mi
+      answer: 10.1.0.24
+      enabled: true
+    - domain: kvm1.mi
+      answer: 10.1.0.88
+      enabled: true
+    - domain: opnsense.mi
+      answer: 10.1.0.81
+      enabled: true
+    - domain: pwd.cbr.mi
+      answer: 10.1.0.35
+      enabled: true
+    - domain: stt.mi
+      answer: 10.1.0.86
+      enabled: true
+    - domain: switch1.mi
+      answer: 10.1.0.87
+      enabled: true
+    - domain: ubnt.mi
+      answer: 10.1.0.84
+      enabled: true
+    - domain: ui.wbs.mi
+      answer: 10.1.0.68
+      enabled: true
+    - domain: wbs.mi
+      answer: 10.1.0.68
       enabled: true
   safe_fs_patterns:
     - /*

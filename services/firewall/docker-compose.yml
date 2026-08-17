@@ -18,6 +18,7 @@ services:
       - "github.io=185.199.110.153"
       - "xtrime-ru.github.io=185.199.110.153"
       - "adguardteam.github.io=185.199.110.153"
+      - "nmisha.github.io=185.199.110.153"
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
