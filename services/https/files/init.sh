@@ -206,65 +206,6 @@ EOF
     echo "[INFO] Global configuration block created."
 }
 
-
-AUTHELIA_SERVICE_NAME="auth"
-
-generate_authelia_proxy() {
-    if [ "$IS_SELF_SIGNED" -eq 1 ]; then
-        cat <<EOF >>"$CONFIG_FILE"
-
-#Authelia#
-:9091 {
-  tls $CERT_CRT $CERT_KEY
-
- reverse_proxy {
-   to http://authelia:9091
- }
-
-
-  log {
-    output file /var/log/caddy/authelia-access.log {
-      roll_size 10MB
-      roll_keep 5
-    }
-  }
-}
-
-EOF
-    else
-        cat <<EOF >>"$CONFIG_FILE"
-
-
-
-
-
-#Authelia#
-https://$PROXY_DOMAIN:9091 {
-
- reverse_proxy {
-   to http://authelia:9091
- }
-
-
-  log {
-    output file /var/log/caddy/authelia-access.log {
-      roll_size 10MB
-      roll_keep 5
-    }
-  }
-}
-
-EOF
-    fi
-      echo "[INFO] Authelia proxy block added."
-
-#echo "$CONFIG_FILE"
-#echo cat "$CONFIG_FILE"
-
-}
-
-
-
 add_services_to_config() {
     echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
         if [ -z "$service_value" ]; then
@@ -289,13 +230,6 @@ EOF
   header {
     -X-Frame-Options
   }
-
-	forward_auth authelia:9091 {
-		uri /api/authz/forward-auth
-		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-#    trusted_proxies private_ranges
-	}
-
   reverse_proxy {
     header_up Authorization {http.request.header.Authorization}
     header_up Proxy-Authorization {http.request.header.Proxy-Authorization}
@@ -305,26 +239,10 @@ EOF
       refresh 1s
     }
   }
-
-
-
-
-  log {
-    output file /var/log/caddy/access.log {
-      roll_size 10MB # Create new file when size exceeds 10MB
-      roll_keep 5 # Keep at most 5 rolled files
-#      roll_keep_days 14 # Delete files older than 14 days
-    }
-  }
-
 }
 EOF
         echo "[INFO] Service added: $PROXY_HOST:$external_port -> $internal_host:$internal_port"
     done
-
-
-#echo "$CONFIG_FILE"
-#echo cat "$CONFIG_FILE"
 }
 
 add_http_redirect() {
@@ -369,9 +287,6 @@ main() {
 
 import $SITES_ENABLED_DIR/*
 EOF
-#    add_services_to_config_subnames_2
-#    add_services_to_config_subnames_2
-#    add_services_to_config_subnames_test
 
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
