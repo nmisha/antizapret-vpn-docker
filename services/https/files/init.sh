@@ -206,6 +206,46 @@ EOF
     echo "[INFO] Global configuration block created."
 }
 
+AUTHELIA_SERVICE_NAME="auth"
+
+generate_authelia_proxy() {
+    authelia_address="$PROXY_HOST:9091"
+    if [ "$CERT_TYPE" = "ip" ]; then
+        authelia_address="$authelia_address, :9091"
+    fi
+    if [ "$HTTPS_PORT" -eq 9091 ]; then
+        HAS_CERT_SITE=1
+    fi
+
+    cat <<EOF >>"$CONFIG_FILE"
+
+#Authelia#
+$authelia_address {
+EOF
+    write_tls_policy "$PROXY_HOST"
+    cat <<EOF >>"$CONFIG_FILE"
+
+  reverse_proxy {
+    to http://authelia:9091
+  }
+
+
+  log {
+    output file /var/log/caddy/authelia-access.log {
+      roll_size 10MB
+      roll_keep 5
+    }
+  }
+}
+
+EOF
+    echo "[INFO] Authelia proxy block added."
+
+#echo "$CONFIG_FILE"
+#echo cat "$CONFIG_FILE"
+
+}
+
 add_services_to_config() {
     echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
         if [ -z "$service_value" ]; then
@@ -230,6 +270,13 @@ EOF
   header {
     -X-Frame-Options
   }
+
+	forward_auth authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+#    trusted_proxies private_ranges
+	}
+
   reverse_proxy {
     header_up Authorization {http.request.header.Authorization}
     header_up Proxy-Authorization {http.request.header.Proxy-Authorization}
@@ -239,10 +286,26 @@ EOF
       refresh 1s
     }
   }
+
+
+
+
+  log {
+    output file /var/log/caddy/access.log {
+      roll_size 10MB # Create new file when size exceeds 10MB
+      roll_keep 5 # Keep at most 5 rolled files
+#      roll_keep_days 14 # Delete files older than 14 days
+    }
+  }
+
 }
 EOF
         echo "[INFO] Service added: $PROXY_HOST:$external_port -> $internal_host:$internal_port"
     done
+
+
+#echo "$CONFIG_FILE"
+#echo cat "$CONFIG_FILE"
 }
 
 add_http_redirect() {
@@ -280,7 +343,14 @@ main() {
     get_services
     generate_global_config
     add_http_redirect
+
+#        generate_authelia_proxy
+#        generate_authelia_proxy
+    generate_authelia_proxy   # add authelia proxy
     add_services_to_config
+#    add_services_to_config_subnames_2
+#    add_services_to_config_subnames_2
+#    add_services_to_config_subnames_test
     add_ocserv_certificate_site
 
     cat <<EOF >>"$CONFIG_FILE"
