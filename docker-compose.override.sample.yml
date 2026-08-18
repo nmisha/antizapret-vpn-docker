@@ -8,6 +8,9 @@ services:
     environment:
       # Optional domain for HTTPS services. Public IPv4 is used when empty.
       - PROXY_DOMAIN=
+      # Optional separate VPN domain. When different from PROXY_DOMAIN,
+      # dashboard uses 443 by SNI and all other 443 traffic goes to ocserv.
+      - OCSERV_DOMAIN=
       # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
       # Use selfsigned to disable ACME requests on local installations.
