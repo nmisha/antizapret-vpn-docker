@@ -56,28 +56,28 @@ services:
       - IPTABLES_SAVE_DISABLED=1
       - ZAPRET_ENABLED=0
       - ZAPRET_CONFIG
-      - |
-        IPS_URL=
-        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips.txt;
-      - |
-        IPS_WORLD_URL=
-        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips-world.txt;
-      - |
-        ASN_URL=
-        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn.txt;
-      - |
-        ASN_WORLD_URL=
-        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn-world.txt;
-
       # - |
       #   IPS_URL=
-      #   https://nmisha.github.io/antizapret-vpn-docker/lists/ips.txt;
+      #   https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips.txt;
       # - |
       #   IPS_WORLD_URL=
-      #   https://nmisha.github.io/antizapret-vpn-docker/lists/ips-world.txt;
+      #   https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips-world.txt;
       # - |
       #   ASN_URL=
-      #   https://nmisha.github.io/antizapret-vpn-docker/lists/asn.txt;
+      #   https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn.txt;
       # - |
       #   ASN_WORLD_URL=
-      #   https://nmisha.github.io/antizapret-vpn-docker/lists/asn-world.txt;
+      #   https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn-world.txt;
+
+      - |
+        IPS_URL=
+        https://nmisha.github.io/antizapret-vpn-docker/lists/ips.txt;
+      - |
+        IPS_WORLD_URL=
+        https://nmisha.github.io/antizapret-vpn-docker/lists/ips-world.txt;
+      - |
+        ASN_URL=
+        https://nmisha.github.io/antizapret-vpn-docker/lists/asn.txt;
+      - |
+        ASN_WORLD_URL=
+        https://nmisha.github.io/antizapret-vpn-docker/lists/asn-world.txt;
