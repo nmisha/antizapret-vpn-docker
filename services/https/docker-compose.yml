@@ -22,6 +22,8 @@ services:
     environment:
       # Optional domain for HTTPS services. Public IPv4 is used when empty.
       - PROXY_DOMAIN=
+      # Optional, distinct ocserv domain. Enables SNI routing on 443 when set.
+      - OCSERV_DOMAIN=
       # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
       - PROXY_IP=${PROXY_IP:-}

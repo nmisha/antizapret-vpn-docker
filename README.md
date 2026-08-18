@@ -211,7 +211,9 @@ apt install -y iptables-persistent
 ### HTTPS
 By default, all container can be accessed via https. For certificated management separate `https` container is used.
 If no domain is configured, Caddy detects the server's public IPv4 address and requests a short-lived Let's Encrypt certificate for that address. A persistent self-signed certificate is served until ACME validation succeeds, so HTTPS and ocserv can still start when `80/tcp` is not reachable from the Internet.
-Caddy forwards all connections from its Layer 4 listener on `443/tcp` to ocserv and passes the original client address through PROXY protocol v2. The Dashboard uses the separate HTTPS port `444/tcp`, while the ocserv DTLS channel is exposed directly on `443/udp`.
+By default, Caddy forwards all connections from its Layer 4 listener on `443/tcp` to ocserv and passes the original client address through PROXY protocol v2. The Dashboard uses the separate HTTPS port `444/tcp`, while the ocserv DTLS channel is exposed directly on `443/udp`.
+
+To share `443/tcp` between the Dashboard and ocserv, configure two DNS names pointing to the server: set `PROXY_DOMAIN` to the Dashboard name and `OCSERV_DOMAIN` to the VPN name. Caddy then routes the Dashboard name to its internal HTTPS port by TLS SNI and passes the VPN name, unknown names, and connections without SNI to ocserv without terminating TLS. UDP `443` remains dedicated to ocserv.
 
 - dashboard: https://%your-server-ip%:444
 - adguard: https://%your-server-ip%:1443
@@ -219,6 +221,8 @@ Caddy forwards all connections from its Layer 4 listener on `443/tcp` to ocserv 
 - openvpn: https://%your-server-ip%:3443
 - wireguard: https://%your-server-ip%:4443
 - wireguard-amnezia: https://%your-server-ip%:5443
+
+With distinct `PROXY_DOMAIN` and `OCSERV_DOMAIN`, the Dashboard is also available as `https://PROXY_DOMAIN` on the standard TCP port 443. The original port 444 remains available.
 
 #### Custom sites on ports 80 and 444
 
@@ -785,12 +789,13 @@ You can define these variables in docker-compose.override.yml file for your need
 - `FILEBROWSER_PASSWORD=password`
 
 ### Https:
-- `PROXY_DOMAIN=` - optional domain shared by the HTTPS services and ocserv. If empty, the public IPv4 address is detected at startup.
+- `PROXY_DOMAIN=` - optional domain for the Dashboard and other HTTPS services. If empty, the public IPv4 address is detected at startup.
+- `OCSERV_DOMAIN=` - optional ocserv domain. It defaults to `PROXY_DOMAIN` (or the detected public IPv4). When it is a different DNS name, Caddy shares `443/tcp` by SNI: `PROXY_DOMAIN` opens the Dashboard and `OCSERV_DOMAIN` opens ocserv.
 - `PROXY_EMAIL=` - optional email for the Let's Encrypt account.
 - `PROXY_IP=` - optional public IPv4 override for environments where automatic detection is unavailable.
 - `PROXY_CERT_MODE=auto` - certificate mode: `auto` keeps a self-signed fallback while requesting an ACME certificate; `selfsigned` disables ACME requests.
 - `PROXY_ACME_CA=https://acme-v02.api.letsencrypt.org/directory` - ACME directory URL. Use the Let's Encrypt staging directory while testing certificate issuance.
-- `PROXY_HTTPS_PORT=444` - HTTPS port for the Dashboard and custom Caddy sites. Port `443/tcp` is reserved for ocserv Layer 4 traffic.
+- `PROXY_HTTPS_PORT=444` - internal/direct HTTPS port for the Dashboard and custom Caddy sites. When SNI routing is disabled, port `443/tcp` is reserved for ocserv. This value must not be 443 when SNI routing is enabled.
 
 ### OpenConnect (ocserv)
 - `ROUTES` - list of VPN containers and their virtual addresses.
@@ -871,7 +876,19 @@ services:
       - OC_USERPASS=strongpassword
 ```
 
-Without additional settings, the `https` service detects the server's public IPv4 address and creates a persistent self-signed fallback certificate. Caddy serves it on port 444 while independently requesting a public Let's Encrypt certificate containing an `IP Address` SAN, then switches to the managed certificate without stopping the services. Because port 443 is reserved for ocserv, ACME validation uses HTTP-01 on port 80. IP certificates use the mandatory `shortlived` profile, are valid for 160 hours, and are renewed automatically. Failed ACME attempts are retried while the services remain available with the fallback. For a local installation without a public IP, set `PROXY_CERT_MODE=selfsigned` to disable ACME attempts. To use a domain for both HTTPS services and ocserv, set `PROXY_DOMAIN` for the `https` service.
+Without additional settings, the `https` service detects the server's public IPv4 address and creates persistent self-signed fallback certificates. Caddy serves the web fallback on port 444 while independently requesting a public Let's Encrypt certificate containing an `IP Address` SAN. The managed ocserv certificate is copied to the shared active path without stopping the services. ACME validation uses HTTP-01 on port 80. IP certificates use the mandatory `shortlived` profile, are valid for 160 hours, and are renewed automatically. Failed ACME attempts are retried while the services remain available with the fallbacks. For a local installation without a public IP, set `PROXY_CERT_MODE=selfsigned` to disable ACME attempts.
+
+For domain-based SNI routing, both names must resolve to the server and port `80/tcp` must be reachable for certificate issuance:
+
+```yaml
+services:
+  https:
+    environment:
+      - PROXY_DOMAIN=dashboard.example.com
+      - OCSERV_DOMAIN=vpn.example.com
+```
+
+In this mode, `https://dashboard.example.com` uses the Dashboard certificate managed by Caddy, while ocserv presents the independently managed `vpn.example.com` certificate. If `OCSERV_DOMAIN` is empty or equals `PROXY_DOMAIN`, the backward-compatible behavior is retained: all `443/tcp` traffic goes to ocserv and the Dashboard remains on port 444.
 
 Allow incoming `443/tcp` and `443/udp`, then start the service:
 
@@ -915,7 +932,7 @@ The server address has the following format:
 https://SERVER/?SECRET
 ```
 
-Use `PROXY_DOMAIN` as `SERVER` when configured; otherwise use the server's public IP. `SECRET` is the configured `OC_SECRET` and defaults to `kvn`. The query string is required by ocserv camouflage mode.
+Use `OCSERV_DOMAIN` as `SERVER` when configured. Otherwise use `PROXY_DOMAIN`, or the detected public IP when neither domain is configured. `SECRET` is the configured `OC_SECRET` and defaults to `kvn`. The query string is required by ocserv camouflage mode.
 
 For OpenConnect, specify the AnyConnect protocol and the user created above:
 
@@ -924,7 +941,7 @@ sudo openconnect --protocol=anyconnect --user username \
   'https://SERVER/?kvn'
 ```
 
-In an OpenConnect GUI, select the Cisco AnyConnect protocol and enter the same complete URL. In Cisco Secure Client/AnyConnect, enter `SERVER/?kvn` in the connection field, connect, and provide the username and password. Port 443 is dedicated to ocserv regardless of ALPN; open the Dashboard at `https://SERVER:444`.
+In an OpenConnect GUI, select the Cisco AnyConnect protocol and enter the same complete URL. In Cisco Secure Client/AnyConnect, enter `SERVER/?kvn` in the connection field, connect, and provide the username and password. When a distinct `OCSERV_DOMAIN` is configured, open the Dashboard at `https://PROXY_DOMAIN`; otherwise use `https://SERVER:444`.
 
 With a public ACME certificate, no additional certificate setup is needed. When the self-signed fallback is active, inspect the active certificate before accepting the client warning:
 
