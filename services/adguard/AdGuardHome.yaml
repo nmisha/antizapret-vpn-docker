@@ -496,13 +496,13 @@ user_rules:
   - '||music.vk.com^'
   - '||music.vk.ru^'
   - '#||dzen.ru^'
-  - '#@@||rustore.ru^$client=''10.1.166.30'''
-  - '#@@||rustore.ru^$client=''10.1.166.31'''
-  - '#||apple.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
-  - '||facetime-apple-com.we.apple-dns.net^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
-  - '||facetime.apple.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
-  - '||facetime.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
-  - '||facetime.net^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  # - '#@@||rustore.ru^$client=''10.1.166.30'''
+  # - '#@@||rustore.ru^$client=''10.1.166.31'''
+  # - '#||apple.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  # - '||facetime-apple-com.we.apple-dns.net^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  # - '||facetime.apple.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  # - '||facetime.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  # - '||facetime.net^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
 
 dhcp:
   enabled: false
