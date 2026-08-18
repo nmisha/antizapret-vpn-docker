@@ -1,6 +1,7 @@
 services:
   antizapret:
     image: nmisha/antizapret-vpn:6.8.1
+    # image: xtrime/antizapret-vpn:6.8.1
     restart: unless-stopped
     init: true
     cap_add:
