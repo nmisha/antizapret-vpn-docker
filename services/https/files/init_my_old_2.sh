@@ -10,13 +10,6 @@ CERT_CRT="$OCSERV_CERT_DIR/certificate.crt"
 CERT_KEY="$OCSERV_CERT_DIR/certificate.key"
 FALLBACK_CRT="$OCSERV_CERT_DIR/fallback.crt"
 FALLBACK_KEY="$OCSERV_CERT_DIR/fallback.key"
-WEB_CERT_DIR="/data/web"
-WEB_CERT_CRT="$WEB_CERT_DIR/certificate.crt"
-WEB_CERT_KEY="$WEB_CERT_DIR/certificate.key"
-WEB_FALLBACK_CRT="$WEB_CERT_DIR/fallback.crt"
-WEB_FALLBACK_KEY="$WEB_CERT_DIR/fallback.key"
-WEB_IDENTITY_FILE="$WEB_CERT_DIR/identity"
-WEB_TYPE_FILE="$WEB_CERT_DIR/identity.type"
 CERT_IDENTITY_FILE="$OCSERV_CERT_DIR/identity"
 CERT_TYPE_FILE="$OCSERV_CERT_DIR/identity.type"
 CONFIG_FILE="/etc/caddy/Caddyfile"
@@ -25,8 +18,6 @@ REACHABLE_SERVICES=""
 CERT_IDENTITY=""
 CERT_TYPE=""
 PROXY_HOST=""
-PROXY_HOST_TYPE=""
-SNI_ROUTING=0
 HAS_CERT_SITE=0
 
 validate_ipv4() {
@@ -84,75 +75,37 @@ resolve_certificate_identity() {
         exit 1
     fi
 
-    PROXY_HOST="${PROXY_DOMAIN:-}"
-    if [ -n "$PROXY_HOST" ]; then
-        PROXY_HOST=$(normalize_domain "$PROXY_HOST")
-        PROXY_HOST_TYPE="dns"
-    else
-        PROXY_HOST=$(detect_public_ipv4)
-        PROXY_HOST_TYPE="ip"
-    fi
-
-    CERT_IDENTITY="${OCSERV_DOMAIN:-$PROXY_HOST}"
-    if validate_ipv4 "$CERT_IDENTITY"; then
-        CERT_TYPE="ip"
-    else
+    CERT_IDENTITY="${PROXY_DOMAIN:-}"
+    if [ -n "$CERT_IDENTITY" ]; then
         CERT_IDENTITY=$(normalize_domain "$CERT_IDENTITY")
         CERT_TYPE="dns"
+    else
+        CERT_IDENTITY=$(detect_public_ipv4)
+        CERT_TYPE="ip"
     fi
 
-    if [ "$CERT_IDENTITY" != "$PROXY_HOST" ]; then
-        if [ "$CERT_TYPE" != "dns" ] || [ "$PROXY_HOST_TYPE" != "dns" ]; then
-            echo "[ERROR] SNI routing requires DNS names in both PROXY_DOMAIN and OCSERV_DOMAIN" >&2
-            exit 1
-        fi
-        if [ "$HTTPS_PORT" -eq 443 ]; then
-            echo "[ERROR] PROXY_HTTPS_PORT must differ from 443 when SNI routing is enabled" >&2
-            exit 1
-        fi
-        SNI_ROUTING=1
-    fi
+    PROXY_HOST="$CERT_IDENTITY"
 }
 
 generate_fallback_certificate() {
-    identity="$1"
-    identity_type="$2"
-    fallback_crt="$3"
-    fallback_key="$4"
-    mkdir -p "$(dirname "$fallback_crt")"
-    if [ "$identity_type" = "ip" ]; then
-        identity_check="-checkip"
-    else
-        identity_check="-checkhost"
-    fi
-    if ! openssl x509 -in "$fallback_crt" -noout -checkend 86400 \
-            "$identity_check" "$identity" >/dev/null 2>&1 \
-        || [ ! -s "$fallback_key" ]; then
-        [ "$identity_type" = "ip" ] && san="IP:$identity" || san="DNS:$identity"
-        echo "[INFO] Generating fallback certificate for $identity_type:$identity"
-        openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 365 \
-            -subj "/CN=$identity" -addext "subjectAltName=$san" \
-            -keyout "$fallback_key.tmp" -out "$fallback_crt.tmp" >/dev/null 2>&1
-        chmod 600 "$fallback_key.tmp"
-        mv -f "$fallback_key.tmp" "$fallback_key"
-        mv -f "$fallback_crt.tmp" "$fallback_crt"
-    fi
-}
-
-generate_fallback_certificates() {
     mkdir -p "$OCSERV_CERT_DIR"
-    generate_fallback_certificate \
-        "$CERT_IDENTITY" "$CERT_TYPE" "$FALLBACK_CRT" "$FALLBACK_KEY"
-    generate_fallback_certificate \
-        "$PROXY_HOST" "$PROXY_HOST_TYPE" "$WEB_FALLBACK_CRT" "$WEB_FALLBACK_KEY"
+    old_identity=$(cat "$CERT_IDENTITY_FILE" 2>/dev/null || true)
+    if [ "$old_identity" != "$CERT_IDENTITY" ] \
+        || ! openssl x509 -in "$FALLBACK_CRT" -noout -checkend 86400 >/dev/null 2>&1 \
+        || [ ! -s "$FALLBACK_KEY" ]; then
+        [ "$CERT_TYPE" = "ip" ] && san="IP:$CERT_IDENTITY" || san="DNS:$CERT_IDENTITY"
+        echo "[INFO] Generating fallback certificate for $CERT_TYPE:$CERT_IDENTITY"
+        openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 365 \
+            -subj "/CN=$CERT_IDENTITY" -addext "subjectAltName=$san" \
+            -keyout "$FALLBACK_KEY.tmp" -out "$FALLBACK_CRT.tmp" >/dev/null 2>&1
+        chmod 600 "$FALLBACK_KEY.tmp"
+        mv -f "$FALLBACK_KEY.tmp" "$FALLBACK_KEY"
+        mv -f "$FALLBACK_CRT.tmp" "$FALLBACK_CRT"
+    fi
     printf '%s\n' "$CERT_IDENTITY" > "$CERT_IDENTITY_FILE.tmp"
     printf '%s\n' "$CERT_TYPE" > "$CERT_TYPE_FILE.tmp"
-    printf '%s\n' "$PROXY_HOST" > "$WEB_IDENTITY_FILE.tmp"
-    printf '%s\n' "$PROXY_HOST_TYPE" > "$WEB_TYPE_FILE.tmp"
     mv -f "$CERT_IDENTITY_FILE.tmp" "$CERT_IDENTITY_FILE"
     mv -f "$CERT_TYPE_FILE.tmp" "$CERT_TYPE_FILE"
-    mv -f "$WEB_IDENTITY_FILE.tmp" "$WEB_IDENTITY_FILE"
-    mv -f "$WEB_TYPE_FILE.tmp" "$WEB_TYPE_FILE"
 }
 
 get_services() {
@@ -186,18 +139,16 @@ EOF
 
 write_tls_policy() {
     host="$1"
-    certificate="$2"
-    key="$3"
     if [ "$CERT_MODE" = "selfsigned" ]; then
         cat <<EOF >>"$CONFIG_FILE"
-  tls $certificate $key
+  tls $CERT_CRT $CERT_KEY
 EOF
         return
     fi
 
     if validate_ipv4 "$host"; then
         cat <<EOF >>"$CONFIG_FILE"
-  tls $certificate $key {
+  tls $CERT_CRT $CERT_KEY {
     issuer acme $ACME_CA {
       profile shortlived
       disable_tlsalpn_challenge
@@ -206,7 +157,7 @@ EOF
 EOF
     else
         cat <<EOF >>"$CONFIG_FILE"
-  tls $certificate $key {
+  tls $CERT_CRT $CERT_KEY {
     issuer acme $ACME_CA {
       disable_tlsalpn_challenge
     }
@@ -224,33 +175,11 @@ generate_global_config() {
     cat <<EOF >>"$CONFIG_FILE"
 {
   auto_https $auto_https_mode
-  default_sni $PROXY_HOST
+  default_sni $CERT_IDENTITY
   http_port 80
   https_port $HTTPS_PORT
   layer4 {
     :443 {
-EOF
-    if [ "$SNI_ROUTING" -eq 1 ]; then
-        cat <<EOF >>"$CONFIG_FILE"
-      @web tls sni $PROXY_HOST
-      route @web {
-        proxy {
-          proxy_protocol v2
-          upstream 127.0.0.1:$HTTPS_PORT
-        }
-      }
-
-      @ocserv tls sni $CERT_IDENTITY
-      route @ocserv {
-        proxy {
-          proxy_protocol v2
-          upstream ocserv.antizapret:443
-        }
-      }
-
-EOF
-    fi
-    cat <<EOF >>"$CONFIG_FILE"
       route {
         proxy {
           proxy_protocol v2
@@ -265,23 +194,6 @@ EOF
       tls
     }
   }
-EOF
-    if [ "$SNI_ROUTING" -eq 1 ]; then
-        cat <<EOF >>"$CONFIG_FILE"
-  servers :$HTTPS_PORT {
-    listener_wrappers {
-      proxy_protocol {
-        allow 127.0.0.1/32 ::1/128
-        fallback_policy skip
-      }
-      http_redirect
-      tls
-    }
-    protocols h1 h2
-  }
-EOF
-    fi
-    cat <<EOF >>"$CONFIG_FILE"
   servers :80 {
   }
 EOF
@@ -298,7 +210,7 @@ AUTHELIA_SERVICE_NAME="auth"
 
 generate_authelia_proxy() {
     authelia_address="$PROXY_HOST:9091"
-    if [ "$PROXY_HOST_TYPE" = "ip" ]; then
+    if [ "$CERT_TYPE" = "ip" ]; then
         authelia_address="$authelia_address, :9091"
     fi
     if [ "$HTTPS_PORT" -eq 9091 ]; then
@@ -310,7 +222,7 @@ generate_authelia_proxy() {
 #Authelia#
 $authelia_address {
 EOF
-    write_tls_policy "$PROXY_HOST" "$WEB_CERT_CRT" "$WEB_CERT_KEY"
+    write_tls_policy "$PROXY_HOST"
     cat <<EOF >>"$CONFIG_FILE"
 
   reverse_proxy {
@@ -344,7 +256,7 @@ add_services_to_config() {
 $service_value
 EOF
         site_address="$PROXY_HOST:$external_port"
-        if [ "$PROXY_HOST_TYPE" = "ip" ]; then
+        if [ "$CERT_TYPE" = "ip" ]; then
             site_address="$site_address, :$external_port"
         fi
 
@@ -353,7 +265,7 @@ EOF
 #$name#
 $site_address {
 EOF
-        write_tls_policy "$PROXY_HOST" "$WEB_CERT_CRT" "$WEB_CERT_KEY"
+        write_tls_policy "$PROXY_HOST"
         cat <<EOF >>"$CONFIG_FILE"
   header {
     -X-Frame-Options
@@ -397,22 +309,17 @@ EOF
 }
 
 add_http_redirect() {
-    if [ "$SNI_ROUTING" -eq 1 ]; then
-        redirect_target="https://{host}{uri}"
-    else
-        redirect_target="https://{host}:$HTTPS_PORT{uri}"
-    fi
     cat <<EOF >>"$CONFIG_FILE"
 
 #HTTP to Dashboard#
 http://$PROXY_HOST, :80 {
-  redir $redirect_target 308
+  redir https://{host}:$HTTPS_PORT{uri} 308
 }
 EOF
 }
 
 add_ocserv_certificate_site() {
-    if [ "$SNI_ROUTING" -eq 0 ] && [ "$HAS_CERT_SITE" -eq 1 ]; then
+    if [ "$HAS_CERT_SITE" -eq 1 ]; then
         return
     fi
 
@@ -421,7 +328,7 @@ add_ocserv_certificate_site() {
 #ocserv certificate automation#
 $CERT_IDENTITY:$HTTPS_PORT {
 EOF
-    write_tls_policy "$CERT_IDENTITY" "$CERT_CRT" "$CERT_KEY"
+    write_tls_policy "$CERT_IDENTITY"
     cat <<EOF >>"$CONFIG_FILE"
   respond 204
 }
@@ -432,7 +339,7 @@ main() {
     mkdir -p "$SITES_ENABLED_DIR"
     : >"$CONFIG_FILE"
     resolve_certificate_identity
-    generate_fallback_certificates
+    generate_fallback_certificate
     get_services
     generate_global_config
     add_http_redirect
@@ -450,9 +357,6 @@ EOF
     echo
     echo "[INFO] Caddyfile has been successfully created at: $CONFIG_FILE"
     echo "[INFO] ocserv certificate identity: $CERT_TYPE:$CERT_IDENTITY"
-    if [ "$SNI_ROUTING" -eq 1 ]; then
-        echo "[INFO] Port 443 SNI routing: $PROXY_HOST -> dashboard, $CERT_IDENTITY -> ocserv"
-    fi
 }
 
 main
