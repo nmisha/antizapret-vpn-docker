@@ -107,7 +107,7 @@ func makeWgClientFromEnv() (*wgEasyClient, error) {
 	port := envTrim("WG_PORT")
 	username := envTrim("WG_USERNAME")
 	pass := envTrim("WG_PASSWORD")
-	client, err := newWgEasyClient(host, port, username, pass)
+	client, err := newWgEasyClient(host, port, username, pass, wgEasyTimeoutFromEnv("WG_TIMEOUT_SECONDS"))
 	if err != nil {
 		return nil, fmt.Errorf("Не заданы переменные окружения WireGuard. Нужно: WG_HOST, WG_PORT, WG_PASSWORD. Для wg-easy v15 обычно также нужен WG_USERNAME")
 	}

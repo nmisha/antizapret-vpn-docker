@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:6.0.36
+    image: nmisha/antizapret-vpn-tgbot:6.0.37
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
@@ -56,11 +56,13 @@ services:
       WG_PORT: "51821"
       WG_USERNAME: "admin"
       WG_PASSWORD: "password"
+      WG_TIMEOUT_SECONDS: "90"
 
       AWG_HOST: "wireguard-amnezia.antizapret"
       AWG_PORT: "51821"
       AWG_USERNAME: "admin"
       AWG_PASSWORD: "password"
+      AWG_TIMEOUT_SECONDS: "90"
 
       OVPN_HOST: "openvpn-ui.antizapret"
       OVPN_PORT: "8080"
