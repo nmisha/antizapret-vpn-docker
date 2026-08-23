@@ -136,6 +136,8 @@ curl -X POST \
 
 Rules are stored in `config-mine/dns-guard/risk-domains.json`.
 
+The rules file is reloaded automatically. Restart is not required when `risk-domains.json` is mounted into the container as `/config/risk-domains.json`: `dns-guard` checks the file on every poll cycle and reloads it when file size or modification time changes.
+
 Each rule has:
 
 - `domain` or `domains`
@@ -154,6 +156,11 @@ Rule examples:
 
 When `domains` is used, one logical rule is expanded into multiple domain matchers with the same `match`, `risk`, `reason`, and `enabled` settings.
 
+Match modes:
+
+- `exact`: only the normalized domain itself matches
+- `suffix`: the normalized domain and all of its subdomains match
+
 Optional top-level exclusions can also be defined in the same file:
 
 - `excludes`: list of domain matchers that suppress risk scoring
@@ -163,7 +170,37 @@ Optional top-level exclusions can also be defined in the same file:
   - `reason`
   - `enabled`
 
-Exclude matching is checked before risk rules. If a domain matches an enabled exclude, it does not increase risk score even if it also matches a risk rule.
+Exclude matching is checked before risk rules. If a domain matches an enabled exclude, it does not increase risk score even if it also matches a risk rule. When several excludes match the same query domain, the most specific one is used.
+
+Example:
+
+```json
+{
+  "rules": [
+    {
+      "domain": "example.com",
+      "match": "suffix",
+      "risk": 5,
+      "reason": "suspicious service",
+      "enabled": true
+    }
+  ],
+  "excludes": [
+    {
+      "domain": "safe.example.com",
+      "match": "exact",
+      "reason": "known safe endpoint",
+      "enabled": true
+    },
+    {
+      "domains": ["cdn.example.com", "static.example.com"],
+      "match": "suffix",
+      "reason": "trusted infrastructure",
+      "enabled": true
+    }
+  ]
+}
+```
 
 ## Practical Starting Thresholds
 
