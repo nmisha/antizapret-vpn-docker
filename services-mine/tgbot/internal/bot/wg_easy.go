@@ -41,18 +41,39 @@ type wgEasyClient struct {
 	http     *http.Client
 }
 
-func newWgEasyClient(host, port, username, password string) (*wgEasyClient, error) {
+func newWgEasyClient(host, port, username, password string, timeout time.Duration) (*wgEasyClient, error) {
 	if host == "" || port == "" || password == "" {
 		return nil, fmt.Errorf("WG_HOST, WG_PORT, WG_PASSWORD required")
+	}
+	if timeout <= 0 {
+		timeout = defaultWgEasyTimeout()
 	}
 	return &wgEasyClient{
 		BaseURL:  fmt.Sprintf("http://%s:%s", host, port),
 		Username: username,
 		Password: password,
 		http: &http.Client{
-			Timeout: 25 * time.Second,
+			Timeout: timeout,
 		},
 	}, nil
+}
+
+func defaultWgEasyTimeout() time.Duration {
+	return 25 * time.Second
+}
+
+func wgEasyTimeoutFromEnv(primaryKey string) time.Duration {
+	for _, key := range []string{primaryKey, "WG_EASY_TIMEOUT_SECONDS"} {
+		if key == "" {
+			continue
+		}
+		if v := envTrim(key); v != "" {
+			if n, err := strconv.Atoi(v); err == nil && n > 0 {
+				return time.Duration(n) * time.Second
+			}
+		}
+	}
+	return defaultWgEasyTimeout()
 }
 
 func (c *wgEasyClient) newReq(method, path string, body io.Reader) (*http.Request, error) {
