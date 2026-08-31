@@ -1,0 +1,87 @@
+services:
+
+  chromium:
+    image: lscr.io/linuxserver/chromium:latest
+    # container_name: cloud-browser-chromium
+    hostname: chromium.antizapret
+    restart: unless-stopped
+
+    init: true
+    build:
+      context: .
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    logging:
+      driver: json-file
+      options:
+        max-size: 100k
+        max-file: 2
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        # constraints: [ node.labels.location == world ]
+        constraints: [ node.labels.location == local ]
+      # restart_policy:
+      #   condition: on-failure
+
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: Europe/Moscow
+
+    volumes:
+      # - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config-mine/chromium:/config:rw
+
+    # ports:
+    #   - "3001:3001"
+
+    shm_size: "2gb"
+
+  firefox:
+    image: lscr.io/linuxserver/firefox:latest
+    # container_name: cloud-browser-firefox
+    hostname: firefox.antizapret
+    restart: unless-stopped
+
+    init: true
+    build:
+      context: .
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    logging:
+      driver: json-file
+      options:
+        max-size: 100k
+        max-file: 2
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        # constraints: [ node.labels.location == world ]
+        constraints: [ node.labels.location == local ]
+      # restart_policy:
+      #   condition: on-failure
+
+    environment:
+      PUID: 1000
+      PGID: 1000
+      TZ: Europe/Moscow
+
+    volumes:
+      # - ./config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config-mine/firefox:/config:rw
+
+    # ports:
+    #   - "3001:3001"
+
+    shm_size: "2gb"

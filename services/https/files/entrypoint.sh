@@ -80,6 +80,28 @@ sync_certificate() {
     return 0
 }
 
+sync_configured_certificates() {
+    counter=1
+    while :; do
+        certificate_var="SNI_CERT_$counter"
+        eval "certificate_value=\${$certificate_var:-}"
+        if [ -z "$certificate_value" ]; then
+            break
+        fi
+
+        IFS=: read -r identity output_directory remainder <<EOF
+$certificate_value
+EOF
+        if sync_certificate "SNI certificate $identity" \
+            "$output_directory/identity" \
+            "$output_directory/fallback.crt" "$output_directory/fallback.key" \
+            "$output_directory/certificate.crt" "$output_directory/certificate.key"; then
+            certificates_changed=1
+        fi
+        counter=$((counter + 1))
+    done
+}
+
 sync_all_certificates() {
     certificates_changed=0
     if sync_certificate "ocserv" \
@@ -94,6 +116,7 @@ sync_all_certificates() {
         "$WEB_ACTIVE_CERT" "$WEB_ACTIVE_KEY"; then
         certificates_changed=1
     fi
+    sync_configured_certificates
     return 0
 }
 

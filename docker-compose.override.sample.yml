@@ -6,11 +6,15 @@ services:
 
   https:
     environment:
-      # Optional domain for HTTPS services. Public IPv4 is used when empty.
-      - PROXY_DOMAIN=
-      # Optional separate VPN domain. When different from PROXY_DOMAIN,
-      # dashboard uses 443 by SNI and all other 443 traffic goes to ocserv.
-      - OCSERV_DOMAIN=
+      - PROXY_DOMAIN=dashboard.example.com
+      - OCSERV_DOMAIN=vpn.example.com
+      # SNI_ROUTE_N=sni:upstream_hostname:upstream_port:none|proxy-v1|proxy-v2
+      - SNI_ROUTE_1=dashboard.example.com:127.0.0.1:444:proxy-v2
+      - SNI_ROUTE_2=vpn.example.com:ocserv.antizapret:443:proxy-v2
+      # Optional catch-all. Leave empty to reject unmatched/no-SNI connections.
+      - SNI_DEFAULT_ROUTE=
+      # Ask Caddy to manage and export additional certificates.
+      # - SNI_CERT_1=mail.example.com:/data/certs/mail
       # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
       # Use selfsigned to disable ACME requests on local installations.
