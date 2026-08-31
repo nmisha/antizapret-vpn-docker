@@ -20,10 +20,18 @@ services:
       - "8143:8143"
       - "8243:8243"
     environment:
-      # Optional domain for HTTPS services. Public IPv4 is used when empty.
+      # Optional domain for Dashboard and other HTTPS services. Public IPv4 is used when empty.
       - PROXY_DOMAIN=
-      # Optional, distinct ocserv domain. Enables SNI routing on 443 when set.
+      # Optional certificate identity for ocserv. Defaults to PROXY_DOMAIN/public IPv4.
       - OCSERV_DOMAIN=
+      # SNI_ROUTE_N=sni:upstream_hostname:upstream_port:none|proxy-v1|proxy-v2
+      # Example: vpn.example.com:ocserv.antizapret:443:proxy-v2
+      - SNI_ROUTE_1=
+      # Optional catch-all route. Empty means unmatched/no-SNI connections are dropped.
+      # Format: upstream_hostname:upstream_port:none|proxy-v1|proxy-v2
+      - SNI_DEFAULT_ROUTE=
+      # SNI_CERT_N=identity:/absolute/output/directory
+      - SNI_CERT_1=
       # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
       - PROXY_IP=${PROXY_IP:-}
