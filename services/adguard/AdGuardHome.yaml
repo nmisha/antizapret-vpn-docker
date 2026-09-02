@@ -512,6 +512,7 @@ user_rules:
   # - '||facetime.apple.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
   # - '||facetime.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
   # - '||facetime.net^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
+  - '@@||yabs.yandex.ru'
 
 dhcp:
   enabled: false
