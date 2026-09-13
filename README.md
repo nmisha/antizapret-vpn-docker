@@ -226,6 +226,9 @@ When a route sends the Dashboard name to `127.0.0.1:444`, the Dashboard is also 
 
 #### Custom sites on ports 80 and 444
 
+For generated domain sites with Authelia, use `PROXY_AUTHELIA_DOMAIN` and
+`PROXY_VHOST_N`; see [configuration and migration](services/https/README.md).
+
 Additional Caddy configurations can be stored in `config/https/config/sites-enabled`. The directory is created automatically when the `https` container starts, and all files in it are imported into the main Caddyfile.
 
 For example, to expose the `my-app` service available on port `8080` in the Docker network, create `config/https/config/sites-enabled/my-app.caddy`:

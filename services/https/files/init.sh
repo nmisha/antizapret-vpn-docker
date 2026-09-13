@@ -33,6 +33,9 @@ PROXY_HOST=""
 PROXY_HOST_TYPE=""
 SNI_ROUTING=0
 HAS_CERT_SITE=0
+VHOSTS=""
+VHOST_DOMAINS=""
+AUTHELIA_DOMAIN=""
 
 validate_ipv4() {
     printf '%s\n' "$1" | awk -F. '
@@ -320,6 +323,91 @@ EOF
     done
 }
 
+register_vhost_domain() {
+    # DNS names are also used as certificate directory names and Caddy addresses.
+    if ! printf '%s\n' "$1" | awk -F. '
+        length($0) > 253 || NF < 2 { exit 1 }
+        { for (i = 1; i <= NF; i++) {
+            if (length($i) > 63 || $i !~ /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/) exit 1
+        } }
+    ' || validate_ipv4 "$1"; then
+        echo "[ERROR] Invalid virtual host domain: $1" >&2
+        exit 1
+    fi
+    case " $PROXY_HOST $CERT_IDENTITY $VHOST_DOMAINS " in
+        *" $1 "*)
+            echo "[ERROR] Duplicate or reserved virtual host domain: $1" >&2
+            exit 1 ;;
+    esac
+    if [ "$SNI_ROUTING" -eq 1 ]; then
+        if ! printf '%s\n' "$SNI_ROUTES" | awk -F: -v domain="$1" -v port="$HTTPS_PORT" '
+            $1 == domain && $2 == "127.0.0.1" && $3 == port { found = 1 }
+            END { exit !found }
+        '; then
+            echo "[ERROR] Add an SNI_ROUTE_N for $1:127.0.0.1:$HTTPS_PORT:proxy-v2" >&2
+            exit 1
+        fi
+    fi
+    VHOST_DOMAINS="$VHOST_DOMAINS $1"
+}
+
+get_vhosts() {
+    if [ -n "${PROXY_AUTHELIA_DOMAIN:-}" ]; then
+        AUTHELIA_DOMAIN=$(normalize_domain "$PROXY_AUTHELIA_DOMAIN")
+        register_vhost_domain "$AUTHELIA_DOMAIN"
+    fi
+    counter=1
+    while :; do
+        vhost_var="PROXY_VHOST_$counter"
+        eval "vhost_value=\${$vhost_var:-}"
+        [ -n "$vhost_value" ] || break
+        IFS=: read -r name domain internal_host internal_port remainder <<EOF
+$vhost_value
+EOF
+        if [ -z "$name" ] || ! validate_hostname "$internal_host" \
+            || ! validate_port "$internal_port" || [ -n "$remainder" ]; then
+            echo "[ERROR] $vhost_var has an invalid format. Expected: name:domain:internal_hostname:internal_port" >&2
+            exit 1
+        fi
+        domain=$(normalize_domain "$domain")
+        register_vhost_domain "$domain"
+        VHOSTS=$(printf '%s\n%s:%s:%s:%s' "$VHOSTS" "$name" "$domain" "$internal_host" "$internal_port")
+        counter=$((counter + 1))
+    done
+}
+
+write_vhost_tls_policy() {
+    # Reuse exported certificates without generating another site for the same host.
+    vhost_certificate_dir=$(printf '%s\n' "$SNI_CERTIFICATES" | awk -F: -v domain="$1" '$1 == domain { print $3 }')
+    if [ -n "$vhost_certificate_dir" ]; then
+        write_tls_policy "$1" "$vhost_certificate_dir/certificate.crt" "$vhost_certificate_dir/certificate.key"
+    elif [ "$CERT_MODE" = "selfsigned" ]; then
+        vhost_certificate_dir="/data/vhosts/$1"
+        generate_fallback_certificate "$1" dns "$vhost_certificate_dir/fallback.crt" "$vhost_certificate_dir/fallback.key"
+        write_tls_policy "$1" "$vhost_certificate_dir/fallback.crt" "$vhost_certificate_dir/fallback.key"
+    else
+        # Caddy manages these certificates directly; no exported files or watcher needed.
+        cat <<EOF >>"$CONFIG_FILE"
+  tls {
+    issuer acme $ACME_CA {
+      disable_tlsalpn_challenge
+    }
+  }
+EOF
+    fi
+}
+
+add_vhost_redirects() {
+    for domain in $VHOST_DOMAINS; do
+        cat <<EOF >>"$CONFIG_FILE"
+
+http://$domain {
+  redir https://$domain{uri} 308
+}
+EOF
+    done
+}
+
 get_services() {
     counter=1
     while :; do
@@ -477,14 +565,14 @@ EOF
     echo "[INFO] Global configuration block created."
 }
 
-AUTHELIA_SERVICE_NAME="auth"
-
 generate_authelia_proxy() {
     authelia_address="$PROXY_HOST:9091"
-    if [ "$PROXY_HOST_TYPE" = "ip" ]; then
+    if [ -n "$AUTHELIA_DOMAIN" ]; then
+        authelia_address="$AUTHELIA_DOMAIN:$HTTPS_PORT"
+    elif [ "$PROXY_HOST_TYPE" = "ip" ]; then
         authelia_address="$authelia_address, :9091"
     fi
-    if [ "$HTTPS_PORT" -eq 9091 ]; then
+    if [ -z "$AUTHELIA_DOMAIN" ] && [ "$HTTPS_PORT" -eq 9091 ]; then
         HAS_CERT_SITE=1
     fi
 
@@ -493,7 +581,11 @@ generate_authelia_proxy() {
 #Authelia#
 $authelia_address {
 EOF
-    write_tls_policy "$PROXY_HOST" "$WEB_CERT_CRT" "$WEB_CERT_KEY"
+    if [ -n "$AUTHELIA_DOMAIN" ]; then
+        write_vhost_tls_policy "$AUTHELIA_DOMAIN"
+    else
+        write_tls_policy "$PROXY_HOST" "$WEB_CERT_CRT" "$WEB_CERT_KEY"
+    fi
     cat <<EOF >>"$CONFIG_FILE"
 
   reverse_proxy {
@@ -518,7 +610,13 @@ EOF
 }
 
 add_services_to_config() {
-    echo "$REACHABLE_SERVICES" | while IFS= read -r service_value; do
+    site_mode="${1:-port}"
+    if [ "$site_mode" = "domain" ]; then
+        services_to_write="$VHOSTS"
+    else
+        services_to_write="$REACHABLE_SERVICES"
+    fi
+    echo "$services_to_write" | while IFS= read -r service_value; do
         if [ -z "$service_value" ]; then
             continue
         fi
@@ -527,7 +625,9 @@ add_services_to_config() {
 $service_value
 EOF
         site_address="$PROXY_HOST:$external_port"
-        if [ "$PROXY_HOST_TYPE" = "ip" ]; then
+        if [ "$site_mode" = "domain" ]; then
+            site_address="$external_port:$HTTPS_PORT"
+        elif [ "$PROXY_HOST_TYPE" = "ip" ]; then
             site_address="$site_address, :$external_port"
         fi
 
@@ -536,7 +636,11 @@ EOF
 #$name#
 $site_address {
 EOF
-        write_tls_policy "$PROXY_HOST" "$WEB_CERT_CRT" "$WEB_CERT_KEY"
+        if [ "$site_mode" = "domain" ]; then
+            write_vhost_tls_policy "$external_port"
+        else
+            write_tls_policy "$PROXY_HOST" "$WEB_CERT_CRT" "$WEB_CERT_KEY"
+        fi
         cat <<EOF >>"$CONFIG_FILE"
   header {
     -X-Frame-Options
@@ -571,7 +675,7 @@ EOF
 
 }
 EOF
-        echo "[INFO] Service added: $PROXY_HOST:$external_port -> $internal_host:$internal_port"
+        echo "[INFO] Service added: $site_address -> $internal_host:$internal_port"
     done
 
 
@@ -622,6 +726,9 @@ EOF
         if [ "$identity" = "$PROXY_HOST" ] || [ "$identity" = "$CERT_IDENTITY" ]; then
             continue
         fi
+        case " $VHOST_DOMAINS " in
+            *" $identity "*) continue ;;
+        esac
 
         cat <<EOF >>"$CONFIG_FILE"
 
@@ -645,14 +752,17 @@ main() {
     get_sni_routes
     resolve_certificate_identity
     get_sni_certificates
+    get_vhosts
     generate_fallback_certificates
     get_services
     generate_global_config
     add_http_redirect
+    add_vhost_redirects
 
 
     generate_authelia_proxy   # add authelia proxy
     add_services_to_config
+    add_services_to_config domain
     add_ocserv_certificate_site
     add_sni_certificate_sites
 
