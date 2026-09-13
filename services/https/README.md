@@ -57,11 +57,20 @@ does not transfer these files.
    ```yaml
    - DASHBOARD_SERVICE_11=2FAuth:443:2fauth:8000
    - DASHBOARD_SERVICE_URL_11=https://twof.auth.nope.jo3.org
+   - DASHBOARD_SERVICE_MODE_11=external
+   - DASHBOARD_SERVICE_12=Authelia:443:authelia:9091
+   - DASHBOARD_SERVICE_URL_12=https://auth.nope.jo3.org
+   - DASHBOARD_SERVICE_MODE_12=external
    ```
 
    `DASHBOARD_SERVICE_URL_N` overrides the external HTTPS link. Without it,
    Dashboard uses its current host and the service port. Internal Docker links
    retain their existing behavior.
+
+   `DASHBOARD_SERVICE_MODE_N=external` renders a link opening in a new browser
+   tab and creates no iframe. This mode always uses the external URL, including
+   when Dashboard is accessed by its internal hostname. The default `iframe`
+   mode keeps existing embedded tabs. Authelia and 2FAuth use external mode.
 
 5. Build and distribute new HTTPS and Dashboard images before applying the
    configuration. For Swarm, publish both images under new tags and update the

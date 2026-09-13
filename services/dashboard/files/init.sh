@@ -104,12 +104,20 @@ create_services_json() {
             *) echo "[ERROR] $url_var must be an HTTPS URL" >&2; exit 1 ;;
         esac
 
+        mode_var="DASHBOARD_SERVICE_MODE_$COUNTER"
+        eval "open_mode=\${$mode_var:-iframe}"
+        case "$open_mode" in
+            iframe|external) ;;
+            *) echo "[ERROR] $mode_var must be iframe or external" >&2; exit 1 ;;
+        esac
+
         service_json=$(jq -n \
                 --arg name "$name" \
                 --arg externalPort "$external_port" \
                 --arg internalHostname "$internal_hostname" \
                 --arg internalPort "$internal_port" \
                 --arg externalUrl "$external_url" \
+                --arg openMode "$open_mode" \
                 '$ARGS.named')
 
         if [ -n "$services" ]; then
