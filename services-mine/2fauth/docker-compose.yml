@@ -4,6 +4,20 @@ services:
     container_name: 2fauth
     hostname: 2fauth
     restart: unless-stopped
+    # Prepare bind-mount permissions on the node running the task, then drop root.
+    user: "0:0"
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        mkdir -p /2fauth
+        chown -Rh 1000:1000 /2fauth
+        chmod 700 /2fauth
+        if ! id 2fauth >/dev/null 2>&1; then
+          addgroup -g 1000 2fauth
+          adduser -D -H -u 1000 -G 2fauth 2fauth
+        fi
+        exec su -p -s /bin/sh -c 'exec /usr/local/bin/entrypoint.sh' 2fauth
     ports: []
     environment:
       APP_NAME: 2FAuth
@@ -17,6 +31,7 @@ services:
       DB_DATABASE: /srv/database/database.sqlite
     volumes:
       - /etc/localtime:/etc/localtime:ro
+      - /etc/timezone:/etc/timezone:ro
       - $PWD/config-mine/2fauth:/2fauth
     depends_on:
       - coredns
