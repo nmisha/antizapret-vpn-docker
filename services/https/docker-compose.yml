@@ -44,6 +44,10 @@ services:
       # PROXY_VHOST_N=name:domain:internal_hostname:internal_port (protected by Authelia).
       # With SNI routing, also route each domain to 127.0.0.1:PROXY_HTTPS_PORT:proxy-v2.
       - PROXY_VHOST_1=
+      # Optional shared account mapping for the same PROXY_VHOST_N index.
+      # Both values must be set together. Other authenticated users keep their login.
+      - PROXY_VHOST_SHARED_GROUP_1=
+      - PROXY_VHOST_SHARED_USER_1=
       # PROXY_SERVICE_N=name:external_port:internal_hostname:internal_port
       - PROXY_SERVICE_1=Dashboard:444:dashboard.antizapret:80
       - PROXY_SERVICE_2=AdGuard:1443:adguard.antizapret:3000

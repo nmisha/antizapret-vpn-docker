@@ -48,8 +48,8 @@ does not transfer these files.
    domain `nope.jo3.org`, set `authelia_url: https://auth.nope.jo3.org`, and keep
    `default_redirection_url: https://m.nope.jo3.org`. Add
    `twof.auth.nope.jo3.org` to the existing `one_factor` rule for `admins` and
-   `vpn_users`; keep the default deny policy. This preserves current access
-   policy and does not enable automatic account login inside 2FAuth.
+   `vpn_users`; keep the default deny policy. For the shared account setup below,
+   also allow `twofauth_shared` on the 2FAuth domain only.
 3. Set `services.2fauth.environment.APP_URL` to
    `https://twof.auth.nope.jo3.org`. Preserve the existing `APP_KEY` and data.
 4. Configure the Dashboard link:
@@ -72,6 +72,35 @@ does not transfer these files.
 6. Check certificates, login at `https://auth.nope.jo3.org`, the redirect back to
    2FAuth, access to existing `m.nope.jo3.org` services, the Dashboard link and
    ocserv connectivity. Old portal/2FAuth ports are removed, not redirected.
+
+## Shared identity for a virtual host
+
+Optional variables with the same index as `PROXY_VHOST_N` map an authenticated
+Authelia group to one application account:
+
+```yaml
+- PROXY_VHOST_SHARED_GROUP_1=twofauth_shared
+- PROXY_VHOST_SHARED_USER_1=chatgpt
+```
+
+Set both variables or leave both empty. Group names accept letters, digits,
+underscores and hyphens. Account names additionally accept spaces, `@` and `.`.
+The account name must match the existing 2FAuth `name` field.
+
+The generated `route` removes untrusted `Remote-*` and `Remote_*` request headers,
+calls Authelia, then matches a complete comma-separated group name. Members get
+the configured `Remote-User`; their `Remote-Email` and `Remote-Name` are removed
+so the shared account retains its own profile. Other authorized users keep their
+personal identity. Other sites are unaffected. Authelia access rules still decide
+who may access the site; group mapping never grants access on its own.
+
+The local Swarm override enables `reverse-proxy-guard` for 2FAuth and connects
+only Caddy and 2FAuth to `twofauth-auth` (`10.43.42.0/24`). 2FAuth leaves the
+shared default network and trusts only the dedicated network's range. Confirm
+the subnet does not overlap networks on deployment nodes. Caddy retains its
+default network for access to Authelia and other services. 2FAuth has no published
+ports; Docker administrators remain trusted because they can attach containers
+to networks. See [Authelia setup](../../services-mine/authelia/README.md).
 
 ## Local generator checks
 
