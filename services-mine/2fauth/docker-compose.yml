@@ -1,0 +1,27 @@
+services:
+  2fauth:
+    image: 2fauth/2fauth:latest
+    container_name: 2fauth
+    hostname: 2fauth
+    restart: unless-stopped
+    ports: []
+    environment:
+      APP_NAME: 2FAuth
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_URL: ${TWOFAUTH_APP_URL:?Set TWOFAUTH_APP_URL to the public HTTPS URL}
+      APP_KEY: ${TWOFAUTH_APP_KEY:?Set TWOFAUTH_APP_KEY to a unique persistent encryption key}
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /srv/database/database.sqlite
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config-mine/2fauth:/2fauth
+    depends_on:
+      - coredns
+      - az-local
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
