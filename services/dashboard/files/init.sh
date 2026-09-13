@@ -97,12 +97,19 @@ create_services_json() {
         external_port=$(echo "$service_value" | cut -d':' -f2)
         internal_hostname=$(echo "$service_value" | cut -d':' -f3)
         internal_port=$(echo "$service_value" | cut -d':' -f4)
+        url_var="DASHBOARD_SERVICE_URL_$COUNTER"
+        eval "external_url=\${$url_var:-}"
+        case "$external_url" in
+            ""|https://*) ;;
+            *) echo "[ERROR] $url_var must be an HTTPS URL" >&2; exit 1 ;;
+        esac
 
         service_json=$(jq -n \
                 --arg name "$name" \
                 --arg externalPort "$external_port" \
                 --arg internalHostname "$internal_hostname" \
                 --arg internalPort "$internal_port" \
+                --arg externalUrl "$external_url" \
                 '$ARGS.named')
 
         if [ -n "$services" ]; then

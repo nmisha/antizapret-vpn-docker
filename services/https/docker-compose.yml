@@ -39,7 +39,12 @@ services:
       - PROXY_CERT_MODE=auto
       - PROXY_ACME_CA=https://acme-v02.api.letsencrypt.org/directory
       - PROXY_HTTPS_PORT=444
-      # PROXY_SERVICE_N=external_port:internal_hostname:internal_port
+      # Optional portal domain; empty keeps the legacy PROXY_DOMAIN:9091 address.
+      - PROXY_AUTHELIA_DOMAIN=
+      # PROXY_VHOST_N=name:domain:internal_hostname:internal_port (protected by Authelia).
+      # With SNI routing, also route each domain to 127.0.0.1:PROXY_HTTPS_PORT:proxy-v2.
+      - PROXY_VHOST_1=
+      # PROXY_SERVICE_N=name:external_port:internal_hostname:internal_port
       - PROXY_SERVICE_1=Dashboard:444:dashboard.antizapret:80
       - PROXY_SERVICE_2=AdGuard:1443:adguard.antizapret:3000
       - PROXY_SERVICE_3=File Browser:2443:filebrowser.antizapret:80

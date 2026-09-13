@@ -75,7 +75,7 @@ fetch(servicesUrl)
         else {
             services.forEach(service => {
                 serviceHashes.push(service.internalHostname);
-                let url = `https://${currentHost}:${service.externalPort}`;
+                let url = service.externalUrl || `https://${currentHost}:${service.externalPort}`;
                 createTab(service.name, url, service.internalHostname);
             });
         }

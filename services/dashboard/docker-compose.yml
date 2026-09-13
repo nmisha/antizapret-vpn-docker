@@ -17,6 +17,7 @@ services:
       - DASHBOARD_PASSWORD=password
 
       # DASHBOARD_SERVICE_N=name:external_port:internal_hostname:internal_port
+      # Optional DASHBOARD_SERVICE_URL_N=https://service.example.com overrides the external link.
       - DASHBOARD_SERVICE_1=AdGuard:1443:adguard.antizapret:3000
       - DASHBOARD_SERVICE_2=File Browser:2443:filebrowser.antizapret:80
       - DASHBOARD_SERVICE_3=OpenVPN UI:3443:openvpn-ui.antizapret:8080
