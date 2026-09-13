@@ -1,62 +1,41 @@
 # 2FAuth
 
-Сервис использует официальный образ `2fauth/2fauth`, SQLite и каталог
-`config-mine/2fauth` для постоянного хранения данных. Внутри Docker доступен
-по адресу `http://2fauth:8000`; порты на хосте не публикуются.
+Сервис использует официальный образ `2fauth/2fauth` и хранит данные в
+`config-mine/2fauth`. Веб-интерфейс доступен через `https` по адресу
+`https://m.nope.jo3.org:10443`, внутренний адрес — `http://2fauth:8000`.
 
-Добавьте в секцию `services` корневого `docker-compose.override.yml`:
+При каждом запуске стартовый скрипт устанавливает владельца `1000:1000`
+для `/2fauth` и его содержимого, а для самого каталога — права `700`.
+Затем штатный entrypoint запускается от пользователя `1000:1000`.
+Root используется только для подготовки; приложение работает без root.
+Собственная сборка образа не нужна.
 
-```yaml
-  2fauth:
-    extends:
-      file: services-mine/2fauth/docker-compose.yml
-      service: 2fauth
-```
+Это исправляет права и после пересоздания каталога на узле Swarm.
+Сам bind-каталог должен существовать до запуска задачи: если он полностью
+удалён, создайте его на узле с меткой `location=world` по абсолютному пути,
+указанному в mount сервиса. Swarm может отклонить отсутствующий bind source
+ещё до запуска скрипта. Вручную выполнять chown/chmod не нужно.
+Удаление каталога удаляет и данные; исправление прав их не восстанавливает.
 
-Подготовьте каталог на Linux-хосте из корня проекта:
+В корневом override подключите сервис через `extends` и задайте напрямую
+`APP_URL` (полный внешний HTTPS-адрес) и `APP_KEY` (постоянный уникальный ключ)
+в `services.2fauth.environment`. Пример подключения находится в
+`config-docker-swarm/docker-compose.override.yml` и предназначен для копирования
+в корень проекта на сервере.
 
-```sh
-mkdir -p config-mine/2fauth
-sudo chown 1000:1000 config-mine/2fauth
-sudo chmod 700 config-mine/2fauth
-```
-
-Сгенерируйте ключ локально:
+Генерация ключа для новой установки:
 
 ```sh
 docker run --rm --entrypoint /usr/bin/php 2fauth/2fauth:latest artisan key:generate --show
 ```
 
-В корневом `.env` задайте `TWOFAUTH_APP_KEY` равным полученному ключу, а
-`TWOFAUTH_APP_URL` — фактическому внешнему HTTPS-адресу, включая порт, если
-он нестандартный. Сохраните ключ вместе с резервной копией данных и не
-генерируйте его заново при перезапуске или обновлении.
+Сохраните ключ вместе с резервной копией данных; не меняйте его при обновлениях.
 
-Для доступа через существующий сервис `https` можно добавить в его настройки
-в `docker-compose.override.yml` следующий маршрут (номер `9` и порт `6443`
-должны быть свободны; иначе выберите другие):
-
-```yaml
-  https:
-    ports:
-      - "6443:6443"
-    environment:
-      - PROXY_SERVICE_9=2FAuth:6443:2fauth:8000
-```
-
-В этом примере `TWOFAUTH_APP_URL=https://<ваш-PROXY_DOMAIN>:6443`.
-Объедините настройки с существующей секцией `https`, не создавая второй ключ.
-
-Проверьте конфигурацию и запустите сервис из корня проекта:
+После обновления Compose-файла разверните стек штатным скриптом на менеджере:
 
 ```sh
-docker compose config --quiet
-docker compose up -d 2fauth https
+sh sr_swarm_start.sh
+docker service logs --since 2m --tail 100 antizapret_2fauth
 ```
 
-При использовании Swarm каталог данных и его права подготовьте на узле
-с меткой `node.labels.location == local`; переменные `TWOFAUTH_APP_URL` и
-`TWOFAUTH_APP_KEY` передайте используемой командe рендеринга/развёртывания.
-
-Документация: [установка Docker](https://docs.2fauth.app/getting-started/installation/docker/docker-cli/),
-[переменные окружения](https://docs.2fauth.app/getting-started/config/env-vars/).
+[Документация Docker-образа](https://docs.2fauth.app/getting-started/installation/docker/docker-cli/).
