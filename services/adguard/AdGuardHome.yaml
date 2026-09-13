@@ -520,6 +520,7 @@ user_rules:
   # - '||facetime.com^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
   # - '||facetime.net^$client=10.1.166.13|10.1.166.14|10.1.166.25,important'
   - '@@||yabs.yandex.ru'
+  - '@@||vk.ru'
 
 dhcp:
   enabled: false
