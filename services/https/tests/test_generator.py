@@ -40,6 +40,7 @@ caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile
 def generate(extra, script=SCRIPT):
     env = BASE | extra
     command = ["docker", "run", "--rm", "--network", "none", "--entrypoint", "sh",
+               "--add-host", "authelia:127.0.0.1",
                "--mount", f"type=bind,source={ROOT / 'services/https/files'},target=/source,readonly"]
     for key, value in env.items():
         command += ["-e", f"{key}={value}"]
@@ -57,6 +58,81 @@ def walk(value):
 
 
 class GeneratorTests(unittest.TestCase):
+    def test_shared_identity_requires_both_settings(self):
+        for extra in [
+            {"PROXY_VHOST_SHARED_GROUP_1": "shared"},
+            {"PROXY_VHOST_SHARED_USER_1": "vault"},
+            {"PROXY_VHOST_SHARED_GROUP_1": "shared.*", "PROXY_VHOST_SHARED_USER_1": "vault"},
+            {"PROXY_VHOST_SHARED_GROUP_1": "shared", "PROXY_VHOST_SHARED_USER_1": '{http.request.header.User}'},
+        ]:
+            with self.subTest(extra=extra):
+                result = generate(DOMAINS | extra)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("[ERROR] PROXY_VHOST_SHARED_", result.stderr)
+
+    def test_shared_identity_after_authentication(self):
+        mock = r"""
+sed -i '/  servers :80 {/i\  servers :9091 {\n  }\n  servers :8000 {\n  }' /etc/caddy/Caddyfile
+cat >> /etc/caddy/Caddyfile <<'EOF'
+http://:9091 {
+  @spoof header Remote-User attacker
+  respond @spoof "Spoof reached auth" 500
+  @member header X-Test-Auth member
+  handle @member {
+    header Remote-User alice
+    header Remote-Groups "admins, twofauth_shared, all"
+    header Remote-Email alice@example.org
+    respond 204
+  }
+  @second header X-Test-Auth second
+  handle @second {
+    header Remote-User bob
+    header Remote-Groups twofauth_shared
+    header Remote-Email bob@example.org
+    respond 204
+  }
+  @personal header X-Test-Auth personal
+  handle @personal {
+    header Remote-User carol
+    header Remote-Groups twofauth_shared_extra
+    header Remote-Email carol@example.org
+    respond 204
+  }
+  respond "Denied" 401
+}
+http://:8000 {
+  respond "user={http.request.header.Remote-User};email={http.request.header.Remote-Email};alias={http.request.header.Remote_User}"
+}
+EOF
+caddy start --config /etc/caddy/Caddyfile --adapter caddyfile >&2
+for mode in member second personal denied; do
+  curl --insecure --silent --show-error --noproxy '*' --max-time 5 \
+    --resolve 'twof.auth.example.org:443:127.0.0.1' \
+    -H "X-Test-Auth: $mode" -H 'Remote-User: attacker' -H 'Remote_User: attacker' \
+    -H 'Remote-Groups: twofauth_shared' -H 'Remote-Email: attacker@example.org' \
+    -w '\nstatus=%{http_code}\n' https://twof.auth.example.org/
+done
+# A different virtual host keeps the original identity, even for group members.
+curl --insecure --silent --show-error --noproxy '*' --max-time 5 \
+  --resolve 'other.example.org:443:127.0.0.1' -H 'X-Test-Auth: member' \
+  -w '\nstatus=%{http_code}\n' https://other.example.org/
+"""
+        script = SCRIPT.replace("caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile", mock)
+        result = generate(DOMAINS | {
+            "PROXY_CERT_MODE": "selfsigned",
+            "PROXY_VHOST_1": "Shared:twof.auth.example.org:127.0.0.1:8000",
+            "PROXY_VHOST_2": "Personal:other.example.org:127.0.0.1:8000",
+            "SNI_ROUTE_5": "other.example.org:127.0.0.1:444:proxy-v2",
+            "PROXY_VHOST_SHARED_GROUP_1": "twofauth_shared",
+            "PROXY_VHOST_SHARED_USER_1": "Shared Vault",
+        }, script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.count("user=Shared Vault;email=;alias="), 2, result.stdout + result.stderr)
+        self.assertIn("user=carol;email=carol@example.org;alias=", result.stdout)
+        self.assertIn("user=alice;email=alice@example.org;alias=", result.stdout)
+        self.assertIn("Denied\nstatus=401", result.stdout)
+        self.assertNotIn("attacker", result.stdout)
+
     def config(self, extra):
         result = generate(extra)
         self.assertEqual(result.returncode, 0, result.stderr)

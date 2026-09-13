@@ -371,9 +371,28 @@ EOF
         fi
         domain=$(normalize_domain "$domain")
         register_vhost_domain "$domain"
+        get_shared_identity "$counter"
         VHOSTS=$(printf '%s\n%s:%s:%s:%s' "$VHOSTS" "$name" "$domain" "$internal_host" "$internal_port")
         counter=$((counter + 1))
     done
+}
+
+get_shared_identity() {
+    shared_group_var="PROXY_VHOST_SHARED_GROUP_$1"
+    shared_user_var="PROXY_VHOST_SHARED_USER_$1"
+    eval "shared_group=\${$shared_group_var:-}"
+    eval "shared_user=\${$shared_user_var:-}"
+    [ -n "$shared_group$shared_user" ] || return 0
+    case "$shared_group" in
+        ""|*[!A-Za-z0-9_-]*)
+            echo "[ERROR] $shared_group_var must contain only letters, digits, underscores or hyphens" >&2
+            exit 1 ;;
+    esac
+    case "$shared_user" in
+        ""|*[!A-Za-z0-9@._\ -]*)
+            echo "[ERROR] $shared_user_var must be a nonempty account name (letters, digits, spaces, @ . _ -)" >&2
+            exit 1 ;;
+    esac
 }
 
 write_vhost_tls_policy() {
@@ -616,10 +635,12 @@ add_services_to_config() {
     else
         services_to_write="$REACHABLE_SERVICES"
     fi
+    service_index=0
     echo "$services_to_write" | while IFS= read -r service_value; do
         if [ -z "$service_value" ]; then
             continue
         fi
+        service_index=$((service_index + 1))
 
         IFS=: read -r name external_port internal_host internal_port <<EOF
 $service_value
@@ -646,11 +667,28 @@ EOF
     -X-Frame-Options
   }
 
-	forward_auth authelia:9091 {
-		uri /api/authz/forward-auth
-		copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
-#    trusted_proxies private_ranges
-	}
+  route {
+    # Only Authelia may supply identity; also remove PHP underscore aliases.
+    request_header -Remote-*
+    request_header -Remote_*
+    forward_auth authelia:9091 {
+      uri /api/authz/forward-auth
+      copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
+    }
+EOF
+        if [ "$site_mode" = "domain" ]; then
+            get_shared_identity "$service_index"
+            if [ -n "$shared_group" ]; then
+                cat <<EOF >>"$CONFIG_FILE"
+    @shared_identity header_regexp Remote-Groups "(^|,)[ ]*$shared_group[ ]*(,|$)"
+    request_header @shared_identity Remote-User "$shared_user"
+    # Preserve the shared account's email rather than syncing each member's email.
+    request_header @shared_identity -Remote-Email
+    request_header @shared_identity -Remote-Name
+EOF
+            fi
+        fi
+        cat <<EOF >>"$CONFIG_FILE"
 
   reverse_proxy {
     header_up Authorization {http.request.header.Authorization}
@@ -661,7 +699,7 @@ EOF
       refresh 1s
     }
   }
-
+  }
 
 
 
