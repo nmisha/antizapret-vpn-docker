@@ -8,11 +8,11 @@ at 1 (an empty entry ends the list):
 
 ```yaml
 environment:
-  - PROXY_AUTHELIA_DOMAIN=auth.nope.jo3.org
-  - PROXY_VHOST_1=2FAuth:twof.auth.nope.jo3.org:2fauth:8000
+  - PROXY_AUTHELIA_DOMAIN=auth.vpn.example.com
+  - PROXY_VHOST_1=2FAuth:twof.auth.vpn.example.com:2fauth:8000
   # Append after your existing SNI_ROUTE_1 and SNI_ROUTE_2:
-  - SNI_ROUTE_3=auth.nope.jo3.org:127.0.0.1:444:proxy-v2
-  - SNI_ROUTE_4=twof.auth.nope.jo3.org:127.0.0.1:444:proxy-v2
+  - SNI_ROUTE_3=auth.vpn.example.com:127.0.0.1:444:proxy-v2
+  - SNI_ROUTE_4=twof.auth.vpn.example.com:127.0.0.1:444:proxy-v2
 ```
 
 Use the configured `PROXY_HTTPS_PORT` instead of `444` if it differs. Layer 4
@@ -45,21 +45,21 @@ does not transfer these files.
    `PROXY_SERVICE_14=2FAuth:10443:2fauth:8000` and published ports `9091:9091`
    and `10443:10443`. Existing `PROXY_SERVICE_1` through `PROXY_SERVICE_13` stay.
 2. In `config-mine/authelia/config/configuration.yml`, keep the session cookie
-   domain `nope.jo3.org`, set `authelia_url: https://auth.nope.jo3.org`, and keep
-   `default_redirection_url: https://m.nope.jo3.org`. Add
-   `twof.auth.nope.jo3.org` to the existing `one_factor` rule for `admins` and
+   domain `vpn.example.com`, set `authelia_url: https://auth.vpn.example.com`, and keep
+   `default_redirection_url: https://m.vpn.example.com`. Add
+   `twof.auth.vpn.example.com` to the existing `one_factor` rule for `admins` and
    `vpn_users`; keep the default deny policy. For the shared account setup below,
    also allow `twofauth_shared` on the 2FAuth domain only.
 3. Set `services.2fauth.environment.APP_URL` to
-   `https://twof.auth.nope.jo3.org`. Preserve the existing `APP_KEY` and data.
+   `https://twof.auth.vpn.example.com`. Preserve the existing `APP_KEY` and data.
 4. Configure the Dashboard link:
 
    ```yaml
    - DASHBOARD_SERVICE_11=2FAuth:443:2fauth:8000
-   - DASHBOARD_SERVICE_URL_11=https://twof.auth.nope.jo3.org
+   - DASHBOARD_SERVICE_URL_11=https://twof.auth.vpn.example.com
    - DASHBOARD_SERVICE_MODE_11=external
    - DASHBOARD_SERVICE_12=Authelia:443:authelia:9091
-   - DASHBOARD_SERVICE_URL_12=https://auth.nope.jo3.org
+   - DASHBOARD_SERVICE_URL_12=https://auth.vpn.example.com
    - DASHBOARD_SERVICE_MODE_12=external
    ```
 
@@ -78,8 +78,8 @@ does not transfer these files.
    images. Copy the updated Authelia configuration to the node hosting Authelia,
    then deploy through the project's normal Swarm workflow and restart Authelia
    if its bind-mounted configuration change did not recreate its task.
-6. Check certificates, login at `https://auth.nope.jo3.org`, the redirect back to
-   2FAuth, access to existing `m.nope.jo3.org` services, the Dashboard link and
+6. Check certificates, login at `https://auth.vpn.example.com`, the redirect back to
+   2FAuth, access to existing `m.vpn.example.com` services, the Dashboard link and
    ocserv connectivity. Old portal/2FAuth ports are removed, not redirected.
 
 ## Shared identity for a virtual host

@@ -2,7 +2,7 @@
 
 Сервис использует официальный образ `2fauth/2fauth` и хранит данные в
 `config-mine/2fauth`. Веб-интерфейс доступен через `https` по адресу
-`https://twof.auth.nope.jo3.org`, внутренний адрес — `http://2fauth:8000`.
+`https://twof.auth.vpn.example.com`, внутренний адрес — `http://2fauth:8000`.
 Доменный маршрут и проверку Authelia настраивает генератор HTTPS через
 `PROXY_VHOST_1`; [порядок переноса и сборки образов](../../services/https/README.md).
 
