@@ -5,6 +5,7 @@
 /docker-compose.override.yml
 /config/
 /config-mine/
+/config-docker-swarm/
 /docker-compose.override.yml*
 services-mine/tgbot_old/
 stack.rendered.yml
