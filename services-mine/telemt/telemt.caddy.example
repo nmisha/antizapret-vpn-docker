@@ -1,0 +1,10 @@
+# Copy to config/https/config/sites-enabled/telemt.caddy on the local node and restart https:
+#   docker service update --force antizapret_https || docker compose restart https
+#
+# This site is never reached directly by clients: the SNI route sends tp.sl.vmvs.work.gd:443 to telemt.
+# It gives Caddy a real (ACME) certificate for the domain on port 444. telemt relays probes and fetches
+# TLS parameters from https:444 (mask_host), so an outside observer sees an ordinary HTTPS site.
+# DNS for the domain must point to the local node, TCP 80 must be reachable for the ACME HTTP-01 challenge.
+tp.sl.vmvs.work.gd {
+	respond "OK" 200
+}

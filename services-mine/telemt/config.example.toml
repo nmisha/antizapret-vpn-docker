@@ -1,0 +1,60 @@
+# Template for config-mine/telemt/config.toml, created by entrypoint.sh on first start
+# (__PLACEHOLDERS__ are replaced there). Users are managed with telemt-users.sh (telemt API).
+# Full reference: https://github.com/telemt/telemt/blob/main/docs/Config_params/CONFIG_PARAMS.en.md
+
+[general]
+use_middle_proxy = true
+log_level = "normal"
+
+[general.modes]
+classic = false
+secure = false
+tls = true
+
+[general.links]
+show = "*"
+public_host = "tp.sl.vmvs.work.gd"
+public_port = 443
+
+[server]
+# Internal port (not published). The local `https` container routes SNI tp.sl.vmvs.work.gd here
+# with PROXY protocol v2 (SNI_ROUTE_N=tp.sl.vmvs.work.gd:telemt.antizapret:8443:proxy-v2),
+# so telemt sees real client IPs and per-user unique-IP limits work.
+port = 8443
+proxy_protocol = true
+proxy_protocol_trusted_cidrs = ["10.0.0.0/8", "172.16.0.0/12"]
+
+[[server.listeners]]
+ip = "0.0.0.0"
+
+[server.api]
+enabled = true
+listen = "0.0.0.0:9091"
+# The API is only published on 127.0.0.1 of the host; whitelist covers docker bridge/overlay sources.
+whitelist = ["127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12"]
+auth_header = "__API_TOKEN__"
+read_only = false
+minimal_runtime_enabled = false
+
+[censorship]
+# Domain from the ee-link (SNI seen by DPI) = the domain routed by https to this service.
+# Changing it invalidates all issued links.
+tls_domain = "tp.sl.vmvs.work.gd"
+# Probes without a valid secret (and the TLS-emulation fetch, SNI = tls_domain) go to the local
+# Caddy, which serves a real certificate for tls_domain (sites-enabled/telemt.caddy, see README).
+mask = true
+mask_host = "https"
+mask_port = 444
+tls_emulation = true
+tls_front_dir = "tlsfront"
+
+[access]
+# Defaults for users without an individual value (override per user: telemt-users.sh set <user> --ips N --conns N).
+# One Telegram client keeps several TCP connections, so conns limit is not a device limit;
+# devices are limited by unique source IPs.
+user_max_unique_ips_global_each = 3
+user_max_unique_ips_mode = "active_window"
+user_max_tcp_conns_global_each = 40
+
+[access.users]
+__ADMIN_USER__ = "__ADMIN_SECRET__"
