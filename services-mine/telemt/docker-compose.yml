@@ -1,7 +1,7 @@
 services:
   telemt:
     # telemt + entrypoint that fixes config dir ownership; build on the world node (see README)
-    image: nmisha/antizapret-vpn-telemt:3.5.7
+    image: nmisha/antizapret-vpn-telemt:3.5.7-2
     hostname: telemt.antizapret
     init: true
     restart: unless-stopped
@@ -31,6 +31,9 @@ services:
       - TELEMT_ADMIN_USER=admin
       # Optional fixed API token (A-Za-z0-9._-). Empty: random token stored in config.toml
       - TELEMT_API_TOKEN=
+      # Per-user defaults in [access]; empty preserves config.toml. Applied on every start.
+      - TELEMT_MAX_TCP_CONNS=20 # 40
+      - TELEMT_MAX_UNIQUE_IPS=1 # 3
     # Entrypoint starts as root only to chown the config dir, then runs telemt as uid 65532
     cap_drop:
       - ALL
