@@ -1,0 +1,66 @@
+services:
+  telemt:
+    # telemt + entrypoint that fixes config dir ownership; build on the world node (see README)
+    image: nmisha/antizapret-vpn-telemt:3.5.7
+    hostname: telemt.antizapret
+    init: true
+    restart: unless-stopped
+    build:
+      context: .
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    networks:
+      default:
+        aliases:
+          - telemt
+          - telemt.antizapret
+    ports:
+      # Control API for telemt-users.sh (tgbot uses telemt.antizapret:9091 inside the docker network). Never expose publicly.
+      # MTProto port 8443 is not published: clients come through the https container (SNI route + PROXY protocol).
+      - "127.0.0.1:9091:9091"
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config-mine/telemt:/etc/telemt:rw
+    tmpfs:
+      - /run/telemt:rw,mode=1777,size=4m
+    environment:
+      - RUST_LOG=info
+      # Required: the SNI domain https routes to this service (same value as SNI_ROUTE_N/SNI_CERT_N
+      # on the https service). Baked into config.toml as tls_domain/public_host on first start.
+      - TELEMT_DOMAIN=
+      # Name of the first user, created together with config.toml on first start
+      - TELEMT_ADMIN_USER=admin
+      # Optional fixed API token (A-Za-z0-9._-). Empty: random token stored in config.toml
+      - TELEMT_API_TOKEN=
+    # Entrypoint starts as root only to chown the config dir, then runs telemt as uid 65532
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETUID
+      - SETGID
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    ulimits:
+      nofile:
+        soft: 65536
+        hard: 262144
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: 3
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == world ]
+      resources:
+        limits:
+          memory: 300M
