@@ -61,7 +61,7 @@ Telegram-клиент ──443, SNI=<ваш домен>──▶ https (local, 
 4. Деплой (`sr_swarm_start.sh`). При первом старте entrypoint сам создаёт `config-mine/telemt/config.toml`
    (случайный токен API, пользователь `admin`, домен из `TELEMT_DOMAIN`), выставляет владельца каталога
    и понижает права до uid 65532. Ручной `chown` не нужен.
-5. На world-ноде: `sudo services-mine/telemt/telemt-users.sh link admin` — ссылка для Telegram.
+5. На world-ноде запустить `telemt-users.sh link admin` в сетевом namespace контейнера (см. раздел API).
 
 Одиночный сервер (без world): `https` и telemt на одной машине, схема та же, порт 443 по-прежнему занят `https`.
 
@@ -94,13 +94,26 @@ sudo $t del vasya
 
 ## API
 
-`http://127.0.0.1:9091/v1/...` на world-хосте (заголовок `Authorization: <auth_header>`), в docker-сети — `telemt.antizapret:9091`.
+`http://telemt.antizapret:9091/v1/...` в docker-сети (заголовок `Authorization: <auth_header>`).
+На localhost world-хоста API не опубликован. Для CLI на world-ноде из корня проекта:
+
+```sh
+cid=$(docker ps -q --filter label=com.docker.swarm.service.name=antizapret_telemt)
+test -n "$cid" || { echo 'telemt container is not running on this node'; exit 1; }
+pid=$(docker inspect --format '{{.State.Pid}}' "$cid")
+sudo nsenter -t "$pid" -n bash services-mine/telemt/telemt-users.sh list
+sudo nsenter -t "$pid" -n bash services-mine/telemt/telemt-users.sh link admin
+```
+
+Нужны `nsenter`, `bash`, `curl`, `jq` и `column` на world-хосте.
+`nsenter -n` меняет только сеть; скрипт и config.toml читаются с хоста.
 Порт наружу не публикуется. Документация:
 <https://github.com/telemt/telemt/blob/main/docs/Architecture/API/API.md>. Следующий этап — раздел в tgbot поверх этого API
 (`POST/PATCH/DELETE /v1/users`, ссылки в `links.tls`).
 
 ## Не проверено на реальных нодах
 
-Скрипт проверен на моке API, логика entrypoint — локально без docker. Сборка образа, PROXY protocol между `https` и telemt,
-получение сертификата для домена в caddy и подключение клиента не запускались. Первый запуск стоит проверить: `docker logs`
+Локально проверены сборка образа 3.5.7, генерация конфига, запуск с read-only и ограниченными capabilities,
+healthcheck и преобразование полного Compose в Swarm. PROXY protocol между `https` и telemt,
+получение сертификата для домена в caddy и подключение клиента требуют проверки на сервере: `docker logs`
 сервиса telemt (строки про TLS-fetch и mask), `telemt-users.sh list`, подключение по ссылке.

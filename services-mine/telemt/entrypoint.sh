@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+umask 077
 
 CONF=/etc/telemt/config.toml
 UID_GID=65532:65532
@@ -18,7 +19,8 @@ if [ ! -f "$CONF" ]; then
       -e "s/__ADMIN_USER__/$user/" \
       -e "s/__ADMIN_SECRET__/$(rand_hex 16)/" \
       -e "s/__TLS_DOMAIN__/$domain/g" \
-      /opt/config.example.toml > "$CONF"
+      /opt/config.example.toml > "$CONF.tmp"
+  mv "$CONF.tmp" "$CONF"
   echo "created $CONF (user: $user, domain: $domain)"
 fi
 

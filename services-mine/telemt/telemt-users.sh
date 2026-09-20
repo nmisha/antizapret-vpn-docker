@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Per-user secrets and limits for telemt via its control API.
-# Run on the node where telemt runs (API is published on 127.0.0.1:9091), or set TELEMT_API.
+# Run in telemt's network namespace (see README), or set a reachable TELEMT_API.
 # Token: TELEMT_TOKEN, else auth_header from config-mine/telemt/config.toml (readable by uid 65532/root only).
 set -euo pipefail
 
@@ -47,7 +47,7 @@ token() {
 # api METHOD PATH [JSON] -> prints the .data of the response
 api() {
   local out
-  out=$(curl -sS -X "$1" -H "Authorization: $(token)" -H 'Content-Type: application/json' \
+  out=$(curl --connect-timeout 5 --max-time 30 -sS -X "$1" -H "Authorization: $(token)" -H 'Content-Type: application/json' \
         ${3:+-d "$3"} "$API/v1$2") || die "API unreachable at $API"
   jq -e '.ok == true' >/dev/null 2>&1 <<<"$out" || { jq -r '.error.message // .' <<<"$out" >&2; exit 1; }
   jq -c '.data' <<<"$out"
@@ -86,6 +86,7 @@ print_link() { jq -r '(.user // .).links.tls[0] // "no tls link"' <<<"$1"; }
 c=$1; shift
 case $c in
   list)
+    need column
     api GET /users | jq -r '.[] | [.username, (if .enabled then "on" else "OFF" end),
         "\(.current_connections)/\(.max_tcp_conns // "-")", "\(.active_unique_ips)/\(.max_unique_ips // "-")",
         (.expiration_rfc3339 // "-"), (.total_octets/1048576|floor|tostring + "MiB")] | @tsv' |
