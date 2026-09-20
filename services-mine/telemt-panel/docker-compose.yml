@@ -8,8 +8,18 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
+    # Read telemt's root/65532-owned 0600 config from a read-only mount.
+    cap_add:
+      - DAC_READ_SEARCH
+    entrypoint: ["/bin/sh", "/panel-entrypoint.sh"]
+    environment:
+      - TELEMT_PANEL_DOMAIN=
+    configs:
+      - source: telemt-panel-entrypoint-v1
+        target: /panel-entrypoint.sh
     # Prepare these directories on world with prepare.py before deploying.
     volumes:
+      - $PWD/config-mine/telemt:/etc/telemt-source:ro
       - $PWD/config-mine/telemt-panel/config:/etc/telemt-panel:rw
       - $PWD/config-mine/telemt-panel/data:/var/lib/telemt-panel:rw
     tmpfs:
@@ -33,3 +43,7 @@ services:
       resources:
         limits:
           memory: 256M
+
+configs:
+  telemt-panel-entrypoint-v1:
+    file: ./entrypoint.sh

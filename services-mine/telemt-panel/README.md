@@ -12,6 +12,40 @@ Authelia допускает группу `telemt_admins`. Второго вхо�
 
 ## Подготовка
 
+### Автоматическая генерация при старте
+
+Swarm передаёт `entrypoint.sh` как Docker config. Если
+`config-mine/telemt-panel/config/config.toml` отсутствует, скрипт при старте
+контейнера создаёт его из `TELEMT_PANEL_DOMAIN` и текущего API-токена telemt.
+Он включает `[auth] disabled = true`, доверие сети `telemt-panel-auth` и SQLite,
+проверяет TOML бинарником панели и только затем сохраняет файл. Существующий
+конфиг не перезаписывается; состояние и история в `data` сохраняются.
+
+Для первого запуска вместо ручного `prepare.py` достаточно создать каталоги
+на world (из корня проекта), применить сеть и правило Authelia и развернуть стек:
+
+```sh
+sudo install -d -m 0700 config-mine/telemt-panel/config config-mine/telemt-panel/data
+```
+
+Каталог `config-mine/telemt` также должен существовать на world. Панель читает его
+только для чтения, ожидая API-токен до 60 секунд; после ошибки Swarm может повторить
+запуск. Поддерживается формат токена, создаваемый entrypoint telemt: `A-Za-z0-9._-`.
+Скрипт подготовки на Python ниже остаётся альтернативой для ручного создания.
+
+После удаления **только config.toml** конфиг будет восстановлен при следующем
+старте задачи, а не немедленно в работающем процессе:
+
+```sh
+docker service update --force antizapret_telemt-panel
+```
+
+Пересборка образа не требуется. Скрипт Docker config доставляется с manager;
+при изменении уже развёрнутого скрипта используйте новую версию имени Docker config
+в обоих Compose-файлах (Swarm configs неизменяемы).
+
+### Ручная подготовка (альтернатива)
+
 1. Добавить DNS A/CNAME для `panel.example.com`, ведущую на Caddy (`local`).
 2. Сначала запустить telemt без секции `telemt-panel` в серверном override.
    Дождаться создания `config-mine/telemt/config.toml` на `world`.
