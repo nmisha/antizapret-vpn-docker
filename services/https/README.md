@@ -35,6 +35,86 @@ If a domain is also listed in `SNI_CERT_N`, its exported certificate is reused
 with the existing fallback/synchronization mechanism; no duplicate `respond 204`
 site is emitted. Explicit HTTP redirects preserve the URI and use public port 443.
 
+## Как связаны SNI-маршруты, HTTPS-сайты и сертификаты
+
+В контейнере `https` Caddy выполняет две задачи: маршрутизирует TCP/TLS по SNI
+на внешнем порту 443 и обслуживает HTTPS-сайты на внутреннем порту
+`PROXY_HTTPS_PORT` (по умолчанию 444). Это два этапа обработки одного соединения.
+
+| Переменная | Что создаёт генератор |
+| --- | --- |
+| `SNI_ROUTE_N=domain:host:port:mode` | TCP-маршрут по имени SNI. Сам по себе не создаёт HTTPS-сайт и не запрашивает сертификат. |
+| `PROXY_DOMAIN` + `PROXY_SERVICE_N=name:port:host:upstream_port` | HTTPS-сайт на основном домене и указанном порту, с проверкой Authelia и HTTP-проксированием к приложению. |
+| `PROXY_VHOST_N=name:domain:host:upstream_port` | HTTPS-сайт отдельного домена на `PROXY_HTTPS_PORT`, с проверкой Authelia и HTTP-проксированием. |
+| `PROXY_AUTHELIA_DOMAIN` | Отдельный HTTPS-сайт портала Authelia без проверки `forward_auth` самого себя. |
+| `SNI_CERT_N=domain:/output/directory` | Автоматизацию сертификата домена и экспорт файлов внутри контейнера `https`. Если сайта ещё нет, добавляется HTTPS-сайт с ответом 204. |
+
+### Основной домен: почему нет PROXY_VHOST
+
+```yaml
+environment:
+  - PROXY_DOMAIN=vpn.example.com
+  - PROXY_SERVICE_1=Dashboard:444:dashboard.antizapret:80
+  - SNI_ROUTE_1=vpn.example.com:127.0.0.1:444:proxy-v2
+```
+
+`PROXY_SERVICE_1` уже задан в базовом Compose сервиса `https` и наследуется
+override-файлом. В сочетании с `PROXY_DOMAIN` он создаёт сайт
+`vpn.example.com:444`. Поэтому дополнительный `PROXY_VHOST` для Dashboard
+не нужен: `SNI_ROUTE_1` доставляет соединение к уже созданному сайту.
+
+### Отдельный домен панели: нужны маршрут и сайт
+
+```yaml
+environment:
+  - PROXY_VHOST_1=Telemt Panel:panel.example.com:telemt-panel:8080
+  - SNI_ROUTE_1=panel.example.com:127.0.0.1:444:proxy-v2
+```
+
+Это самостоятельный пример: при добавлении в существующий конфиг используйте
+следующий свободный номер каждой серии без пропусков. Номера `PROXY_VHOST_N`
+и `SNI_ROUTE_N` не обязаны совпадать.
+
+```text
+Браузер --TLS--> Caddy:443 (SNI_ROUTE)
+                     --> Caddy:444 (PROXY_VHOST, завершение TLS)
+                     --> проверка Authelia
+                     --HTTP--> telemt-panel:8080
+```
+
+Сертификат получает и продлевает Caddy через ACME (по умолчанию Let's Encrypt).
+Панели достаточно HTTP на внутреннем порту 8080; этот порт не требуется
+публиковать на хосте. `proxy-v2` передаёт исходный адрес клиента между
+обработчиками и не означает завершение TLS на этапе SNI-маршрутизации.
+
+### Telemt: SNI-маршрут ведёт в другой контейнер
+
+```yaml
+environment:
+  - SNI_ROUTE_1=proxy.example.com:telemt:8443:proxy-v2
+  - SNI_CERT_1=proxy.example.com:/data/telemt
+```
+
+Здесь входящий поток передаётся telemt, а не HTTPS-сайту панели. Для конфигурации
+telemt с `mask_host = "https"` и `mask_port = 444` нужен сайт маскировки этого
+домена на Caddy:444. Его создаёт `SNI_CERT_1`; Caddy автоматически получает
+сертификат. Пока сертификат не выпущен, генератор и entrypoint используют
+самоподписанный fallback.
+
+`/data/telemt` — **выходной каталог внутри `https`**, не путь для ручной установки
+сертификата и не каталог конфигурации telemt. `entrypoint.sh` копирует туда
+сертификат и ключ из хранилища Caddy, отслеживает обновления и перезагружает
+Caddy. В текущей схеме telemt эти файлы не читает: он подключается к `https:444`
+с соответствующим SNI для TLS-маскировки. Автоматический выпуск действует при
+`PROXY_CERT_MODE=auto`; режим `selfsigned` не запрашивает сертификаты ACME.
+
+Если Caddy ещё не получил сертификат отдельного `PROXY_VHOST`, TLS может
+завершаться ошибкой до обращения к приложению. Проверяйте DNS, доступность
+HTTP-01 на порту 80 и ошибки ACME в логах `https`, включая ограничения CA.
+
+Реализация: [files/init.sh](files/init.sh) генерирует маршруты и сайты;
+[files/entrypoint.sh](files/entrypoint.sh) синхронизирует экспорт сертификатов.
+
 ## Authelia and 2FAuth migration
 
 The local `config-docker-swarm` and `config-mine` directories are ignored by Git.
