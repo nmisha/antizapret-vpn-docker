@@ -1,3 +1,7 @@
+! Title: IP / Geo Detection Blocklist
+! Description: Converted from v2fly/domain-list-community category-ip-geo-detect
+! Source: v2fly/domain-list-community
+
 ||2ip.io^
 ||2ip.ru^
 ||2ip.ua^
@@ -190,6 +194,28 @@
 ||whoisxmlapi.com^
 ||wieistmeineip.de^
 ||wtfismyip.com^
+
+! IPv6 tests
+||ipv6ready.me^
+||test-ipv6.alpinedc.ch^
+||test-ipv6.ams.vr.org^
+||test-ipv6.arauc.br^
+||test-ipv6.cl^
+||test-ipv6.com^
+||test-ipv6.csclub.uwaterloo.ca^
+||test-ipv6.cz^
+||test-ipv6.fratec.net^
+||test-ipv6.jp^
+||test-ipv6.nl^
+||test-ipv6.noroutetohost.net^
+||test-ipv6.roedu.net^
+||test-ipv6.run^
+||test-ipv6.se^
+||test.version6.ru^
+||testipv6.cn^
+||testipv6.de^
+
+! IP detection APIs / specific endpoints
 ||checkip.amazonaws.com^
 ||checkip.dyndns.org^
 ||checkip.dyn.com^
