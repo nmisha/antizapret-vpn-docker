@@ -1,47 +1,40 @@
 services:
-
   chromium:
     image: lscr.io/linuxserver/chromium:latest
-    # container_name: cloud-browser-chromium
-    hostname: chromium.antizapret
+    # Use the upstream image directly; this service has no custom Dockerfile.
     restart: unless-stopped
-
-    init: true
-    build:
-      context: .
-      x-bake:
-        platforms:
-          - linux/amd64
-          - linux/arm64
+    hostname: chromium.antizapret
+    networks:
+      default:
+        aliases:
+          - chromium.antizapret
     logging:
       driver: json-file
       options:
         max-size: 100k
-        max-file: 2
+        max-file: "2"
     deploy:
       mode: replicated
       replicas: 1
       endpoint_mode: dnsrr
       placement:
-        # constraints: [ node.labels.location == world ]
-        constraints: [ node.labels.location == local ]
-      # restart_policy:
-      #   condition: on-failure
-
+        constraints: [ node.labels.location == world ]
+      update_config:
+        order: stop-first
+      rollback_config:
+        order: stop-first
     environment:
       PUID: 1000
       PGID: 1000
       TZ: Europe/Moscow
-
     volumes:
-      # - ./config:/config
       - /etc/localtime:/etc/localtime:ro
-      - $PWD/config-mine/chromium:/config:rw
-
-    # ports:
-    #   - "3001:3001"
-
-    shm_size: "2gb"
+      # This absolute path must exist on the world node.
+      - ${CHROMIUM_CONFIG_DIR:-$PWD/config-mine/chromium}:/config:rw
+    # String syntax survives compose2swarm without converting size to a string field.
+    tmpfs:
+      - /dev/shm:size=2147483648,mode=1777
+    # Access only through Caddy + Authelia; no published ports.
 
   firefox:
     image: lscr.io/linuxserver/firefox:latest
