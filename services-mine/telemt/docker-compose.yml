@@ -11,15 +11,15 @@ services:
         platforms:
           - linux/amd64
           - linux/arm64
-    networks:
-      default:
-        aliases:
-          - telemt
-          - telemt.antizapret
+    # networks:
+    #   default:
+    #     aliases:
+    #       - telemt
+    #       - telemt.antizapret
     ports:
       # Control API for telemt-users.sh (tgbot uses telemt.antizapret:9091 inside the docker network). Never expose publicly.
       # MTProto port 8443 is not published: clients come through the https container (SNI route + PROXY protocol).
-      - "127.0.0.1:9292:9091"
+      # - "127.0.0.1:9292:9091"
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - $PWD/config-mine/telemt:/etc/telemt:rw
