@@ -24,4 +24,7 @@ iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -j MASQUERADE;
 iptables -t nat -A masq_not_local -d ${AZ_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -j MASQUERADE;
 
+# Clients must not ping through the tunnel (echo-request only, keep PMTUD/traceroute ICMP)
+iptables -I FORWARD -s ${OPENVPN_LOCAL_IP_RANGE}/24 -p icmp --icmp-type echo-request -j DROP;
+
 routes --vpn &

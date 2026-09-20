@@ -116,6 +116,9 @@ if [ ! -c /dev/net/tun ]; then
     mknod /dev/net/tun c 10 200
 fi
 
+# Clients must not ping through the tunnel (echo-request only, keep PMTUD/traceroute ICMP)
+iptables -I FORWARD -s "$OC_IPV4_CIDR" -p icmp --icmp-type echo-request -j DROP
+
 echo "Starting OpenConnect Server"
 touch "$FLAG_FILE"
 exec "$@"
