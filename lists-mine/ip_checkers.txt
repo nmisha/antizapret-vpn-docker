@@ -203,6 +203,8 @@
 ||whoisxmlapi.com^
 ||wieistmeineip.de^
 ||wtfismyip.com^
+
+! IPv6 tests
 ||ipv6ready.me^
 ||test-ipv6.alpinedc.ch^
 ||test-ipv6.ams.vr.org^
@@ -221,6 +223,20 @@
 ||test.version6.ru^
 ||testipv6.cn^
 ||testipv6.de^
+
+
+! IP detection APIs / specific endpoints
+||checkip.amazonaws.com^
+||checkip.dyndns.org^
+||checkip.dyn.com^
+||checkip.global.api.aws^
+||ip-check-perf.radar.cloudflare.com^
+||ip.comss.net^
+||ipv4-check-perf.radar.cloudflare.com^
+||ipv6-check-perf.radar.cloudflare.com^
+||myip.dnsomatic.com^
+||whatismyip.akamai.com^
+
 /^checkip\.amazonaws\.com$/
 /^checkip\.dyndns\.org$/
 /^checkip\.dyn\.com$/
