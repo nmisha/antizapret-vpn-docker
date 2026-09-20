@@ -87,6 +87,27 @@ fi
 unset PASSWORD
 unset PASSWORD_HASH
 
+# Clients may only reach the destinations from their AllowedIPs (WG_ALLOWED_IPS, the same list that is
+# written to client configs). The client side already enforces this through WireGuard cryptokey routing,
+# this is the server-side guard against a modified profile / manual routes.
+# One subnet-wide chain instead of the wg-easy "Per-Client Firewall" (WG_CLIENTS), which builds
+# clients x ranges rules, rebuilds them on every change and leaves a fail-open window while rebuilding.
+# Loaded atomically with iptables-restore from PostUp; established flows skip the list.
+AZ_CLIENTS_RULES=/etc/az_clients.rules
+{
+    echo "*filter"
+    echo ":az_clients - [0:0]"
+    echo "-A az_clients -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"
+    echo "$WG_ALLOWED_IPS" | tr ',' '\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
+        | grep -E '^[0-9.]+(/[0-9]+)?$' | sort -u | sed 's/.*/-A az_clients -d & -j ACCEPT/'
+    echo "-A az_clients -j REJECT --reject-with icmp-admin-prohibited"
+    echo "COMMIT"
+} > "$AZ_CLIENTS_RULES"
+
+# Clients must not ping through the tunnel (echo-request only, PMTUD/traceroute ICMP stay allowed).
+# The rule lives in the mangle table on purpose: if the wg-easy "Per-Client Firewall" is ever enabled
+# again it inserts "-I FORWARD 1 -i wg0 -j WG_CLIENTS" above any filter rule we add here, and its
+# per-client ACCEPT would let echo-request through. mangle FORWARD is evaluated before filter FORWARD.
 CUSTOM_POST_UP=$(tr '\n' ' ' << EOF
 iptables -t nat -N masq_not_local;
 iptables -t nat -A POSTROUTING -s ${WG_IPV4_CIDR} -j masq_not_local;
@@ -95,7 +116,9 @@ iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -p udp --dport 53 -j RETUR
 iptables -t nat -A masq_not_local -d ${DOCKER_SUBNET} -j MASQUERADE;
 iptables -t nat -A masq_not_local -d ${AZ_SUBNET} -j RETURN;
 iptables -t nat -A masq_not_local -j MASQUERADE;
-iptables -I FORWARD -s ${WG_IPV4_CIDR} -p icmp --icmp-type echo-request -j DROP;
+iptables -t mangle -I FORWARD -s ${WG_IPV4_CIDR} -p icmp --icmp-type echo-request -j DROP;
+iptables-restore --noflush < ${AZ_CLIENTS_RULES};
+iptables -I FORWARD -s ${WG_IPV4_CIDR} -j az_clients;
 iptables -A FORWARD -i wg0 -j ACCEPT;
 iptables -A FORWARD -o wg0 -j ACCEPT;
 EOF
@@ -105,7 +128,10 @@ CUSTOM_POST_DOWN=$(tr '\n' ' ' << EOF
 iptables -t nat -D POSTROUTING -s ${WG_IPV4_CIDR} -j masq_not_local;
 iptables -t nat -F masq_not_local;
 iptables -t nat -X masq_not_local;
-iptables -D FORWARD -s ${WG_IPV4_CIDR} -p icmp --icmp-type echo-request -j DROP;
+iptables -t mangle -D FORWARD -s ${WG_IPV4_CIDR} -p icmp --icmp-type echo-request -j DROP;
+iptables -D FORWARD -s ${WG_IPV4_CIDR} -j az_clients;
+iptables -F az_clients;
+iptables -X az_clients;
 iptables -D FORWARD -i wg0 -j ACCEPT;
 iptables -D FORWARD -o wg0 -j ACCEPT;
 EOF
@@ -131,6 +157,12 @@ update_db() {
 
     # Update interface port and CIDR
     sqlite3 "$DB_FILE" "UPDATE interfaces_table SET port=${WG_PORT}, ipv4_cidr='${WG_IPV4_CIDR}', mtu=${MTU} WHERE name='wg0';"
+
+    # wg-easy "Traffic Filtering / Enable Per-Client Firewall" (chain WG_CLIENTS) is forced OFF on every start:
+    # destinations are limited by the subnet-wide az_clients chain from CUSTOM_POST_UP instead.
+    # Both mechanisms together would only duplicate rules. To use the wg-easy firewall again, remove this line
+    # (the toggle lives in the DB, Admin -> Interface; wireguard and wireguard-amnezia have separate DBs).
+    sqlite3 "$DB_FILE" "UPDATE interfaces_table SET firewall_enabled=0 WHERE name='wg0';"
 
     # Update user config (allowed IPs, DNS, host, port, persistent keepalive)
     sqlite3 "$DB_FILE" "UPDATE user_configs_table SET default_allowed_ips='${ALLOWED_IPS_JSON}', default_dns='${DNS_JSON}', default_mtu=${MTU}, host='${host_val}', port=${WG_PORT} WHERE id='wg0';"
