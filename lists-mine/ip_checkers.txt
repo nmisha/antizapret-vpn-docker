@@ -1,7 +1,16 @@
-! Title: IP / Geo Detection Blocklist
-! Description: Converted from v2fly/domain-list-community category-ip-geo-detect
-! Source: v2fly/domain-list-community
-
+! Title: V2Fly IP / Geo Detection Blocklist for AdGuard Home
+! Description: Recursively expanded from category-ip-geo-detect; duplicates removed.
+! Source: https://github.com/v2fly/domain-list-community/tree/master/data
+! Source commit: 6fe5416797ec88d29a3a1c69ce1431d73b955e88
+! Source commit date: 2026-09-14
+! Generated: 2026-09-20T05:18:26Z
+! Rules: 234 (10 exact-domain regex rules)
+! V2Fly attributes such as @cn and @!cn are metadata and are intentionally omitted.
+! Ordinary entries block the named domain and all subdomains.
+! V2Fly full: entries use anchored regular expressions and block only the exact hostname.
+!
+||ipip.net^
+||myip.la^
 ||2ip.io^
 ||2ip.ru^
 ||2ip.ua^
@@ -194,8 +203,6 @@
 ||whoisxmlapi.com^
 ||wieistmeineip.de^
 ||wtfismyip.com^
-
-! IPv6 tests
 ||ipv6ready.me^
 ||test-ipv6.alpinedc.ch^
 ||test-ipv6.ams.vr.org^
@@ -214,18 +221,16 @@
 ||test.version6.ru^
 ||testipv6.cn^
 ||testipv6.de^
-
-! IP detection APIs / specific endpoints
-||checkip.amazonaws.com^
-||checkip.dyndns.org^
-||checkip.dyn.com^
-||checkip.global.api.aws^
-||ip-check-perf.radar.cloudflare.com^
-||ip.comss.net^
-||ipv4-check-perf.radar.cloudflare.com^
-||ipv6-check-perf.radar.cloudflare.com^
-||myip.dnsomatic.com^
-||whatismyip.akamai.com^
+/^checkip\.amazonaws\.com$/
+/^checkip\.dyndns\.org$/
+/^checkip\.dyn\.com$/
+/^checkip\.global\.api\.aws$/
+/^ip-check-perf\.radar\.cloudflare\.com$/
+/^ip\.comss\.net$/
+/^ipv4-check-perf\.radar\.cloudflare\.com$/
+/^ipv6-check-perf\.radar\.cloudflare\.com$/
+/^myip\.dnsomatic\.com$/
+/^whatismyip\.akamai\.com$/
 ||geoip.noc.gov.ru^
 ||ip.hetzner.com^
 ||ip.mail.ru^
