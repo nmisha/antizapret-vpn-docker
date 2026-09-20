@@ -1,0 +1,35 @@
+services:
+  telemt-panel:
+    image: ghcr.io/amirotin/telemt_panel:1.0.0-rc.2
+    hostname: telemt-panel
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Prepare these directories on world with prepare.py before deploying.
+    volumes:
+      - $PWD/config-mine/telemt-panel/config:/etc/telemt-panel:rw
+      - $PWD/config-mine/telemt-panel/data:/var/lib/telemt-panel:rw
+    tmpfs:
+      - /tmp:size=67108864,mode=1777
+    # Caddy reaches port 8080 over the overlay network. No host ports.
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: "3"
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == world ]
+      update_config:
+        order: stop-first
+      rollback_config:
+        order: stop-first
+      resources:
+        limits:
+          memory: 256M
