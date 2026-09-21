@@ -139,3 +139,22 @@ sudo nsenter -t "$pid" -n bash services-mine/telemt/telemt-users.sh link admin
 healthcheck и преобразование полного Compose в Swarm. PROXY protocol между `https` и telemt,
 получение сертификата для домена в caddy и подключение клиента требуют проверки на сервере: `docker logs`
 сервиса telemt (строки про TLS-fetch и mask), `telemt-users.sh list`, подключение по ссылке.
+
+## Swarm tmpfs and resource limits
+
+Mount `/run/telemt` using `volumes: type: tmpfs`, limited to 4 MiB.
+The short service-level `tmpfs:` syntax does not create a mount in stack deploy.
+The panel similarly mounts `/tmp` with a 64 MiB limit. Default tmpfs permissions
+are 1777, allowing UID 65532 to write with a read-only root filesystem.
+
+Deploy with the root `sr_swarm_start.sh`. After compose2swarm, it converts quoted
+numeric size fields to integers required by the Swarm schema. This works around
+the serializer in the published xtrime/antizapret-vpn:6 image without rebuilding
+images. The old direct pipeline without size normalization is insufficient.
+The script validates the stack and stops before deployment if any stage fails.
+
+Memory limits remain 300 MiB for telemt and 256 MiB for the panel; CPU is uncapped.
+Used tmpfs memory also counts toward the container limit. On 2026-09-21 the
+current tasks peaked at approximately 28 and 22 MiB with no OOM events, so the
+observed workload does not justify raising limits. Recheck docker stats and OOM
+counters as load grows; these measurements are not a maximum-user capacity test.

@@ -20,8 +20,11 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - $PWD/config-mine/telemt:/etc/telemt:rw
-    tmpfs:
-      - /run/telemt:rw,mode=1777,size=4m
+      # Swarm only creates tmpfs mounts from the long volumes syntax.
+      - type: tmpfs
+        target: /run/telemt
+        tmpfs:
+          size: 4194304
     environment:
       - RUST_LOG=info
       # Required: the SNI domain https routes to this service (same value as SNI_ROUTE_N/SNI_CERT_N

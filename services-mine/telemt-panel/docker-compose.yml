@@ -22,8 +22,11 @@ services:
       - $PWD/config-mine/telemt:/etc/telemt-source:ro
       - $PWD/config-mine/telemt-panel/config:/etc/telemt-panel:rw
       - $PWD/config-mine/telemt-panel/data:/var/lib/telemt-panel:rw
-    tmpfs:
-      - /tmp:size=67108864,mode=1777
+      # Swarm only creates tmpfs mounts from the long volumes syntax.
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 67108864
     # Caddy reaches port 8080 over the overlay network. No host ports.
     logging:
       driver: json-file
