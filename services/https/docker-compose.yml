@@ -1,7 +1,7 @@
 services:
   https:
     restart: unless-stopped
-    image: nmisha/antizapret-vpn-https:6.7.9-4
+    image: nmisha/antizapret-vpn-https:6.7.9-5
     build: 
       context: .
       x-bake:
@@ -32,6 +32,8 @@ services:
       - SNI_DEFAULT_ROUTE=
       # SNI_CERT_N=identity:/absolute/output/directory
       - SNI_CERT_1=
+      # Serve the bundled public page for this certificate-only site instead of 204.
+      - SNI_CERT_STATIC_1=false
       # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
       - PROXY_IP=${PROXY_IP:-}

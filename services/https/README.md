@@ -48,6 +48,7 @@ site is emitted. Explicit HTTP redirects preserve the URI and use public port 44
 | `PROXY_VHOST_N=name:domain:host:upstream_port` | HTTPS-сайт отдельного домена на `PROXY_HTTPS_PORT`, с проверкой Authelia и HTTP-проксированием. |
 | `PROXY_AUTHELIA_DOMAIN` | Отдельный HTTPS-сайт портала Authelia без проверки `forward_auth` самого себя. |
 | `SNI_CERT_N=domain:/output/directory` | Автоматизацию сертификата домена и экспорт файлов внутри контейнера `https`. Если сайта ещё нет, добавляется HTTPS-сайт с ответом 204. |
+| `SNI_CERT_STATIC_N=true` | Вместо 204 отдаёт встроенную статическую страницу для соответствующего `SNI_CERT_N`. Применяется только к отдельному сертификатному сайту, без Authelia; существующие dashboard/vhost-сайты не меняет. По умолчанию `false`. |
 
 ### Основной домен: почему нет PROXY_VHOST
 

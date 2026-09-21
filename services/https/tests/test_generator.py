@@ -44,7 +44,7 @@ def generate(extra, script=SCRIPT):
                "--mount", f"type=bind,source={ROOT / 'services/https/files'},target=/source,readonly"]
     for key, value in env.items():
         command += ["-e", f"{key}={value}"]
-    return subprocess.run(command + [IMAGE, "-ec", script], capture_output=True, text=True, timeout=60)
+    return subprocess.run(command + [IMAGE, "-ec", script], capture_output=True, text=True, encoding="utf-8", timeout=60)
 
 
 def walk(value):
@@ -58,6 +58,30 @@ def walk(value):
 
 
 class GeneratorTests(unittest.TestCase):
+    def test_certificate_static_page(self):
+        extra = {
+            "SNI_CERT_1": "proxy.example.org:/data/telemt",
+            "SNI_CERT_STATIC_1": "true",
+            "SNI_ROUTE_3": "proxy.example.org:telemt:8443:proxy-v2",
+            "PROXY_CERT_MODE": "selfsigned",
+        }
+        config = self.config(extra)
+        encoded = json.dumps(config)
+        self.assertIn('/srv/certificate-site', encoded)
+        self.assertIn('telemt:8443', encoded)
+        script = SCRIPT.replace(
+            'caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile',
+            '''mkdir -p /srv/certificate-site
+cp /source/certificate-site/index.html /srv/certificate-site/index.html
+caddy start --config /etc/caddy/Caddyfile --adapter caddyfile >&2
+curl --fail --insecure --silent --show-error --noproxy '*' --max-time 5 \\
+  --resolve proxy.example.org:444:127.0.0.1 https://proxy.example.org:444/
+''')
+        result = generate(extra, script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('<title>', result.stdout)
+        self.assertIn('</html>', result.stdout)
+
     def test_shared_identity_requires_both_settings(self):
         for extra in [
             {"PROXY_VHOST_SHARED_GROUP_1": "shared"},

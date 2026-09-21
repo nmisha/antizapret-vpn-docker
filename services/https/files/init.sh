@@ -210,6 +210,12 @@ EOF
                 ;;
         esac
         seen_identities="$seen_identities $identity"
+        static_var="SNI_CERT_STATIC_$counter"
+        eval "static_value=\${$static_var:-false}"
+        case "$static_value" in
+            true|false) ;;
+            *) echo "[ERROR] $static_var must be true or false" >&2; exit 1 ;;
+        esac
         seen_directories="$seen_directories $output_directory"
         SNI_CERTIFICATES=$(printf "%s\n%s:%s:%s" "$SNI_CERTIFICATES" \
             "$identity" "$identity_type" "$output_directory")
@@ -754,10 +760,14 @@ EOF
 }
 
 add_sni_certificate_sites() {
+    certificate_index=0
     echo "$SNI_CERTIFICATES" | while IFS= read -r certificate_value; do
         if [ -z "$certificate_value" ]; then
             continue
         fi
+        certificate_index=$((certificate_index + 1))
+        static_var="SNI_CERT_STATIC_$certificate_index"
+        eval "static_value=\${$static_var:-false}"
         IFS=: read -r identity identity_type output_directory <<EOF
 $certificate_value
 EOF
@@ -777,10 +787,15 @@ EOF
             "$identity" \
             "$output_directory/certificate.crt" \
             "$output_directory/certificate.key"
-        cat <<EOF >>"$CONFIG_FILE"
-  respond 204
-}
+        if [ "$static_value" = "true" ]; then
+            cat <<EOF >>"$CONFIG_FILE"
+  root * /srv/certificate-site
+  file_server
 EOF
+        else
+            echo '  respond 204' >>"$CONFIG_FILE"
+        fi
+        echo '}' >>"$CONFIG_FILE"
     done
 }
 

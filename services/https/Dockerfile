@@ -12,4 +12,5 @@ COPY --from=builder /usr/bin/caddy /usr/bin/caddy
 RUN apk add -U --no-cache curl idn2-utils openssl
 COPY --chmod=0755 files/entrypoint.sh /entrypoint.sh
 COPY --chmod=0755 files/init.sh /init.sh
+COPY files/certificate-site/ /srv/certificate-site/
 ENTRYPOINT [ "/entrypoint.sh" ]
