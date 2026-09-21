@@ -92,11 +92,21 @@ sync_configured_certificates() {
         IFS=: read -r identity output_directory remainder <<EOF
 $certificate_value
 EOF
+        owner_var="SNI_CERT_UID_$counter"
+        eval "certificate_uid=\${$owner_var:-}"
+        case "$certificate_uid" in
+            *[!0-9]*) echo "[ERROR] $owner_var must be a numeric UID" >&2; exit 1 ;;
+        esac
         if sync_certificate "SNI certificate $identity" \
             "$output_directory/identity" \
             "$output_directory/fallback.crt" "$output_directory/fallback.key" \
             "$output_directory/certificate.crt" "$output_directory/certificate.key"; then
             certificates_changed=1
+        fi
+        # Keep the private key readable by an unprivileged consumer after renewal.
+        if [ -n "$certificate_uid" ]; then
+            chown "$certificate_uid" "$output_directory/certificate.key"
+            chmod 600 "$output_directory/certificate.key"
         fi
         counter=$((counter + 1))
     done

@@ -32,6 +32,8 @@ services:
       - SNI_DEFAULT_ROUTE=
       # SNI_CERT_N=identity:/absolute/output/directory
       - SNI_CERT_1=
+      # Optional numeric owner UID of the exported key (permissions stay 0600).
+      # - SNI_CERT_UID_1=2000
       # Serve the bundled public page for this certificate-only site instead of 204.
       - SNI_CERT_STATIC_1=false
       # Optional Let's Encrypt account email.
@@ -46,6 +48,8 @@ services:
       # PROXY_VHOST_N=name:domain:internal_hostname:internal_port (protected by Authelia).
       # With SNI routing, also route each domain to 127.0.0.1:PROXY_HTTPS_PORT:proxy-v2.
       - PROXY_VHOST_1=
+      # false skips Authelia for an application with its own authentication.
+      # - PROXY_VHOST_AUTH_1=true
       # Optional shared account mapping for the same PROXY_VHOST_N index.
       # Both values must be set together. Other authenticated users keep their login.
       - PROXY_VHOST_SHARED_GROUP_1=

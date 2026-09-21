@@ -378,9 +378,23 @@ EOF
         domain=$(normalize_domain "$domain")
         register_vhost_domain "$domain"
         get_shared_identity "$counter"
+        get_vhost_auth "$counter"
+        if [ "$vhost_auth" = "false" ] && [ -n "$shared_group$shared_user" ]; then
+            echo "[ERROR] $vhost_var cannot use shared identity with Authelia disabled" >&2
+            exit 1
+        fi
         VHOSTS=$(printf '%s\n%s:%s:%s:%s' "$VHOSTS" "$name" "$domain" "$internal_host" "$internal_port")
         counter=$((counter + 1))
     done
+}
+
+get_vhost_auth() {
+    auth_var="PROXY_VHOST_AUTH_$1"
+    eval "vhost_auth=\${$auth_var:-true}"
+    case "$vhost_auth" in
+        true|false) ;;
+        *) echo "[ERROR] $auth_var must be true or false" >&2; exit 1 ;;
+    esac
 }
 
 get_shared_identity() {
@@ -677,11 +691,19 @@ EOF
     # Only Authelia may supply identity; also remove PHP underscore aliases.
     request_header -Remote-*
     request_header -Remote_*
+EOF
+        vhost_auth=true
+        if [ "$site_mode" = "domain" ]; then
+            get_vhost_auth "$service_index"
+        fi
+        if [ "$vhost_auth" = "true" ]; then
+            cat <<EOF >>"$CONFIG_FILE"
     forward_auth authelia:9091 {
       uri /api/authz/forward-auth
       copy_headers Remote-User Remote-Groups Remote-Name Remote-Email
     }
 EOF
+        fi
         if [ "$site_mode" = "domain" ]; then
             get_shared_identity "$service_index"
             if [ -n "$shared_group" ]; then

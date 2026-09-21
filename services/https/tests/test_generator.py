@@ -58,6 +58,35 @@ def walk(value):
 
 
 class GeneratorTests(unittest.TestCase):
+    def test_mail_vhost_uses_application_auth(self):
+        config = self.config(DOMAINS | {"PROXY_VHOST_AUTH_1": "false"})
+        routes = [node for node in walk(config["apps"]["http"])
+                  if any(isinstance(match, dict) and match.get("host") == ["twof.auth.example.org"]
+                         for match in node.get("match", [])) and "handle" in node]
+        encoded = json.dumps(routes)
+        self.assertIn("2fauth", encoded)
+        self.assertNotIn("/api/authz/forward-auth", encoded)
+        self.assertIn("Remote-*", encoded)
+        # Existing port-based sites retain their authentication.
+        self.assertIn("/api/authz/forward-auth", json.dumps(config))
+
+    def test_invalid_vhost_auth_is_rejected(self):
+        for extra in ({"PROXY_VHOST_AUTH_1": "flase"},
+                      {"PROXY_VHOST_AUTH_1": "false",
+                       "PROXY_VHOST_SHARED_GROUP_1": "shared",
+                       "PROXY_VHOST_SHARED_USER_1": "mail"}):
+            with self.subTest(extra=extra):
+                result = generate(DOMAINS | extra)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("[ERROR]", result.stderr)
+
+    def test_exported_mail_key_owner(self):
+        script = SCRIPT + '\nstat -c "MAIL_KEY %u %a" /data/mail/certificate.key\n'
+        result = generate({"SNI_CERT_1": "mail.example.org:/data/mail",
+                           "SNI_CERT_UID_1": "2000"}, script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("MAIL_KEY 2000 600", result.stdout)
+
     def test_certificate_static_page(self):
         extra = {
             "SNI_CERT_1": "proxy.example.org:/data/telemt",

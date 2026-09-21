@@ -11,16 +11,23 @@ services:
       # SNI_ROUTE_N=sni:upstream_hostname:upstream_port:none|proxy-v1|proxy-v2
       - SNI_ROUTE_1=dashboard.example.com:127.0.0.1:444:proxy-v2
       - SNI_ROUTE_2=vpn.example.com:ocserv.antizapret:443:proxy-v2
+      - SNI_ROUTE_3=webmail.example.com:127.0.0.1:444:proxy-v2
+      - SNI_ROUTE_4=mail.example.com:127.0.0.1:444:proxy-v2
       # Optional catch-all. Leave empty to reject unmatched/no-SNI connections.
       - SNI_DEFAULT_ROUTE=
-      # Ask Caddy to manage and export additional certificates.
-      # - SNI_CERT_1=mail.example.com:/data/certs/mail
+      # Export the mail certificate for Stalwart (UID 2000).
+      - SNI_CERT_1=mail.example.com:/data/mail
+      - SNI_CERT_UID_1=2000
       # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
       # Use selfsigned to disable ACME requests on local installations.
       - PROXY_CERT_MODE=auto
       # Use the staging directory while testing certificate issuance.
       # - PROXY_ACME_CA=https://acme-staging-v02.api.letsencrypt.org/directory
+      - PROXY_VHOST_1=Webmail:webmail.example.com:webmail:3000
+      - PROXY_VHOST_AUTH_1=false
+      - PROXY_VHOST_2=Mail:mail.example.com:stalwart:8080
+      - PROXY_VHOST_AUTH_2=false
 
   # cloak:
   #   extends:
@@ -42,6 +49,33 @@ services:
     environment:
       - FILEBROWSER_USERNAME=admin
       - FILEBROWSER_PASSWORD=password
+
+  # Mail server (Stalwart: SMTP/IMAP/POP3) + webmail (Bulwark, reads mail via JMAP).
+  # See services-mine/mail/docker-compose.yml. Ports must be reachable from the
+  # internet for MX to work; DNS (A/MX/SPF/DKIM/PTR) is set up separately.
+  stalwart:
+    extends:
+      file: services-mine/mail/docker-compose.yml
+      service: stalwart
+    environment:
+      - STALWART_HOSTNAME=mail.example.com
+      - STALWART_PUBLIC_URL=https://mail.example.com
+      - STALWART_RECOVERY_ADMIN=
+    ports:
+      - "25:25"
+      - "465:465"
+      - "587:587"
+      - "993:993"
+      - "4190:4190"
+
+  webmail:
+    extends:
+      file: services-mine/mail/docker-compose.yml
+      service: webmail
+    environment:
+      - JMAP_SERVER_URL=https://mail.example.com
+      # Generate with: openssl rand -hex 32
+      - SESSION_SECRET=
 
   ocserv:
     extends:
@@ -110,3 +144,4 @@ services:
       endpoint_mode: dnsrr
       placement:
         constraints: [ node.labels.location == world ]
+

@@ -23,7 +23,13 @@ explicit local route for every virtual host. Without SNI routing, arrange extern
 
 `PROXY_AUTHELIA_DOMAIN` replaces the legacy `PROXY_DOMAIN:9091` portal. Leave it
 empty to keep that address. The portal has no `forward_auth`; all `PROXY_VHOST_N`
-applications have the same Authelia check as port-based applications. Domain names
+applications have the same Authelia check as port-based applications by default.
+`PROXY_VHOST_AUTH_N=false` disables that check for the corresponding site (for
+example, Stalwart JMAP/OAuth and Bulwark with their own login). The only accepted
+values are `true` and `false`; shared identity mapping requires `true`.
+`SNI_CERT_UID_N` optionally sets the numeric owner UID of an exported private key,
+including after renewal; its permissions remain `0600`.
+Domain names
 must be unique and different from `PROXY_DOMAIN` and `OCSERV_DOMAIN`.
 
 Caddy manages domain certificates directly in `/data/caddy` using ACME HTTP-01;
