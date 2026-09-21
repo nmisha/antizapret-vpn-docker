@@ -144,13 +144,16 @@ healthcheck и преобразование полного Compose в Swarm. PRO
 
 Mount `/run/telemt` using `volumes: type: tmpfs`, limited to 4 MiB.
 The short service-level `tmpfs:` syntax does not create a mount in stack deploy.
-The panel similarly mounts `/tmp` with a 64 MiB limit. Default tmpfs permissions
-are 1777, allowing UID 65532 to write with a read-only root filesystem.
+The panel similarly mounts `/tmp` with a 64 MiB limit. Do not assume tmpfs
+permissions are 1777: Swarm can preserve 0755 root:root from the image directory.
+The telemt entrypoint assigns `/run/telemt` to UID/GID 65532 before dropping
+privileges, allowing runtime files to be written with a read-only root filesystem.
+Rebuild and publish the telemt image after updating this entrypoint, then redeploy.
 
 Deploy with the root `sr_swarm_start.sh`. After compose2swarm, it converts quoted
 numeric size fields to integers required by the Swarm schema. This works around
-the serializer in the published xtrime/antizapret-vpn:6 image without rebuilding
-images. The old direct pipeline without size normalization is insufficient.
+the serializer without rebuilding the published xtrime/antizapret-vpn:6 converter
+image. The old direct pipeline without size normalization is insufficient.
 The script validates the stack and stops before deployment if any stage fails.
 
 Memory limits remain 300 MiB for telemt and 256 MiB for the panel; CPU is uncapped.

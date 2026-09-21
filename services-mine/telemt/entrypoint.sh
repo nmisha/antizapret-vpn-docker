@@ -69,4 +69,9 @@ set_access_limit user_max_unique_ips_global_each "${TELEMT_MAX_UNIQUE_IPS:-}"
 chown -R "$UID_GID" /etc/telemt
 chmod 600 "$CONF"
 
+# Swarm can mount tmpfs with the image directory's 0755 root:root ownership.
+# Prepare the writable runtime directory before dropping privileges.
+mkdir -p /run/telemt
+chown "$UID_GID" /run/telemt
+
 exec su-exec "$UID_GID" /app/telemt "$@"

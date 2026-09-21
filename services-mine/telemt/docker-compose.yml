@@ -1,7 +1,7 @@
 services:
   telemt:
     # telemt + entrypoint that fixes config dir ownership; build on the world node (see README)
-    image: nmisha/antizapret-vpn-telemt:3.5.7-2
+    image: nmisha/antizapret-vpn-telemt:3.5.7-3
     hostname: telemt.antizapret
     init: true
     restart: unless-stopped
