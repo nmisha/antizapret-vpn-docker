@@ -1,0 +1,6 @@
+# interface public-destination-IP protocol original-published-ports
+# Use only on the host that owns these addresses. No wildcards/CIDRs.
+ens3 91.184.253.97 tcp 25,80,443,465,587,993,4190
+ens3 91.184.253.97 udp 443
+ens3 2a13:36c0:1ff:1965::10 tcp 25,80,443,465,587,993,4190
+ens3 2a13:36c0:1ff:1965::10 udp 443
