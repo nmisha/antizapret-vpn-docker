@@ -34,6 +34,7 @@ RUN <<-"EOT" bash -ex
     curl -fsSLo /tmp/warp.deb "https://pkg.cloudflareclient.com/pool/noble/main/c/cloudflare-warp/cloudflare-warp_${WARP_VERSION}_$(dpkg --print-architecture).deb"
     apt-get install -qqy --no-install-suggests --no-install-recommends \
         bsdmainutils \
+        util-linux \
         iperf3 \
         dnsutils \
         gawk \
@@ -64,6 +65,8 @@ FROM runtime-base AS test-dnsmap
 WORKDIR /root/antizapret
 COPY ./root/antizapret/dnsmap.py ./root/antizapret/test_dnsmap.py ./
 COPY ./root/antizapret/test_list_cache.py ./root/antizapret/list-cache.sh ./root/antizapret/download.sh ./root/antizapret/doall.sh ./
+COPY ./root/antizapret/parse.sh ./
+COPY ./root/antizapret/scripts ./scripts
 RUN python3 -B -m unittest discover -v
 
 FROM test-dnsmap AS runtime-files

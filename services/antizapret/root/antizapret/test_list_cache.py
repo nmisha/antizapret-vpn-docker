@@ -3,6 +3,8 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
+import time
 import tempfile
 import unittest
 
@@ -32,6 +34,13 @@ class ListCacheTests(unittest.TestCase):
         self.script('bin/curl', '[ "${FAIL_DOWNLOAD:-}" != 1 ] || exit 22\n'
                     'case "${@: -1}" in ips) echo 192.0.2.0/24;; asn) :;; esac')
         self.script('bin/pkill', 'exit 0')
+        if not shutil.which('flock'):
+            # macOS has no util-linux CLI; exercise the same inherited-fd lock
+            # through the native flock syscall. Docker tests use real flock.
+            wrapper = self.root / 'bin/flock'
+            wrapper.write_text('#!' + sys.executable + '\nimport fcntl,sys\n'
+                               'fcntl.flock(int(sys.argv[-1]), fcntl.LOCK_EX)\n')
+            wrapper.chmod(0o755)
         self.script('bin/sponge', 'data=$(cat); printf "%s" "$data" > "$1"')
         # Exercise doall's success/failure contract independently of route generation.
         self.script('parse.sh', '[ "${FAIL_PARSE:-}" != 1 ] || exit 2\n'
@@ -73,7 +82,87 @@ class ListCacheTests(unittest.TestCase):
         (self.root / 'result/.asn.txt.ready').touch()
         self.assertNotEqual(self.run_shell(command).returncode, 0)
 
-    def test_failed_generation_does_not_leave_success_markers(self):
+    def test_failed_generation_preserves_previous_success_markers(self):
         self.assertEqual(self.run_shell('bash doall.sh').returncode, 0)
         self.assertNotEqual(self.run_shell('bash doall.sh', FAIL_PARSE='1').returncode, 0)
-        self.assertFalse((self.root / 'result/.asn.txt.ready').exists())
+        self.assertTrue((self.root / 'result/.asn.txt.ready').exists())
+
+    def prepare_real_parser(self):
+        shutil.copyfile(SOURCE / 'parse.sh', self.root / 'parse.sh')
+        shutil.copytree(SOURCE / 'scripts', self.root / 'scripts')
+        (self.root / 'config/custom').mkdir()
+        for kind in ('ips', 'ips-world', 'asn', 'asn-world'):
+            (self.root / f'config/include-{kind}-dist.txt').write_text('')
+            for prefix in ('include', 'exclude'):
+                (self.root / f'config/custom/{prefix}-{kind}-custom.txt').touch()
+            (self.root / f'result/{kind}.txt').write_text('old-data\n')
+            (self.root / f'result/.{kind}.txt.ready').touch()
+        (self.root / 'config/include-ips-dist.txt').write_text('192.0.2.0/24\n')
+        self.env['DOCKER_SUBNET'] = ''
+        self.script('bin/sipcalc', 'echo "Network mask - 255.255.255.0"')
+
+    def test_invalid_regex_keeps_published_lists_and_markers(self):
+        self.prepare_real_parser()
+        (self.root / 'config/custom/exclude-ips-custom.txt').write_text('[\n')
+        result = self.run_shell('bash parse.sh')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.root / 'result/ips.txt').read_text(), 'old-data\n')
+        self.assertTrue((self.root / 'result/.ips.txt.ready').exists())
+
+    def test_missing_input_keeps_published_lists(self):
+        self.prepare_real_parser()
+        (self.root / 'config/include-asn-dist.txt').unlink()
+        self.assertNotEqual(self.run_shell('bash parse.sh').returncode, 0)
+        self.assertEqual((self.root / 'result/ips.txt').read_text(), 'old-data\n')
+
+    def test_excluding_all_addresses_is_successful(self):
+        self.prepare_real_parser()
+        (self.root / 'config/custom/exclude-ips-custom.txt').write_text('.*\n')
+        result = self.run_shell('bash parse.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/ips.txt').read_text(), '')
+
+    def test_parallel_refreshes_are_serialized_and_stale_file_is_harmless(self):
+        self.script('download.sh', 'exit 0')
+        self.env.update(IPS_URL='', ASN_URL='')
+        self.script('parse.sh', 'echo start >> events; sleep 0.2; echo end >> events')
+        (self.root / '.doall_lock').touch()
+        processes = [subprocess.Popen(['bash', 'doall.sh'], cwd=self.root,
+                     env=self.env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                     for _ in range(3)]
+        try:
+            for process in processes:
+                self.assertEqual(process.wait(timeout=5), 0)
+        finally:
+            for process in processes:
+                if process.poll() is None:
+                    process.kill()
+                process.wait()
+        self.assertEqual((self.root / 'events').read_text().splitlines(),
+                         ['start', 'end'] * 3)
+
+    def test_killed_lock_holder_does_not_block_next_refresh(self):
+        self.script('download.sh', 'exit 0')
+        self.script('parse.sh', 'exit 0')
+        self.env.update(IPS_URL='', ASN_URL='')
+        holder = subprocess.Popen(['bash', '-c',
+            'exec 9>.doall_lock; flock -x 9; touch locked; exec sleep 30'],
+            cwd=self.root, env=self.env)
+        try:
+            deadline = time.monotonic() + 3
+            while not (self.root / 'locked').exists() and time.monotonic() < deadline:
+                time.sleep(0.01)
+            self.assertTrue((self.root / 'locked').exists())
+        finally:
+            holder.kill()
+            holder.wait()
+        result = subprocess.run(['bash', 'doall.sh'], cwd=self.root,
+                                env=self.env, capture_output=True, timeout=3)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_disabled_source_can_be_missing_on_first_start(self):
+        self.prepare_real_parser()
+        (self.root / 'config/include-ips-world-dist.txt').unlink()
+        result = self.run_shell('bash parse.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/ips-world.txt').read_text(), '')
