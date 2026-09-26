@@ -42,6 +42,7 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
   - [Using zapret2](#zapret2)
     - [Changing configuration](#changing-configuration)
     - [Strategy selection](#strategy-selection)
+  - [Cloudflare WARP](#cloudflare-warp)
   - [Environment Variables](#environment-variables)
   - [DNS](#dns)
     - [Adguard Upstream DNS](#adguard-upstream-dns)
@@ -419,14 +420,70 @@ git restore config
 
 ## DNS resolving algorithm
 
-![Preview](./img/chart.png)
+### Docker Swarm
 
-In single-server Compose mode `az-local` also has the `az-world` and
-`az-world.antizapret` network aliases. CoreDNS detects that both exit names
-have the same address and queries the container only once; AdGuard generates
-both local and world list rules for the `az-local` client. In Swarm mode the
-short and fully qualified aliases are split between two services, so CoreDNS
-queries `az-world` and then `az-local`.
+```mermaid
+%%{init: {"theme":"base","htmlLabels":false,"flowchart":{"htmlLabels":false},"themeVariables":{"primaryTextColor":"#f8fafc","lineColor":"#94a3b8","textColor":"#e2e8f0","edgeLabelBackground":"#0f172a"},"themeCSS":".cluster-label text { fill: #f8fafc !important; } .cluster rect { rx: 18px; ry: 18px; } .node rect { rx: 10px; ry: 10px; }"}}%%
+flowchart TB
+    subgraph canvas["SWARM  /  DNS RESOLUTION"]
+        direction TB
+        client([VPN client]) -->|DNS query| adguard[AdGuard Home]
+        adguard -->|Blocked| deny[0.0.0.0]
+        adguard -->|Continue| core[CoreDNS]
+        core --> world[az-world<br/>dnsmap.py]
+        world -->|Match| mapped[Virtual IP<br/>DNAT rule]
+        world -->|SERVFAIL| local[az-local<br/>dnsmap.py]
+        local -->|Match| mapped
+        local -->|SERVFAIL| retry[AdGuard Home<br/>direct retry]
+        retry --> normal[Regular DNS answer]
+    end
+    style canvas fill:#0b1220,stroke:#334155,stroke-width:2px,color:#f8fafc
+    classDef client fill:#2563eb,stroke:#93c5fd,stroke-width:2px,color:#ffffff
+    classDef service fill:#1e293b,stroke:#64748b,stroke-width:1.5px,color:#f8fafc
+    classDef exit fill:#312e81,stroke:#a5b4fc,stroke-width:1.5px,color:#ffffff
+    classDef mapped fill:#115e59,stroke:#5eead4,stroke-width:2px,color:#ffffff
+    classDef blocked fill:#7f1d1d,stroke:#fca5a5,stroke-width:2px,color:#ffffff
+    class client client
+    class adguard,core,retry,normal service
+    class world,local exit
+    class mapped mapped
+    class deny blocked
+```
+
+### Single node (Docker Compose)
+
+```mermaid
+%%{init: {"theme":"base","htmlLabels":false,"flowchart":{"htmlLabels":false},"themeVariables":{"primaryTextColor":"#f8fafc","lineColor":"#94a3b8","textColor":"#e2e8f0","edgeLabelBackground":"#0f172a"},"themeCSS":".cluster-label text { fill: #f8fafc !important; } .cluster rect { rx: 18px; ry: 18px; } .node rect { rx: 10px; ry: 10px; }"}}%%
+flowchart TB
+    subgraph canvas["SINGLE NODE  /  DNS RESOLUTION"]
+        direction TB
+        client([VPN client]) -->|DNS query| adguard[AdGuard Home]
+        adguard -->|Blocked| deny[0.0.0.0]
+        adguard -->|Continue| core[CoreDNS]
+        core --> local[az-local<br/>dnsmap.py]
+        local -->|Match| mapped[Virtual IP<br/>DNAT rule]
+        local -->|SERVFAIL| retry[AdGuard Home<br/>direct retry]
+        retry --> normal[Regular DNS answer]
+    end
+    style canvas fill:#0b1220,stroke:#334155,stroke-width:2px,color:#f8fafc
+    classDef client fill:#2563eb,stroke:#93c5fd,stroke-width:2px,color:#ffffff
+    classDef service fill:#1e293b,stroke:#64748b,stroke-width:1.5px,color:#f8fafc
+    classDef exit fill:#312e81,stroke:#a5b4fc,stroke-width:1.5px,color:#ffffff
+    classDef mapped fill:#115e59,stroke:#5eead4,stroke-width:2px,color:#ffffff
+    classDef blocked fill:#7f1d1d,stroke:#fca5a5,stroke-width:2px,color:#ffffff
+    class client client
+    class adguard,core,retry,normal service
+    class local exit
+    class mapped mapped
+    class deny blocked
+```
+
+In Swarm mode the short and fully qualified aliases are split between two
+services, so CoreDNS queries `az-world` and then `az-local`. In single-server
+Compose mode `az-local` also has the `az-world` and `az-world.antizapret`
+network aliases. CoreDNS detects that both exit names have the same address
+and queries the container only once; AdGuard generates both local and world
+list rules for the `az-local` client.
 
 1. DNS Request arrives into AdGuardHome
 1. Adguard check it with blacklist rules. If domain in blacklist - return 0.0.0.0 and client not able to access domain.
@@ -756,6 +813,43 @@ For a faster targeted search, pass domains and search options:
 docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="youtube.com discord.com" /opt/zapret2/blockcheck2.sh'
 ```
 
+## Cloudflare WARP
+
+The official Cloudflare WARP client is included in the `antizapret` image but is
+disabled by default. Enable it for an exit node in
+`docker-compose.override.yml`:
+
+```yaml
+services:
+  az-local:
+    environment:
+      - WARP_ENABLED=1
+```
+
+Use `az-world` instead to enable WARP on the world exit node. Examples for both
+nodes are at the end of `docker-compose.override.sample.yml`; the world example
+is commented out.
+
+Apply the configuration normally. No additional WARP command is needed:
+
+```shell
+docker compose up -d
+```
+
+The registration is persisted in `./config/antizapret/warp`. WARP runs in
+traffic-only mode to leave DNS under Antizapret control and uses MASQUE. Since
+zapret2 starts first, its QUIC strategy processes the outer WARP tunnel traffic
+on UDP/443.
+
+### Docker Swarm
+
+The same `WARP_ENABLED=1` setting works for `az-local` and `az-world` in Swarm.
+Apply the override using the regular deployment command:
+
+```shell
+docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+```
+
 
 ## Environment Variables
 
@@ -768,6 +862,7 @@ You can define these variables in docker-compose.override.yml file for your need
 - `ROUTES` - list of VPN containers and their virtual addresses. Used for iperf3 server.
 - `DOALL_DISABLED=` - skip list generation inside the container. Normally leave unset: init uses a shared `result` owner file so Docker Compose generates lists only once, while Swarm nodes generate them independently on their local volumes.
 - `IPTABLES_SAVE_DISABLED=` - skip iptables rules restore on startup and save on shutdown.
+- `WARP_ENABLED=0` - set to `1` to route exit-node traffic through Cloudflare WARP.
 - `IPS_URL=` - semicolon-separated URLs with IP prefixes for the local node. The merged result is written to `result/ips.txt`.
 - `IPS_WORLD_URL=` - semicolon-separated URLs with IP prefixes for the world node. The merged result is written to `result/ips-world.txt`.
 - `ASN_URL=` - semicolon-separated URLs with ASN numbers or organization names for the local node. The merged result is written to `result/asn.txt`.
@@ -857,6 +952,14 @@ You can define these variables in docker-compose.override.yml file for your need
 ## DNS
 ### Adguard Upstream DNS
 AdGuard sends regular client queries through CoreDNS. For direct resolution used by ASN matching, the entrypoint configures the `az-resolver` client with Cloudflare, Google, and Quad9 upstreams. The generated configuration is stored in `./config/adguard/conf/AdGuardHome.yaml` and can be changed through the AdGuard Home UI.
+
+The third-party `xbox-dns.ru` resolver can be configured manually as a domain-specific upstream when Gemini incorrectly detects the country from the exit server's IP address and refuses to work because of geographic restrictions. For example:
+
+```text
+[/gemini.google.com/generativelanguage.googleapis.com/ai.google.dev/aistudio.google.com/]https://xbox-dns.ru/dns-query
+```
+
+This resolver may return proxy addresses instead of the service's original addresses. These proxy endpoints do not support QUIC or UDP forwarding. Applications that require HTTP/3/QUIC and do not reliably fall back to TCP may therefore fail to connect. For this reason, `xbox-dns.ru` is not enabled in the default configuration.
 
 ### CDN + ECS
 Some domains can resolve differently, depending on subnet (geoip) of client. In this case using of DNS located on remote server will break some services.

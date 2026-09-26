@@ -23,6 +23,7 @@ DNS=${DNS:-"127.0.0.1"}
 CLIENT=${CLIENT:-"az-local"}
 DOALL_DISABLED=${DOALL_DISABLED:-""}
 IPTABLES_SAVE_DISABLED=${IPTABLES_SAVE_DISABLED:-""}
+WARP_ENABLED=${WARP_ENABLED:-"0"}
 ZAPRET_ENABLED=${ZAPRET_ENABLED:-"0"}
 export ZAPRET_CONFIG='${ZAPRET_CONFIG:-"/opt/zapret2/config/zapret.conf"}'
 IPS_URL='${IPS_URL:-""}'
@@ -73,6 +74,13 @@ function cleanup_doall_owner () {
         rm -f "$DOALL_OWNER_FILE"
     fi
     rm -f "$DOALL_LOCAL_OWNER_FILE" /tmp/.doall_lock
+}
+
+function generated_lists_available () {
+    [ -z "${IPS_URL:-}" ] || [ -s /root/antizapret/result/ips.txt ] || return 1
+    [ -z "${IPS_WORLD_URL:-}" ] || [ -s /root/antizapret/result/ips-world.txt ] || return 1
+    [ -z "${ASN_URL:-}" ] || [ -s /root/antizapret/result/asn.txt ] || return 1
+    [ -z "${ASN_WORLD_URL:-}" ] || [ -s /root/antizapret/result/asn-world.txt ] || return 1
 }
 
 configure_doall_owner
@@ -146,10 +154,39 @@ fi
 
 routes &
 
-timeout 5m /usr/bin/doall || echo 'doall failed during startup, continuing with existing lists'
+if [ "$WARP_ENABLED" = "1" ]; then
+    mkdir -p /dev/net /run/dbus /var/lib/cloudflare-warp
+    [ -e /dev/net/tun ] || mknod /dev/net/tun c 10 200
+    rm -f /run/dbus/pid
+    dbus-daemon --config-file=/usr/share/dbus-1/system.conf
+    warp-svc --accept-tos &
+
+    timeout 30 bash -c 'until warp-cli --accept-tos status >/dev/null 2>&1; do sleep 1; done'
+
+    [ -f /var/lib/cloudflare-warp/reg.json ] || warp-cli --accept-tos registration new
+    while read -r nameserver; do
+        warp-cli --accept-tos tunnel ip add "$nameserver" || true
+    done < <(awk '$1 == "nameserver" {print $2}' /etc/resolv.conf)
+    warp-cli --accept-tos tunnel protocol set MASQUE
+    warp-cli --accept-tos mode tunnel_only
+    warp-cli --accept-tos connect
+    timeout 30 bash -c 'until warp-cli --accept-tos status | grep -q Connected; do sleep 1; done'
+
+    iptables -t nat -A POSTROUTING -o CloudflareWARP -j MASQUERADE
+    iptables -t mangle -A FORWARD -o CloudflareWARP -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
+fi
+
+if ! timeout --kill-after=5s 5m /usr/bin/doall; then
+    if generated_lists_available; then
+        echo 'doall failed during startup, continuing with existing lists'
+    else
+        echo 'doall failed during startup and no generated lists are available'
+        exit 1
+    fi
+fi
 
 postrun 'while true; do /opt/api/app; done'
-postrun 'while true; do sleep 6h; timeout 10m /usr/bin/doall; done'
+postrun 'while true; do sleep 6h; timeout --kill-after=5s 10m /usr/bin/doall; done'
 postrun 'while true; do /usr/bin/iperf3 -s -1; done'
 
 /usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET" --asn-file "$ASN_FILES"

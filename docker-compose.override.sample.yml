@@ -110,3 +110,11 @@ services:
       endpoint_mode: dnsrr
       placement:
         constraints: [ node.labels.location == world ]
+
+  az-local:
+    environment:
+      - WARP_ENABLED=1
+
+  # az-world:
+  #   environment:
+  #     - WARP_ENABLED=1
