@@ -31,6 +31,7 @@ function download_list() {
 
     if [ "$success" = true ] && [ -s "$tmp_file" ]; then
         mv -f "$tmp_file" "$output_file"
+        touch "$(dirname "$output_file")/.$(basename "$output_file").ready"
         UPDATED=true
     else
         echo "Failed to download some URLs or resulting file is empty, keeping old file"

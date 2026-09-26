@@ -63,6 +63,7 @@ RUN mkdir -p /usr/share/GeoIP && \
 FROM runtime-base AS test-dnsmap
 WORKDIR /root/antizapret
 COPY ./root/antizapret/dnsmap.py ./root/antizapret/test_dnsmap.py ./
+COPY ./root/antizapret/test_list_cache.py ./root/antizapret/list-cache.sh ./root/antizapret/download.sh ./root/antizapret/doall.sh ./
 RUN python3 -B -m unittest discover -v
 
 FROM test-dnsmap AS runtime-files

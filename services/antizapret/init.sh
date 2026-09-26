@@ -76,11 +76,10 @@ function cleanup_doall_owner () {
     rm -f "$DOALL_LOCAL_OWNER_FILE" /tmp/.doall_lock
 }
 
+source /root/antizapret/list-cache.sh
+
 function generated_lists_available () {
-    [ -z "${IPS_URL:-}" ] || [ -s /root/antizapret/result/ips.txt ] || return 1
-    [ -z "${IPS_WORLD_URL:-}" ] || [ -s /root/antizapret/result/ips-world.txt ] || return 1
-    [ -z "${ASN_URL:-}" ] || [ -s /root/antizapret/result/asn.txt ] || return 1
-    [ -z "${ASN_WORLD_URL:-}" ] || [ -s /root/antizapret/result/asn-world.txt ] || return 1
+    required_lists_available /root/antizapret/result ""
 }
 
 configure_doall_owner

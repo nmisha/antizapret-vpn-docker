@@ -13,12 +13,7 @@ function reload_dnsmap () {
     pkill -HUP -f '[d]nsmap' 2>/dev/null || true
 }
 
-function cached_downloads_available () {
-    [ -z "${IPS_URL:-}" ] || [ -s config/include-ips-dist.txt ] || return 1
-    [ -z "${IPS_WORLD_URL:-}" ] || [ -s config/include-ips-world-dist.txt ] || return 1
-    [ -z "${ASN_URL:-}" ] || [ -s config/include-asn-dist.txt ] || return 1
-    [ -z "${ASN_WORLD_URL:-}" ] || [ -s config/include-asn-world-dist.txt ] || return 1
-}
+source "$HERE/list-cache.sh"
 
 LOCAL_OWNER_FILE="/tmp/.doall_owner"
 RESULT_OWNER_FILE="/root/antizapret/result/.doall_owner"
@@ -48,7 +43,14 @@ if [ "$download_failed" = true ] && ! cached_downloads_available; then
   echo 'Error: Cant download some lists and no cached downloads are available'
   exit 1
 fi
+# Invalidate generation markers before replacing any result files.
+rm -f result/.{ips,ips-world,asn,asn-world}.txt.ready
 echo "run parse.sh" && ./parse.sh || exit 2
+for kind in ips ips-world asn asn-world; do
+    if list_cache_available "config/include-$kind-dist.txt"; then
+        touch "result/.$kind.txt.ready"
+    fi
+done
 
 # dnsmap applies the new ASN list on the next lookup without a restart.
 reload_dnsmap

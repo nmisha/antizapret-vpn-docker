@@ -7,11 +7,10 @@ set -e
 source /etc/default/antizapret
 FLAG_FILE="/tmp/.dns_started"
 
+source /root/antizapret/list-cache.sh
+
 function cached_lists_available() {
-    [ -z "${IPS_URL:-}" ] || [ -s /root/antizapret/config/include-ips-dist.txt ] || [ -s /root/antizapret/result/ips.txt ] || return 1
-    [ -z "${IPS_WORLD_URL:-}" ] || [ -s /root/antizapret/config/include-ips-world-dist.txt ] || [ -s /root/antizapret/result/ips-world.txt ] || return 1
-    [ -z "${ASN_URL:-}" ] || [ -s /root/antizapret/config/include-asn-dist.txt ] || [ -s /root/antizapret/result/asn.txt ] || return 1
-    [ -z "${ASN_WORLD_URL:-}" ] || [ -s /root/antizapret/config/include-asn-world-dist.txt ] || [ -s /root/antizapret/result/asn-world.txt ] || return 1
+    required_lists_available /root/antizapret/result ""
 }
 
 function cleanup() {
