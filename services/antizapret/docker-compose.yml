@@ -1,6 +1,6 @@
 services:
   antizapret:
-    image: nmisha/antizapret-vpn:6.9.3
+    image: nmisha/antizapret-vpn:6.9.3-2
     # image: xtrime/antizapret-vpn:6.9.3
     restart: unless-stopped
     init: true

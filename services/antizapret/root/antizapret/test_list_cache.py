@@ -99,7 +99,42 @@ class ListCacheTests(unittest.TestCase):
             (self.root / f'result/.{kind}.txt.ready').touch()
         (self.root / 'config/include-ips-dist.txt').write_text('192.0.2.0/24\n')
         self.env['DOCKER_SUBNET'] = ''
-        self.script('bin/sipcalc', 'echo "Network mask - 255.255.255.0"')
+        self.script('bin/sipcalc', 'printf "%s\\n" "Network mask - 255.255.255.0" '
+                    '"Network mask (bits) - 24" "Network mask (hex) - FFFFFF00"')
+
+    def test_openvpn_routes_use_only_dotted_mask(self):
+        self.prepare_real_parser()
+        result = self.run_shell('bash parse.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/openvpn-blocked-ranges.txt').read_text(),
+                         'push "route 192.0.2.0 255.255.255.0"\n')
+
+    def test_openvpn_routes_with_real_sipcalc(self):
+        if not shutil.which('sipcalc'):
+            self.skipTest('requires sipcalc')
+        self.prepare_real_parser()
+        (self.root / 'bin/sipcalc').unlink()
+        (self.root / 'config/include-ips-world-dist.txt').write_text('103.21.244.0/22\n')
+        result = self.run_shell('bash parse.sh', DOCKER_SUBNET='10.200.0.0/16')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/openvpn-blocked-ranges.txt').read_text(),
+                         'push "route 192.0.2.0 255.255.255.0"\n'
+                         'push "route 103.21.244.0 255.255.252.0"\n'
+                         'push "route 10.200.0.0 255.255.0.0"\n')
+
+    def test_invalid_route_mask_preserves_published_outputs(self):
+        self.prepare_real_parser()
+        output = self.root / 'result/openvpn-blocked-ranges.txt'
+        output.write_text('previous routes\n')
+        for mask_output in ('Network mask (bits) - 24', 'Network mask - invalid',
+                            'Network mask - 255.255.255.0\nNetwork mask - 255.255.0.0'):
+            with self.subTest(mask_output=mask_output):
+                self.script('bin/sipcalc', "printf '%s\\n' '" + mask_output + "'")
+                result = self.run_shell('bash parse.sh')
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(output.read_text(), 'previous routes\n')
+                self.assertEqual((self.root / 'result/ips.txt').read_text(), 'old-data\n')
+                self.assertTrue((self.root / 'result/.ips.txt.ready').exists())
 
     def test_invalid_regex_keeps_published_lists_and_markers(self):
         self.prepare_real_parser()

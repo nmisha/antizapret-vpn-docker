@@ -55,10 +55,14 @@ set +x
 while read -r line
 do
     [ -z "$line" ] && continue
-    C_NET="$(echo $line | awk -F '/' '{print $1}')"
-    C_NETMASK="$(sipcalc -- "$line" | awk '/Network mask/ {print $4}')"
-    [ -n "$C_NETMASK" ] || { echo "Invalid route: $line" >&2; exit 1; }
-    echo $"push \"route ${C_NET} ${C_NETMASK}\"" >> "$STAGING/openvpn-blocked-ranges.txt"
+    C_NET="${line%%/*}"
+    # Ignore sipcalc's separate "Network mask (bits)" and "(hex)" rows.
+    C_NETMASK="$(sipcalc -- "$line" | awk '$1 == "Network" && $2 == "mask" && $3 == "-" {print $4}')"
+    [[ "$C_NETMASK" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || {
+        echo "Invalid route mask: $line" >&2
+        exit 1
+    }
+    printf 'push "route %s %s"\n' "$C_NET" "$C_NETMASK" >> "$STAGING/openvpn-blocked-ranges.txt"
 done < "$STAGING/routes"
 set -x
 
