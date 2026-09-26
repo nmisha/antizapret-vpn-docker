@@ -133,19 +133,34 @@ func (rf *RegexFilter) Filter(lines []string) ([]string, error) {
 	rf.lock.Lock()
 	defer rf.lock.Unlock()
 	var result []string
-	for _, line := range lines {
-		if _, err := fmt.Fprintln(rf.stdin, line); err != nil {
-			return result, err
+	// Drain stdout while feeding stdin: either pipe can fill for large batches.
+	written := make(chan error, 1)
+	go func() {
+		var err error
+		for _, line := range lines {
+			if _, err = fmt.Fprintln(rf.stdin, line); err != nil {
+				break
+			}
 		}
-	}
-
-	if _, err := fmt.Fprintln(rf.stdin, delim); err != nil {
-		return result, err
-	}
+		if err == nil {
+			_, err = fmt.Fprintln(rf.stdin, delim)
+		}
+		if err != nil {
+			// Unblock the reader if the delimiter could not be written.
+			_ = rf.cmd.Process.Kill()
+		}
+		written <- err
+	}()
 
 	for {
 		if !rf.scanner.Scan() {
-			return result, rf.scanner.Err()
+			err := rf.scanner.Err()
+			if err == nil {
+				err = io.ErrUnexpectedEOF
+			}
+			// Stop grep and join the writer before releasing the transaction lock.
+			_ = rf.cmd.Process.Kill()
+			return result, errors.Join(err, <-written)
 		}
 		text := rf.scanner.Text()
 		if text == delim {
@@ -154,7 +169,7 @@ func (rf *RegexFilter) Filter(lines []string) ([]string, error) {
 		result = append(result, text)
 	}
 
-	return result, nil
+	return result, <-written
 }
 
 // Close terminates the subprocess cleanly
@@ -314,32 +329,26 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		excludeMatchersLock.RLock()
 		defer excludeMatchersLock.RUnlock()
 		if req.FilterDist {
-			excludeMatchersLock.RLock()
 			if excludeMatcherDist == nil {
-				excludeMatchersLock.RUnlock()
 				log.Println("[ERROR] Exclude filter not initialized: dist")
 				http.Error(w, "Exclude filter not initialized: dist", http.StatusInternalServerError)
 				return
 			}
 			var err error
 			filtered, err = excludeMatcherDist.Filter(filtered)
-			excludeMatchersLock.RUnlock()
 			if err != nil {
 				log.Printf("[ERROR] Dist exclude filter failed: %v", err)
 				return
 			}
 		}
 		if req.FilterCustom {
-			excludeMatchersLock.RLock()
 			if excludeMatcherCustom == nil {
-				excludeMatchersLock.RUnlock()
 				log.Println("[ERROR] Exclude filter not initialized: custom")
 				http.Error(w, "Exclude filter not initialized: custom", http.StatusInternalServerError)
 				return
 			}
 			var err error
 			filtered, err = excludeMatcherCustom.Filter(filtered)
-			excludeMatchersLock.RUnlock()
 			if err != nil {
 				log.Printf("[ERROR] Custom exclude filter failed: %v", err)
 				return
