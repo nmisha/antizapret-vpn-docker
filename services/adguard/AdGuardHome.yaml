@@ -51,7 +51,9 @@ dns:
   cache_size: 4194304
   cache_ttl_min: 0
   cache_ttl_max: 0
-  cache_optimistic: true
+  # Expired synthetic IPs may point to a failed exit or obsolete DNAT rules.
+  # Resolve again after TTL expiry instead of serving stale routing decisions.
+  cache_optimistic: false
   cache_optimistic_answer_ttl: 30s
   cache_optimistic_max_age: 12h
   bogus_nxdomain: []
@@ -66,7 +68,9 @@ dns:
   ipset: []
   ipset_file: ""
   bootstrap_prefer_ipv6: false
-  upstream_timeout: 1s
+  # CoreDNS may spend 2s on each unavailable exit before trying the next.
+  # Leave room for world -> local -> direct resolution, including cold DoH.
+  upstream_timeout: 10s
   private_networks: []
   use_private_ptr_resolvers: false
   local_ptr_upstreams: []
@@ -902,7 +906,6 @@ clients:
         - https://dns11.quad9.net/dns-query
         - '[/themoviedb.org/tmdb.org/tmdb-image-prod.b-cdn.net/]https://cloudflare-dns.com/dns-query'
         - '[/warthunder.com/gaijin.net/]77.88.8.8'
-        - '[/gemini.google.com/generativelanguage.googleapis.com/alkalimining-pa.googleapis.com/proactivebackend-pa.googleapis.com/ai.google.dev/aistudio.google.com/alkalimakersuite-pa.clients6.google.com/]https://xbox-dns.ru/dns-query'
       use_global_settings: true
       use_global_blocked_services: true
     - name: az-local
@@ -916,7 +919,6 @@ clients:
         - '[/akamai.net/akamaiedge.net/akadns.net/microsoft.com/ru/su/xn--p1ai/]77.88.8.8 62.76.76.62'
         - '[/themoviedb.org/tmdb.org/tmdb-image-prod.b-cdn.net/]https://cloudflare-dns.com/dns-query'
         - '[/warthunder.com/gaijin.net/]77.88.8.8'
-        - '[/gemini.google.com/generativelanguage.googleapis.com/alkalimining-pa.googleapis.com/proactivebackend-pa.googleapis.com/ai.google.dev/aistudio.google.com/alkalimakersuite-pa.clients6.google.com/]https://xbox-dns.ru/dns-query'
       use_global_settings: true
       use_global_blocked_services: true
     - name: coredns
@@ -929,7 +931,6 @@ clients:
         - '[/akamai.net/akamaiedge.net/akadns.net/microsoft.com/ru/su/xn--p1ai/]77.88.8.8 62.76.76.62'
         - '[/themoviedb.org/tmdb.org/tmdb-image-prod.b-cdn.net/]https://cloudflare-dns.com/dns-query'
         - '[/warthunder.com/gaijin.net/]77.88.8.8'
-        - '[/gemini.google.com/generativelanguage.googleapis.com/alkalimining-pa.googleapis.com/proactivebackend-pa.googleapis.com/ai.google.dev/aistudio.google.com/alkalimakersuite-pa.clients6.google.com/]https://xbox-dns.ru/dns-query'
       use_global_settings: true
       use_global_blocked_services: true
     - name: az-resolver

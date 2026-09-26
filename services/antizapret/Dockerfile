@@ -24,16 +24,18 @@ FROM ubuntu:24.04 AS runtime-base
 
 WORKDIR /root
 
+ARG WARP_VERSION=2026.6.880.0
+
 RUN <<-"EOT" bash -ex
-    APT_LISTCHANGES_FRONTEND=none
-    DEBIAN_FRONTEND=noninteractive
+    export APT_LISTCHANGES_FRONTEND=none DEBIAN_FRONTEND=noninteractive
 
     apt-get update -q
+    apt-get install -qqy --no-install-suggests --no-install-recommends curl ca-certificates
+    curl -fsSLo /tmp/warp.deb "https://pkg.cloudflareclient.com/pool/noble/main/c/cloudflare-warp/cloudflare-warp_${WARP_VERSION}_$(dpkg --print-architecture).deb"
     apt-get install -qqy --no-install-suggests --no-install-recommends \
         bsdmainutils \
+        util-linux \
         iperf3 \
-        curl \
-        ca-certificates \
         dnsutils \
         gawk \
         host \
@@ -49,9 +51,10 @@ RUN <<-"EOT" bash -ex
         python3-dnslib \
         python3-maxminddb \
         sipcalc \
-        vim-tiny
+        vim-tiny \
+        /tmp/warp.deb
     apt-get clean
-    rm -frv /var/lib/apt/lists/*
+    rm -frv /var/lib/apt/lists/* /tmp/warp.deb
 EOT
 
 RUN mkdir -p /usr/share/GeoIP && \
@@ -61,6 +64,9 @@ RUN mkdir -p /usr/share/GeoIP && \
 FROM runtime-base AS test-dnsmap
 WORKDIR /root/antizapret
 COPY ./root/antizapret/dnsmap.py ./root/antizapret/test_dnsmap.py ./
+COPY ./root/antizapret/test_list_cache.py ./root/antizapret/list-cache.sh ./root/antizapret/download.sh ./root/antizapret/doall.sh ./
+COPY ./root/antizapret/parse.sh ./
+COPY ./root/antizapret/scripts ./scripts
 RUN python3 -B -m unittest discover -v
 
 FROM test-dnsmap AS runtime-files

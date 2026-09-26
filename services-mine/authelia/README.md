@@ -74,8 +74,8 @@ TRUSTED_PROXIES: 10.43.42.0/24
 читает их через `request()->server()` и требует доверенный адрес источника.
 
 Группа `twofauth_shared` сопоставляется с существующим аккаунтом 2FAuth `chatgpt`.
-Участники: `mi`, `kablag`, `dkreynes`. Они входят в Authelia под
-своими логинами, а Caddy после успешной проверки заменяет `Remote-User` на
+Если пользователь состоит в этой группе, он входит в Authelia под
+своим логином, а Caddy после успешной проверки заменяет `Remote-User` на
 `chatgpt`. Email и отображаемое имя участника удаляются из запроса к 2FAuth,
 поэтому общий профиль не меняется при входе разных пользователей.
 
@@ -120,3 +120,33 @@ passkeys между приложениями не синхронизируютс
 - [Security Key и Passkeys](https://www.authelia.com/overview/authentication/security-key/)
 - [Cross-device passkeys](https://developers.google.com/identity/passkeys/use-cases)
 - [2FAuth auth proxy](https://docs.2fauth.app/security/authentication/auth-proxy/)
+
+## Автоматическое обновление пользователей и личный доступ к 2FAuth
+
+На сервере включено:
+
+```yaml
+authentication_backend:
+  file:
+    path: /config/users_database.yml
+    watch: true
+```
+
+Изменения пользователей, паролей и групп в `users_database.yml` подхватываются
+без перезапуска. Это не распространяется на `configuration.yml`: правила
+доступа, OIDC и прочие настройки требуют проверки и перезапуска сервиса.
+Для обновления данных существующей сессии при необходимости выйдите и войдите
+в Authelia заново.
+
+Группа `twofauth_users` разрешает личный вход только в 2FAuth с политикой
+`one_factor`. Она добавлена всем текущим пользователям Authelia: `mi`, `test`,
+`kablag`, `dkreynes`, `ibchubrikov`. Индивидуальное разрешение `user:ibchubrikov`
+заменено разрешением группы. Другие правила доступа сохранены.
+
+Группа не выдаёт административные права и не расшаривает записи с кодами.
+На момент изменения участников `twofauth_shared` на сервере нет. Если позже
+добавить пользователя в `twofauth_shared`, Caddy снова подменит его имя на
+`chatgpt`, даже если у него также есть `twofauth_users`.
+
+[Описание watch в Authelia](https://www.authelia.com/configuration/first-factor/file/).
+План будущего перехода: [OIDC для 2FAuth](../2fauth/OIDC-PLAN.md).

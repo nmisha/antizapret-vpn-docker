@@ -35,6 +35,7 @@ const (
 var routeListClient = &http.Client{Timeout: httpClientTimeout}
 var routeReplace = netlink.RouteReplace
 var routeGet = netlink.RouteGet
+var routeListFiltered = netlink.RouteListFiltered
 var ruleAdd = netlink.RuleAdd
 var lookupIP = func(ctx context.Context, host string) ([]net.IP, error) {
 	return udpResolver.LookupIP(ctx, "ip4", host)
@@ -66,6 +67,8 @@ type app struct {
 	routeGateways map[string]string
 	vpnGateways   map[string]string
 	gatewayLinks  map[string]int
+	kernelRoutes  map[string][]netlink.Route
+	vpnLists      map[string][]string
 }
 
 func main() {
@@ -222,9 +225,14 @@ func (a *app) updateRoutes() {
 	if a.vpnGateways == nil {
 		a.vpnGateways = make(map[string]string, len(a.routes))
 	}
-	if a.gatewayLinks == nil {
-		a.gatewayLinks = make(map[string]int)
+	// Read both managed tables once per cycle. DNS and process-local caches
+	// cannot tell whether an external operation removed or changed a route.
+	if err := a.readKernelRoutes(); err != nil {
+		fmt.Fprintf(os.Stderr, "reading managed routes: %v\n", err)
+		return
 	}
+	// Interface indexes may change after network reattachment with the same IP.
+	a.gatewayLinks = make(map[string]int)
 
 	for _, route := range a.routes {
 		isSelf := route.host == a.self
@@ -250,27 +258,14 @@ func (a *app) updateRoutes() {
 
 		currentGateway := a.routeGateways[route.host]
 		a.logVerbose("route state: host=%s subnet=%s current_gateway=%q resolved_gateway=%s", route.host, route.subnet, currentGateway, gateway)
-		if currentGateway != gateway {
-			if err := a.replaceRoute(route, gateway, false); err == nil {
-				a.routeGateways[route.host] = gateway
-				if currentGateway == "" {
-					fmt.Printf("Route added: %s via %s\n", route.subnet, gateway)
-				} else {
-					fmt.Printf("Route changed: %s via %s\n", route.subnet, gateway)
-				}
-			} else {
-				delete(a.routeGateways, route.host)
-				fmt.Fprintf(os.Stderr, "failed to replace route: host=%s subnet=%s gateway=%s error=%v\n", route.host, route.subnet, gateway, err)
-			}
+		if err := a.replaceRoute(route, gateway, false); err == nil {
+			a.routeGateways[route.host] = gateway
 		} else {
-			a.logVerbose("route unchanged: %s via %s", route.subnet, gateway)
+			delete(a.routeGateways, route.host)
+			fmt.Fprintf(os.Stderr, "failed to replace route: host=%s subnet=%s gateway=%s error=%v\n", route.host, route.subnet, gateway, err)
 		}
 
 		if a.vpn {
-			if a.vpnGateways[route.host] == gateway {
-				a.logVerbose("VPN route unchanged: host=%s gateway=%s", route.host, gateway)
-				continue
-			}
 			if err := a.applyVPNRoutes(route.host, gateway); err != nil {
 				delete(a.vpnGateways, route.host)
 				fmt.Fprintf(os.Stderr, "failed to apply VPN routes: host=%s gateway=%s error=%v\n", route.host, gateway, err)
@@ -351,6 +346,34 @@ func routeSpecFor(subnet, gateway string, table int) (netlink.Route, error) {
 	return netlink.Route{Dst: dst, Gw: gw, Table: table}, nil
 }
 
+// routeKey uses explicit table IDs; table zero means main when installing.
+func routeKey(table int, dst *net.IPNet) string {
+	if table == 0 {
+		table = mainRouteTable
+	}
+	prefix := "default"
+	if dst != nil && dst.String() != "0.0.0.0/0" {
+		prefix = dst.String()
+	}
+	return fmt.Sprintf("%d/%s", table, prefix)
+}
+
+func (a *app) readKernelRoutes() error {
+	snapshot := make(map[string][]netlink.Route)
+	for _, table := range []int{mainRouteTable, vpnRouteTable} {
+		routes, err := routeListFiltered(netlink.FAMILY_V4, &netlink.Route{Table: table}, netlink.RT_FILTER_TABLE)
+		if err != nil {
+			return err
+		}
+		for _, route := range routes {
+			key := routeKey(table, route.Dst)
+			snapshot[key] = append(snapshot[key], route)
+		}
+	}
+	a.kernelRoutes = snapshot
+	return nil
+}
+
 // replaceRoute performs ip route replace, optionally in the VPN policy table.
 func (a *app) replaceRoute(route routeSpec, gateway string, useVPNTable bool) error {
 	start := time.Now()
@@ -368,7 +391,23 @@ func (a *app) replaceRoute(route routeSpec, gateway string, useVPNTable bool) er
 	}
 	routeNetLink.LinkIndex = linkIndex
 	routeNetLink.SetFlag(netlink.FLAG_ONLINK)
+	key := routeKey(table, routeNetLink.Dst)
+	for _, current := range a.kernelRoutes[key] {
+		if current.Gw.Equal(routeNetLink.Gw) && current.LinkIndex == linkIndex &&
+			current.Priority == 0 && current.Type == syscall.RTN_UNICAST &&
+			len(current.MultiPath) == 0 {
+			return nil
+		}
+	}
 	err = routeReplace(&routeNetLink)
+	if err == nil {
+		fmt.Printf("Route reconciled: %s via %s table=%d\n", route.subnet, gateway, table)
+	}
+	if err == nil && a.kernelRoutes != nil {
+		installed := routeNetLink
+		installed.Type = syscall.RTN_UNICAST
+		a.kernelRoutes[key] = []netlink.Route{installed}
+	}
 	a.logVerbose("netlink RouteReplace dst=%s gateway=%s duration=%s err=%v", route.subnet, gateway, time.Since(start), err)
 	return err
 }
@@ -459,7 +498,28 @@ func (a *app) applyAZRoutes(host, gateway, listPath string) error {
 	if err := a.replaceRoute(routeSpec{host: host, subnet: a.subnetForHost(host)}, gateway, true); err != nil {
 		return err
 	}
-	return a.replaceRoutesFromFile(listPath, host, gateway)
+	// Keep the last successfully fetched desired list for reconciliation. A
+	// deleted kernel route should be repairable even while the list API is down.
+	// List changes already restart VPN containers through their healthchecks.
+	if a.vpnGateways[host] != gateway || a.vpnLists[host] == nil {
+		var subnets = make([]string, 0)
+		if err := forEachRouteLine(listPath, func(subnet string) error {
+			subnets = append(subnets, subnet)
+			return nil
+		}); err != nil {
+			return err
+		}
+		if a.vpnLists == nil {
+			a.vpnLists = make(map[string][]string)
+		}
+		a.vpnLists[host] = subnets
+	}
+	for _, subnet := range a.vpnLists[host] {
+		if err := a.replaceRoute(routeSpec{host: host, subnet: subnet}, gateway, true); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // subnetForHost returns the configured ROUTES subnet for host.

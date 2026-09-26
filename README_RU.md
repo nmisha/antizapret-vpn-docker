@@ -42,6 +42,7 @@ Antizapret создан для того, чтобы перенаправлять
   - [Использование zapret2](#zapret2)
     - [Изменение конфигураций](#изменение-конфигураций)
     - [Подбор стратегий](#подбор-стратегий)
+  - [Cloudflare WARP](#cloudflare-warp)
   - [Переменные окружения](#переменные-окружения)
   - [DNS](#dns)
     - [Upstream DNS для Adguard](#upstream-dns-для-adguard)
@@ -407,14 +408,70 @@ git restore config
 
 ## Алгоритм разрешения DNS
 
-![Preview](./img/chart.png)
+### Docker Swarm
 
-В односерверном Compose-режиме контейнер `az-local` также получает сетевые
-alias `az-world` и `az-world.antizapret`. CoreDNS определяет, что имена обоих
-узлов выхода имеют один адрес, и опрашивает контейнер только один раз; AdGuard
-создаёт для клиента `az-local` правила из локального и мирового списков. В
-Swarm-режиме короткие и полные alias разделяются между двумя сервисами, поэтому
-CoreDNS сначала опрашивает `az-world`, затем `az-local`.
+```mermaid
+%%{init: {"theme":"base","htmlLabels":false,"flowchart":{"htmlLabels":false},"themeVariables":{"primaryTextColor":"#f8fafc","lineColor":"#94a3b8","textColor":"#e2e8f0","edgeLabelBackground":"#0f172a"},"themeCSS":".cluster-label text { fill: #f8fafc !important; } .cluster rect { rx: 18px; ry: 18px; } .node rect { rx: 10px; ry: 10px; }"}}%%
+flowchart TB
+    subgraph canvas["SWARM  /  РАЗРЕШЕНИЕ DNS"]
+        direction TB
+        client([VPN-клиент]) -->|DNS-запрос| adguard[AdGuard Home]
+        adguard -->|Блокировка| deny[0.0.0.0]
+        adguard -->|Далее| core[CoreDNS]
+        core --> world[az-world<br/>dnsmap.py]
+        world -->|Совпадение| mapped[Виртуальный IP<br/>правило DNAT]
+        world -->|SERVFAIL| local[az-local<br/>dnsmap.py]
+        local -->|Совпадение| mapped
+        local -->|SERVFAIL| retry[AdGuard Home<br/>прямой запрос]
+        retry --> normal[Обычный DNS-ответ]
+    end
+    style canvas fill:#0b1220,stroke:#334155,stroke-width:2px,color:#f8fafc
+    classDef client fill:#2563eb,stroke:#93c5fd,stroke-width:2px,color:#ffffff
+    classDef service fill:#1e293b,stroke:#64748b,stroke-width:1.5px,color:#f8fafc
+    classDef exit fill:#312e81,stroke:#a5b4fc,stroke-width:1.5px,color:#ffffff
+    classDef mapped fill:#115e59,stroke:#5eead4,stroke-width:2px,color:#ffffff
+    classDef blocked fill:#7f1d1d,stroke:#fca5a5,stroke-width:2px,color:#ffffff
+    class client client
+    class adguard,core,retry,normal service
+    class world,local exit
+    class mapped mapped
+    class deny blocked
+```
+
+### Один сервер (Docker Compose)
+
+```mermaid
+%%{init: {"theme":"base","htmlLabels":false,"flowchart":{"htmlLabels":false},"themeVariables":{"primaryTextColor":"#f8fafc","lineColor":"#94a3b8","textColor":"#e2e8f0","edgeLabelBackground":"#0f172a"},"themeCSS":".cluster-label text { fill: #f8fafc !important; } .cluster rect { rx: 18px; ry: 18px; } .node rect { rx: 10px; ry: 10px; }"}}%%
+flowchart TB
+    subgraph canvas["SINGLE NODE  /  РАЗРЕШЕНИЕ DNS"]
+        direction TB
+        client([VPN-клиент]) -->|DNS-запрос| adguard[AdGuard Home]
+        adguard -->|Блокировка| deny[0.0.0.0]
+        adguard -->|Далее| core[CoreDNS]
+        core --> local[az-local<br/>dnsmap.py]
+        local -->|Совпадение| mapped[Виртуальный IP<br/>правило DNAT]
+        local -->|SERVFAIL| retry[AdGuard Home<br/>прямой запрос]
+        retry --> normal[Обычный DNS-ответ]
+    end
+    style canvas fill:#0b1220,stroke:#334155,stroke-width:2px,color:#f8fafc
+    classDef client fill:#2563eb,stroke:#93c5fd,stroke-width:2px,color:#ffffff
+    classDef service fill:#1e293b,stroke:#64748b,stroke-width:1.5px,color:#f8fafc
+    classDef exit fill:#312e81,stroke:#a5b4fc,stroke-width:1.5px,color:#ffffff
+    classDef mapped fill:#115e59,stroke:#5eead4,stroke-width:2px,color:#ffffff
+    classDef blocked fill:#7f1d1d,stroke:#fca5a5,stroke-width:2px,color:#ffffff
+    class client client
+    class adguard,core,retry,normal service
+    class local exit
+    class mapped mapped
+    class deny blocked
+```
+
+В Swarm-режиме короткие и полные alias разделяются между двумя сервисами,
+поэтому CoreDNS сначала опрашивает `az-world`, затем `az-local`. В односерверном
+Compose-режиме контейнер `az-local` также получает сетевые alias `az-world` и
+`az-world.antizapret`. CoreDNS определяет, что имена обоих узлов выхода имеют
+один адрес, и опрашивает контейнер только один раз; AdGuard создаёт для клиента
+`az-local` правила из локального и мирового списков.
 
 1. DNS-запрос поступает в AdGuardHome
 2. Adguard проверяет его правилами черного списка. Если домен в черном списке - возвращается 0.0.0.0, и клиент не может получить доступ к домену.
@@ -744,6 +801,43 @@ docker exec $(docker ps -q --filter=name=az-local) sh /opt/zapret2/init.d/sysv/z
 docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="youtube.com discord.com" /opt/zapret2/blockcheck2.sh'
 ```
 
+## Cloudflare WARP
+
+Официальный клиент Cloudflare WARP установлен в образ `antizapret`, но по
+умолчанию выключен. Включите его для нужного узла выхода в
+`docker-compose.override.yml`:
+
+```yaml
+services:
+  az-local:
+    environment:
+      - WARP_ENABLED=1
+```
+
+Чтобы включить WARP на зарубежном узле выхода, используйте `az-world`. Примеры
+для обоих узлов находятся в конце `docker-compose.override.sample.yml`; пример
+для `az-world` закомментирован.
+
+Примените конфигурацию как обычно. Отдельные команды WARP не нужны:
+
+```shell
+docker compose up -d
+```
+
+Регистрация сохраняется в `./config/antizapret/warp`. WARP работает в режиме
+только для трафика, оставляя DNS под управлением Antizapret, и использует
+MASQUE. Поскольку zapret2 запускается раньше, его QUIC-стратегия обрабатывает
+внешний трафик WARP-туннеля на UDP/443.
+
+### Docker Swarm
+
+Та же настройка `WARP_ENABLED=1` работает для `az-local` и `az-world` в Swarm.
+Примените override обычной командой развёртывания:
+
+```shell
+docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+```
+
 ## Переменные окружения
 
 Вы можете определить эти переменные в файле docker-compose.override.yml для своих нужд:
@@ -755,6 +849,7 @@ docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="you
 - `ROUTES` - список VPN-контейнеров и их виртуальных адресов. Используется для iperf3 сервера.
 - `DOALL_DISABLED=` - пропустить генерацию списков внутри контейнера. Обычно оставляйте пустым: init использует owner-файл на общем volume `result`, поэтому в Docker Compose списки генерируются только один раз, а в Swarm узлы генерируют их независимо на своих локальных volumes.
 - `IPTABLES_SAVE_DISABLED=` - пропустить восстановление правил iptables при запуске и сохранение при остановке.
+- `WARP_ENABLED=0` - задайте `1`, чтобы направить трафик узла выхода через Cloudflare WARP.
 - `IPS_URL=` - URL списков IP-префиксов для локального узла, разделённые точкой с запятой. Объединённый результат записывается в `result/ips.txt`.
 - `IPS_WORLD_URL=` - URL списков IP-префиксов для зарубежного узла, разделённые точкой с запятой. Объединённый результат записывается в `result/ips-world.txt`.
 - `ASN_URL=` - URL списков номеров ASN или названий организаций для локального узла, разделённые точкой с запятой. Объединённый результат записывается в `result/asn.txt`.
@@ -844,6 +939,14 @@ docker exec $(docker ps -q --filter=name=az-local) sh -c 'REPEATS=8 DOMAINS="you
 ## DNS
 ### Upstream DNS для Adguard
 Обычные клиентские запросы AdGuard отправляет через CoreDNS. Для прямого разрешения, используемого при проверке ASN, entrypoint настраивает клиент `az-resolver` с upstream-серверами Cloudflare, Google и Quad9. Сгенерированная конфигурация хранится в `./config/adguard/conf/AdGuardHome.yaml`; её можно изменить через интерфейс AdGuard Home.
+
+Сторонний резолвер `xbox-dns.ru` можно настроить вручную как доменный upstream, если Gemini неправильно определяет страну по IP-адресу exit-сервера и не работает из-за географических ограничений. Например:
+
+```text
+[/gemini.google.com/generativelanguage.googleapis.com/ai.google.dev/aistudio.google.com/]https://xbox-dns.ru/dns-query
+```
+
+Этот резолвер может возвращать адреса прокси вместо исходных адресов сервиса. Эти прокси не поддерживают QUIC и перенаправление UDP. Поэтому приложения, которым требуется HTTP/3/QUIC и которые не умеют надёжно переключаться на TCP, могут не подключаться. По этой причине `xbox-dns.ru` не включён в конфигурацию по умолчанию.
 
 ### CDN + ECS
 Некоторые домены могут разрешаться по-разному в зависимости от подсети (geoip) клиента. В этом случае использование DNS, расположенного на удаленном сервере, сломает некоторые сервисы.
