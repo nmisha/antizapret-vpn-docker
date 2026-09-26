@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -147,6 +148,7 @@ func TestUpdateRoutesAddsAdguardRouteToMainAndVPNPolicyTable(t *testing.T) {
 }
 
 func TestUpdateRoutesAppliesVPNRouteWhenMainRouteUnchanged(t *testing.T) {
+	stubKernelRoutes(t, []netlink.Route{kernelRoute("14.16.0.0/15", "10.200.0.2", mainRouteTable)})
 	restoreLookup := stubLookupIP(t, map[string]string{"az-local": "10.200.0.2"})
 	defer restoreLookup()
 
@@ -172,6 +174,10 @@ func TestUpdateRoutesAppliesVPNRouteWhenMainRouteUnchanged(t *testing.T) {
 }
 
 func TestUpdateRoutesSkipsVPNRouteWhenVPNRouteUnchanged(t *testing.T) {
+	stubKernelRoutes(t, []netlink.Route{
+		kernelRoute("14.16.0.0/15", "10.200.0.2", mainRouteTable),
+		kernelRoute("default", "10.200.0.2", vpnRouteTable),
+	})
 	restoreLookup := stubLookupIP(t, map[string]string{"az-local": "10.200.0.2"})
 	defer restoreLookup()
 
@@ -406,5 +412,115 @@ func stubLookupIP(t *testing.T, responses map[string]string) func() {
 	}
 	return func() {
 		lookupIP = original
+	}
+}
+
+// Unit tests model kernel state explicitly and never touch host routing tables.
+func TestMain(m *testing.M) {
+	routeListFiltered = func(int, *netlink.Route, uint64) ([]netlink.Route, error) { return nil, nil }
+	os.Exit(m.Run())
+}
+
+func kernelRoute(subnet, gateway string, table int) netlink.Route {
+	route, err := routeSpecFor(subnet, gateway, table)
+	if err != nil {
+		panic(err)
+	}
+	route.LinkIndex = 42
+	route.Type = 1 // Linux RTN_UNICAST.
+	return route
+}
+
+func stubKernelRoutes(t *testing.T, routes []netlink.Route) {
+	t.Helper()
+	original := routeListFiltered
+	t.Cleanup(func() { routeListFiltered = original })
+	routeListFiltered = func(_ int, filter *netlink.Route, _ uint64) ([]netlink.Route, error) {
+		var result []netlink.Route
+		for _, route := range routes {
+			if route.Table == filter.Table {
+				result = append(result, route)
+			}
+		}
+		return result, nil
+	}
+}
+
+func TestReconcileRoutesDespiteUnchangedGateway(t *testing.T) {
+	for _, damage := range []string{"deleted", "wrong-gateway", "wrong-interface"} {
+		t.Run(damage, func(t *testing.T) {
+			restore := stubLookupIP(t, map[string]string{"az-local": "10.200.0.2"})
+			defer restore()
+			for _, table := range []int{mainRouteTable, vpnRouteTable} {
+				t.Run(fmt.Sprint(table), func(t *testing.T) {
+					main := kernelRoute("14.16.0.0/15", "10.200.0.2", mainRouteTable)
+					vpn := kernelRoute("default", "10.200.0.2", vpnRouteTable)
+					state := []netlink.Route{main, vpn}
+					index := 0
+					if table == vpnRouteTable {
+						index = 1
+					}
+					switch damage {
+					case "deleted":
+						state = append(state[:index], state[index+1:]...)
+					case "wrong-gateway":
+						state[index].Gw = net.ParseIP("10.200.0.99")
+					case "wrong-interface":
+						state[index].LinkIndex = 99
+					}
+					stubKernelRoutes(t, state)
+					changes := captureRouteReplace(t, func() {
+						(&app{vpn: true, defaultRoute: "az-local",
+							routes:        []routeSpec{{host: "az-local", subnet: "14.16.0.0/15"}},
+							routeGateways: map[string]string{"az-local": "10.200.0.2"},
+							vpnGateways:   map[string]string{"az-local": "10.200.0.2"},
+						}).updateRoutes()
+					})
+					if len(changes) != 1 {
+						t.Fatalf("changes = %v, want one repair", changes)
+					}
+					wantTable := table
+					if table == mainRouteTable {
+						wantTable = 0
+					}
+					if changes[0].Table != wantTable || changes[0].LinkIndex != 42 || !changes[0].Gw.Equal(net.ParseIP("10.200.0.2")) {
+						t.Fatalf("unexpected repair: %v", changes[0])
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestRepairsCachedVPNListWithoutHTTP(t *testing.T) {
+	restore := stubLookupIP(t, map[string]string{"az-world": "10.200.0.3"})
+	defer restore()
+	stubKernelRoutes(t, []netlink.Route{
+		kernelRoute("14.18.0.0/15", "10.200.0.3", mainRouteTable),
+		kernelRoute("14.18.0.0/15", "10.200.0.3", vpnRouteTable),
+	})
+	changes := captureRouteReplace(t, func() {
+		(&app{vpn: true, defaultRoute: "az-local",
+			routes:      []routeSpec{{host: "az-world", subnet: "14.18.0.0/15"}},
+			vpnGateways: map[string]string{"az-world": "10.200.0.3"},
+			vpnLists:    map[string][]string{"az-world": {"192.0.2.0/24"}},
+		}).updateRoutes()
+	})
+	if len(changes) != 1 || changes[0].Dst.String() != "192.0.2.0/24" || changes[0].Table != vpnRouteTable {
+		t.Fatalf("changes = %v, want missing cached list route", changes)
+	}
+}
+
+func TestRouteSnapshotErrorDoesNotWriteRoutes(t *testing.T) {
+	original := routeListFiltered
+	t.Cleanup(func() { routeListFiltered = original })
+	routeListFiltered = func(int, *netlink.Route, uint64) ([]netlink.Route, error) {
+		return nil, errors.New("netlink unavailable")
+	}
+	changes := captureRouteReplace(t, func() {
+		(&app{routes: []routeSpec{{host: "10.200.0.2", subnet: "14.16.0.0/15"}}}).updateRoutes()
+	})
+	if len(changes) != 0 {
+		t.Fatalf("unexpected changes: %v", changes)
 	}
 }
