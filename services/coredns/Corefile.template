@@ -2,12 +2,15 @@
     log
     errors
 
-    # Forward plugin with strict failover
+    # Keep world-first routing, but skip unreachable exits until they recover.
     forward . ${AZ_FORWARD_HOSTS} {
         policy sequential
         prefer_udp
         failover SERVFAIL
-        max_fails 0
+        # SERVFAIL is a routing decision, not a failed health check.
+        # Only transport failures should take an exit out of rotation.
+        max_fails 1
+        health_check 1s
     }
     finalize force_resolve
 

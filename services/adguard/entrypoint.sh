@@ -24,7 +24,7 @@ routes &
 
 function resolve () {
     # $1 domain/ip address, $2 fallback ip address
-    res="$(getent hosts "$1" | head -n1 | awk '{print $1}')"
+    res="$(timeout 3s getent hosts "$1" | head -n1 | awk '{print $1}')"
     if [[ "$res" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
         echo "$res"
     else
@@ -32,30 +32,31 @@ function resolve () {
     fi
 }
 
-if [ "$AZ_WORLD_ENABLED" = "1" ]; then
-    WAITING_MESSAGE="Waiting for az-local and az-world containers to register in DNS..."
-else
-    WAITING_MESSAGE="Waiting for az-local container to register in DNS..."
-fi
+# The remote exit is optional for local DNS availability. Its client IP is
+# filled in by healthcheck after recovery; the stable DoH client ID stays valid.
+WAITING_MESSAGE="Waiting for az-local and coredns containers to register in DNS..."
 
 while :; do
     AZ_LOCAL_HOST=$(resolve az-local '')
     AZ_WORLD_HOST=$(resolve az-world '')
-    COREDNS_HOST=$(resolve coredns '169.0.0.3')
-    if [ -n "${AZ_LOCAL_HOST}" ] && [ -n "${COREDNS_HOST}" ] && { [ "$AZ_WORLD_ENABLED" != "1" ] || [ -n "${AZ_WORLD_HOST}" ]; }; then
+    COREDNS_HOST=$(resolve coredns '')
+    if [ -n "${AZ_LOCAL_HOST}" ] && [ -n "${COREDNS_HOST}" ]; then
         break
     fi
     sleep 1;
     echo "$WAITING_MESSAGE"
 done;
 
-CONFIG_LOCAL=$(curl -s "http://az-local.antizapret/config-md5/" || echo "")
+# Metadata is best-effort: a remote outage must not delay starting DNS.
+CONFIG_LOCAL=$(curl --connect-timeout 2 --max-time 3 -fsS "http://az-local.antizapret/config-md5/" || echo "")
 CONFIG_MD5="$CONFIG_LOCAL"
 AZ_WORLD_CLIENT_IDS='["az-world"]'
 if [ "$AZ_WORLD_ENABLED" = "1" ]; then
-    CONFIG_WORLD=$(curl -s "http://az-world.antizapret/config-md5/" || echo "")
+    CONFIG_WORLD=$(curl --connect-timeout 2 --max-time 3 -fsS "http://az-world.antizapret/config-md5/" || echo "")
     CONFIG_MD5="$CONFIG_LOCAL $CONFIG_WORLD"
-    AZ_WORLD_CLIENT_IDS='["az-world", "'$AZ_WORLD_HOST'"]'
+    if [ -n "$AZ_WORLD_HOST" ]; then
+        AZ_WORLD_CLIENT_IDS='["az-world", "'$AZ_WORLD_HOST'"]'
+    fi
 fi
 echo "$CONFIG_MD5" > /.config_md5
 
