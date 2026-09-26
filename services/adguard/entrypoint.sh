@@ -59,6 +59,13 @@ if [ "$AZ_WORLD_ENABLED" = "1" ]; then
     fi
 fi
 echo "$CONFIG_MD5" > /.config_md5
+# Runtime filter state can differ after restart, especially after a cold start
+# without world. Reconcile both exits once the local API becomes available.
+rm -f /.config_md5.local /.config_md5.world
+touch /.config_md5.local_pending
+if [ "$AZ_WORLD_ENABLED" = "1" ]; then
+    touch /.config_md5.world_pending
+fi
 
 function ensure_filter () {
     local filter_url="$1"

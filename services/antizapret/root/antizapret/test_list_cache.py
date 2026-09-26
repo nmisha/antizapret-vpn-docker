@@ -166,3 +166,34 @@ class ListCacheTests(unittest.TestCase):
         result = self.run_shell('bash parse.sh')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / 'result/ips-world.txt').read_text(), '')
+
+    def test_failed_first_source_preserves_cache_and_updates_later_lists(self):
+        self.script('bin/curl', 'case "${@: -1}" in bad) echo partial; exit 22;; '
+                    'world) echo 198.51.100.0/24;; asn) echo 64500;; '
+                    'asn-world) echo 64501;; esac')
+        cached = self.root / 'config/include-ips-dist.txt'
+        cached.write_text('# cached comment\n192.0.2.0/24\n')
+        result = self.run_shell('bash download.sh', IPS_URL='bad',
+                                IPS_WORLD_URL='world', ASN_WORLD_URL='asn-world')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(cached.read_text(), '# cached comment\n192.0.2.0/24\n')
+        for kind, expected in [('ips-world', '198.51.100.0/24'),
+                               ('asn', '64500'), ('asn-world', '64501')]:
+            self.assertEqual((self.root / f'config/include-{kind}-dist.txt').read_text().strip(), expected)
+            self.assertTrue((self.root / f'config/.include-{kind}-dist.txt.ready').exists())
+        self.assertFalse(list((self.root / 'config').glob('*.tmp*')))
+
+    def test_doall_generates_with_failed_source_cache_and_fresh_asn(self):
+        (self.root / 'config/include-ips-dist.txt').write_text('192.0.2.0/24\n')
+        self.script('bin/curl', 'case "${@: -1}" in ips) exit 22;; asn) echo 64500;; esac')
+        result = self.run_shell('bash doall.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/ips.txt').read_text(), '192.0.2.0/24\n')
+        self.assertEqual((self.root / 'result/asn.txt').read_text().strip(), '64500')
+
+    def test_missing_failed_source_blocks_generation_but_not_other_downloads(self):
+        self.script('bin/curl', 'case "${@: -1}" in ips) exit 22;; asn) echo 64500;; esac')
+        result = self.run_shell('bash doall.sh')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual((self.root / 'config/include-asn-dist.txt').read_text().strip(), '64500')
+        self.assertFalse((self.root / 'result/asn.txt').exists())
