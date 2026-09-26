@@ -47,4 +47,72 @@ sh sr_swarm_start.sh
 docker service logs --since 2m --tail 100 antizapret_2fauth
 ```
 
+## Замена локального пароля пользователя
+
+Пароли 2FAuth хранятся в виде хешей: исходный пароль прочитать нельзя,
+но можно установить новый. Это не меняет пароль Authelia, секреты 2FA
+и режим входа `reverse-proxy-guard`.
+
+Команды выполняются на узле Swarm, где запущен контейнер 2FAuth.
+Найти узел можно на менеджере:
+
+```sh
+docker service ps antizapret_2fauth --filter desired-state=running
+```
+
+На найденном узле откройте Laravel Tinker:
+
+```sh
+docker exec -it \
+  "$(docker ps -q --filter name=antizapret_2fauth)" \
+  php /srv/artisan tinker
+```
+
+Посмотрите логины пользователей, не выводя хеши и другие поля:
+
+```php
+\App\Models\User::query()->get(['id', 'name']);
+```
+
+Если готового хеша нет, сгенерируйте его средствами приложения. Следующую
+команду вставьте в Tinker одной строкой, затем введите новый пароль
+в скрытом приглашении. Пароль не включается в историю команд, а результатом
+будет только хеш:
+
+```php
+$hash = \Illuminate\Support\Facades\Hash::make((new \Symfony\Component\Console\Helper\QuestionHelper())->ask(new \Symfony\Component\Console\Input\ArgvInput(), new \Symfony\Component\Console\Output\ConsoleOutput(), (new \Symfony\Component\Console\Question\Question('Новый пароль: '))->setHidden(true)->setHiddenFallback(false)));
+```
+
+Если хеш уже сгенерирован, вместо предыдущей команды присвойте его переменной.
+Замените `ВСТАВЬТЕ_ПОЛНЫЙ_ХЕШ` своим значением; одинарные кавычки сохраняют
+символы `$` в bcrypt-хеше:
+
+```php
+$hash = 'ВСТАВЬТЕ_ПОЛНЫЙ_ХЕШ';
+```
+
+Для замены пароля **одного пользователя**, например `chatgpt`:
+
+```php
+$user = \App\Models\User::where('name', 'chatgpt')->firstOrFail();
+$user->password = $hash;
+$user->save();
+$user->refresh()->getRawOriginal('password') === $hash;
+```
+
+Последние две команды должны вернуть `true`.
+
+Если нужно намеренно установить один пароль **всем пользователям 2FAuth**,
+вместо блока для одного пользователя выполните:
+
+```php
+\Illuminate\Support\Facades\DB::table('users')->update(['password' => $hash]);
+\Illuminate\Support\Facades\DB::table('users')->where('password', $hash)->count() === \Illuminate\Support\Facades\DB::table('users')->count();
+```
+
+Первая команда вернёт число обновлённых строк, вторая должна вернуть `true`.
+Для выхода из Tinker выполните `exit`. Перезапуск 2FAuth не требуется.
+Смена локального пароля сама по себе не включает обычную форму входа
+при активном `reverse-proxy-guard`.
+
 [Документация Docker-образа](https://docs.2fauth.app/getting-started/installation/docker/docker-cli/).
