@@ -524,3 +524,52 @@ func TestRouteSnapshotErrorDoesNotWriteRoutes(t *testing.T) {
 		t.Fatalf("unexpected changes: %v", changes)
 	}
 }
+
+func TestRepeatedCyclesRepairDeletionAndInterfaceChange(t *testing.T) {
+	originalList, originalReplace, originalGet := routeListFiltered, routeReplace, routeGet
+	t.Cleanup(func() {
+		routeListFiltered, routeReplace, routeGet = originalList, originalReplace, originalGet
+	})
+	state := make(map[string]netlink.Route)
+	writes, link := 0, 42
+	routeListFiltered = func(_ int, filter *netlink.Route, _ uint64) ([]netlink.Route, error) {
+		var routes []netlink.Route
+		for _, route := range state {
+			if route.Table == filter.Table {
+				routes = append(routes, route)
+			}
+		}
+		return routes, nil
+	}
+	routeGet = func(net.IP) ([]netlink.Route, error) { return []netlink.Route{{LinkIndex: link}}, nil }
+	routeReplace = func(route *netlink.Route) error {
+		writes++
+		stored := *route
+		if stored.Table == 0 {
+			stored.Table = mainRouteTable
+		}
+		stored.Type = 1
+		state[routeKey(stored.Table, stored.Dst)] = stored
+		return nil
+	}
+	a := &app{routes: []routeSpec{{host: "10.200.0.2", subnet: "14.16.0.0/15"}}}
+	a.updateRoutes()
+	a.updateRoutes()
+	if writes != 1 {
+		t.Fatalf("healthy second cycle wrote routes: %d", writes)
+	}
+	clear(state)
+	a.updateRoutes()
+	if writes != 2 {
+		t.Fatalf("deleted route was not repaired: %d", writes)
+	}
+	link = 43
+	a.updateRoutes()
+	if writes != 3 {
+		t.Fatalf("changed interface was not repaired: %d", writes)
+	}
+	a.updateRoutes()
+	if writes != 3 {
+		t.Fatalf("repaired route rewritten: %d", writes)
+	}
+}
