@@ -24,9 +24,11 @@ services:
       - "adguardteam.github.io=185.199.110.153"
       - "nmisha.github.io=185.199.110.153"
     healthcheck:
-      test: (timeout 10m /root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
+      test: ["CMD", "/root/healthcheck.sh"]
       interval: 10s
-      timeout: 15m
+      timeout: 2m
+      start_period: 90s
+      retries: 3
     logging:
       driver: json-file
       options:
