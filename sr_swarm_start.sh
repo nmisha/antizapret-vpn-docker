@@ -28,6 +28,9 @@ sed -E 's/^([[:space:]]+size: )"([0-9]+)"$/\1\2/' \
 docker stack config -c "$work_dir/stack.yml" > /dev/null
 docker stack deploy --prune -c "$work_dir/stack.yml" antizapret
 
+# Validate the cross-node path, not only telemt's local healthcheck.
+sh "$(dirname "$0")/sr_swarm_check_telemt.sh"
+
 # OLD =============================
 # #!/bin/sh
 
