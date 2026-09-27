@@ -1,7 +1,7 @@
 FROM ubuntu:24.04
 
 RUN apt update -y  \
-    && apt install -y curl ca-certificates ipset iptables python3 util-linux \
+    && apt install -y curl ca-certificates ipset iptables util-linux \
     && apt-get clean \
     && rm -frv /var/lib/apt/lists/*
 

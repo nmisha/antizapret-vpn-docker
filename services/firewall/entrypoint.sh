@@ -1,24 +1,40 @@
 #!/usr/bin/env bash
-set -eu
-cd /root
-sleep_pid=
-stop() {
-    trap - TERM INT HUP
-    if [ -n "$sleep_pid" ]; then kill "$sleep_pid" 2>/dev/null || true; fi
-    ./block.sh clear
-    exit 0
-}
-trap stop TERM INT HUP
-while true; do
-    delay=30
+set -ex
+
+first_run=true
+running=true
+trap 'trap - EXIT; running=false; ( [ -n "$sleep_pid" ] && kill "$sleep_pid" ); ./block.sh clear' \
+    EXIT HUP INT QUIT PIPE TERM
+
+while [ "$running" = true ]; do
+    FAILED=true
     if ./download.sh "$V4_URL" "$V4_FILE" && ./download.sh "$V6_URL" "$V6_FILE"; then
-        if ./block.sh apply; then delay="${INTERVAL:-3h}"; fi
+      echo 'download ok'
+      FAILED=false
     else
-        echo "Download failed; retaining active firewall rules" >&2
-        # Use cached files on startup if both are available and valid.
-        if [ -f "$V4_FILE" ] && [ -f "$V6_FILE" ]; then ./block.sh apply || true; fi
+        if [ "$first_run" = true ] && [ ! -f "$V4_FILE" ]; then
+          echo 'Error: Download failed on start. Exiting.'
+          exit 2
+        fi
     fi
-    sleep "$delay" &
+
+
+    if [ "$FAILED" = false ] || [ "$first_run" = true ]; then
+      # A failed update keeps the rules already in place; retry soon instead of
+      # exiting, which would run the EXIT trap and remove the protection.
+      if ! ./block.sh; then
+        echo 'Firewall update failed; keeping current rules'
+        FAILED=true
+      fi
+    fi
+
+    first_run=false
+
+    if [ "$FAILED" = true ]; then
+      sleep 30 &
+    else
+      sleep "$INTERVAL" &
+    fi
     sleep_pid=$!
     wait "$sleep_pid" || true
     sleep_pid=
