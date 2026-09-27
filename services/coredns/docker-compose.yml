@@ -1,6 +1,6 @@
 services:
   coredns:
-    image: nmisha/antizapret-vpn-coredns:6.6.4
+    image: nmisha/antizapret-vpn-coredns:6.6.4-1
     # image: xtrime/antizapret-vpn-coredns:6.6.4
     hostname: coredns.antizapret
     restart: unless-stopped

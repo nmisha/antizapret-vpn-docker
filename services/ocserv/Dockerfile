@@ -1,3 +1,9 @@
+# routes is built in services/antizapret; take it from the fork's image, not upstream.
+# Build and push that image first: COPY --from pulls it from the registry.
+ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-1
+
+FROM ${ROUTES_IMAGE} AS routes
+
 # ========STAGE 1: BUILD========
 
 FROM ubuntu:24.04 AS builder
@@ -91,7 +97,7 @@ RUN apt-get update && \
     apt-get clean --yes && \
     rm -rf /var/lib/apt/lists/* /var/cache/apt/archives/*
 
-COPY --from=xtrime/antizapret-vpn:6.9.1  /usr/bin/routes /usr/bin/routes
+COPY --from=routes /usr/bin/routes /usr/bin/routes
 
 COPY --chmod=0755 ./ocserv.sh /
 COPY ./certificate.sh /

@@ -1,4 +1,9 @@
+# routes is built in services/antizapret; take it from the fork's image, not upstream.
+# Build and push that image first: COPY --from pulls it from the registry.
+ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-1
 ARG IMAGE=ghcr.io/wg-easy/wg-easy:15.4.0
+
+FROM ${ROUTES_IMAGE} AS routes
 
 FROM ${IMAGE} AS awg-tools-build
 
@@ -22,7 +27,7 @@ RUN apk del -U -r --no-cache iptables \
     && chmod +x /usr/bin/awg /usr/bin/awg-quick \
     && apk cache clean
 
-COPY --from=xtrime/antizapret-vpn:6.9.1  /usr/bin/routes /usr/bin/routes
+COPY --from=routes /usr/bin/routes /usr/bin/routes
 
 COPY bird.conf.template /
 COPY init.sh /

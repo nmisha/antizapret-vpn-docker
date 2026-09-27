@@ -1,3 +1,8 @@
+# routes is built in services/antizapret; take it from the fork's image, not upstream.
+# Build and push that image first: COPY --from pulls it from the registry.
+ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-1
+FROM ${ROUTES_IMAGE} AS routes
+
 FROM d3vilh/openvpn-server:0.5.5
 
 RUN apk add -U --no-cache ipcalc grep moreutils && apk del openvpn
@@ -25,7 +30,7 @@ RUN <<-"EOT" bash -ex
     apk del $LIBS_TEMP
 EOT
 
-COPY --from=xtrime/antizapret-vpn:6.9.1  /usr/bin/routes /usr/bin/routes
+COPY --from=routes /usr/bin/routes /usr/bin/routes
 
 COPY easy-rsa.vars /opt/app
 COPY files/fw-rules.sh /opt/app
