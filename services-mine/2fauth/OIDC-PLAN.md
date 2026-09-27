@@ -18,7 +18,7 @@
    client secret. Секреты не хранить в Git.
 3. Настроить клиент: scopes `openid`, `profile`, `email`, метод
    `client_secret_post`, redirect URI
-   `https://twof.auth.marina.2bd.net/socialite/callback/openid`.
+   `https://twof.auth.example.com/socialite/callback/openid`.
    Использовать отдельную OIDC authorization policy: по умолчанию deny,
    разрешение `one_factor` только группе `twofauth_users`. Правила обычного
    `access_control` сами по себе не ограничивают выдачу OIDC-токенов.

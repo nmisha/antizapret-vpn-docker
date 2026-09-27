@@ -28,25 +28,32 @@ Firewall работает в сетевом пространстве хоста 
 
 ```text
 интерфейс IP-назначения tcp|udp порт[,порт...]
-ens3 91.184.253.97 tcp 25,80,443,465,587,993,4190
+ens3 203.0.113.10 tcp 25,80,443,465,587,993,4190
+ens3 2001:db8::10 udp 443
 ```
 
 - IP-назначения — публичный адрес хоста (один IPv4/IPv6, без CIDR), порты — опубликованные, как до Docker DNAT:
   сравнение идёт по исходному адресу назначения из conntrack.
 - Файл проверяется до любых изменений; неверная строка выводится с номером, действующие правила сохраняются.
-- `exceptions.mail.example` в образе — исключения для почтового сервера на nl-vps. На других узлах эти адреса
-  не встречаются, поэтому правила там ничего не пропускают.
+- Реальный файл с адресами серверов в репозиторий и образ **не кладётся**: он лежит в каталоге конфигурации
+  на хостах (`config/` в `.gitignore`) и подключается в контейнер только для чтения.
 
-Включение: задать путь внутри контейнера.
+Подключение в swarm (firewall работает на всех узлах, `mode: global`):
 
-```sh
-# обычный Compose: в .env
-FIREWALL_EXCEPTIONS_FILE=/root/exceptions.mail.example
-# swarm: docker stack deploy не читает .env — экспортировать переменную перед рендером
-export FIREWALL_EXCEPTIONS_FILE=/root/exceptions.mail.example
-```
+1. Положить **одинаковый** файл на **каждый** узел: `/root/antizapret6-swarm/config/firewall/exceptions`.
+   Если файла не будет на каком-то узле, обновление там завершится ошибкой «Invalid EXCEPTIONS_FILE»
+   (действующие правила сохранятся, но блоклисты перестанут обновляться). На узлах, где адресов из файла нет,
+   правила ничего не пропускают.
+2. В `docker-compose.override.yml`:
+   ```yaml
+   firewall:
+     volumes:
+       - $PWD/config/firewall:/root/exceptions.d:ro
+     environment:
+       - EXCEPTIONS_FILE=/root/exceptions.d/exceptions
+   ```
 
-Применить изменённый файл сразу: `docker exec <firewall-container> /root/block.sh`.
+Применить изменённый файл сразу: `docker exec <firewall-container> /root/block.sh` (на каждом узле).
 
 ## Переход с Python-версии (`firewall.py`, цепочка `AZ-VPN-FILTER`)
 

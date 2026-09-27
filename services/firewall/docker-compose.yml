@@ -2,7 +2,7 @@ services:
   firewall:
     restart: unless-stopped
     # image: xtrime/antizapret-vpn-firewall:6.4.0
-    image: nmisha/antizapret-vpn-firewall:6.4.0-2
+    image: nmisha/antizapret-vpn-firewall:6.4.0-3
     init: true
     build:
       context: .
@@ -29,7 +29,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
     environment:
       # Optional exceptions file: interface destination-IP tcp|udp port[,port...]
-      # (format: exceptions.example). Bundled in the image: /root/exceptions.mail.example
+      # (format: exceptions.example), e.g. mounted from the host config directory.
       - EXCEPTIONS_FILE=${FIREWALL_EXCEPTIONS_FILE:-}
       - INTERVAL=3h
       - V4_URL=https://raw.githubusercontent.com/C24Be/AS_Network_List/refs/heads/main/blacklists/blacklist-v4.txt

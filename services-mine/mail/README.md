@@ -32,8 +32,8 @@ services:
 
 Те же домены укажите в `SNI_ROUTE_N`, `SNI_CERT_N`, `PROXY_VHOST_N` сервиса
 `https`, ссылках Dashboard и Homepage. Секрет сохраняйте между перезапусками.
-В локальном Swarm override уже указаны `mail.marina.2bd.net` для Stalwart и
-`webmail.marina.2bd.net` для Bulwark, а также сгенерированный сессионный секрет.
+В локальном Swarm override уже указаны `mail.example.com` для Stalwart и
+`webmail.example.com` для Bulwark, а также сгенерированный сессионный секрет.
 
 Для существующей установки проверьте сохранённый `defaultHostname` в Stalwart:
 изменение переменных контейнера не заменяет сохранённые настройки сервера.
