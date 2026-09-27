@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-INIT_FILE="/.inited"
+INIT_FILE="/dev/shm/.inited"
 [ ! -f "$INIT_FILE" ] && exit 0;
 
 ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
@@ -28,24 +28,24 @@ function resolve () {
 
 # Track applied metadata independently. Keep legacy startup state as a fallback
 # during upgrades; an unavailable exit must not suppress the other exit's work.
-OLD_LOCAL=$(cat /.config_md5.local 2>/dev/null || awk '{print $1}' /.config_md5 2>/dev/null || true)
-OLD_WORLD=$(cat /.config_md5.world 2>/dev/null || awk '{print $2}' /.config_md5 2>/dev/null || true)
+OLD_LOCAL=$(cat /dev/shm/.config_md5.local 2>/dev/null || awk '{print $1}' /dev/shm/.config_md5 2>/dev/null || true)
+OLD_WORLD=$(cat /dev/shm/.config_md5.world 2>/dev/null || awk '{print $2}' /dev/shm/.config_md5 2>/dev/null || true)
 CONFIG_LOCAL=$(curl --connect-timeout 2 --max-time 3 -fsS "http://az-local.antizapret/config-md5/" || echo "")
 CONFIG_WORLD=''
 NEW_WORLD=''
 LOCAL_CHANGED=0
 WORLD_CHANGED=0
 if [ -z "$CONFIG_LOCAL" ]; then
-    touch /.config_md5.local_pending
-elif [ "$CONFIG_LOCAL" != "$OLD_LOCAL" ] || [ -f /.config_md5.local_pending ]; then
+    touch /dev/shm/.config_md5.local_pending
+elif [ "$CONFIG_LOCAL" != "$OLD_LOCAL" ] || [ -f /dev/shm/.config_md5.local_pending ]; then
     LOCAL_CHANGED=1
 fi
 if [ "$AZ_WORLD_ENABLED" = "1" ]; then
     CONFIG_WORLD=$(curl --connect-timeout 2 --max-time 3 -fsS "http://az-world.antizapret/config-md5/" || echo "")
     NEW_WORLD=$(resolve 'az-world' '')
     if [ -z "$CONFIG_WORLD" ]; then
-        touch /.config_md5.world_pending
-    elif [ "$CONFIG_WORLD" != "$OLD_WORLD" ] || [ -f /.config_md5.world_pending ]; then
+        touch /dev/shm/.config_md5.world_pending
+    elif [ "$CONFIG_WORLD" != "$OLD_WORLD" ] || [ -f /dev/shm/.config_md5.world_pending ]; then
         WORLD_CHANGED=1
     fi
 fi
@@ -85,12 +85,12 @@ refresh_filters() {
     # Only acknowledge reachable exits. Pending flags also force a refresh on
     # recovery with an unchanged checksum (e.g. filters missing at cold start).
     if [ "$LOCAL_CHANGED" = 1 ]; then
-        printf '%s\n' "$CONFIG_LOCAL" > /.config_md5.local || return 1
-        rm -f /.config_md5.local_pending
+        printf '%s\n' "$CONFIG_LOCAL" > /dev/shm/.config_md5.local || return 1
+        rm -f /dev/shm/.config_md5.local_pending
     fi
     if [ "$WORLD_CHANGED" = 1 ]; then
-        printf '%s\n' "$CONFIG_WORLD" > /.config_md5.world || return 1
-        rm -f /.config_md5.world_pending
+        printf '%s\n' "$CONFIG_WORLD" > /dev/shm/.config_md5.world || return 1
+        rm -f /dev/shm/.config_md5.world_pending
     fi
 }
 if [ "$LOCAL_CHANGED" = 1 ] || [ "$WORLD_CHANGED" = 1 ]; then

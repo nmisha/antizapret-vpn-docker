@@ -20,10 +20,10 @@ class ListCacheTests(unittest.TestCase):
             (self.root / name).mkdir()
         for name in ('list-cache.sh', 'download.sh', 'doall.sh'):
             shutil.copyfile(SOURCE / name, self.root / name)
-        # Avoid dependencies on the host's /etc/default, process table and /tmp lock.
+        # Avoid dependencies on the host's /etc/default, process table and /dev/shm lock.
         doall = self.root / 'doall.sh'
         doall.write_text(doall.read_text().replace('/etc/default/antizapret',
-                         str(self.root / 'defaults')).replace('/tmp/.doall',
+                         str(self.root / 'defaults')).replace('/dev/shm/.doall',
                          str(self.root / '.doall')).replace('/root/antizapret/result',
                          str(self.root / 'result')))
         for path in self.root.glob('*.sh'):

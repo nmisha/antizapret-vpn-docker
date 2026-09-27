@@ -15,7 +15,7 @@ function reload_dnsmap () {
 
 source "$HERE/list-cache.sh"
 
-LOCAL_OWNER_FILE="/tmp/.doall_owner"
+LOCAL_OWNER_FILE="/dev/shm/.doall_owner"
 RESULT_OWNER_FILE="/root/antizapret/result/.doall_owner"
 LOCAL_OWNER="$(cat "$LOCAL_OWNER_FILE" 2>/dev/null || true)"
 RESULT_OWNER="$(cat "$RESULT_OWNER_FILE" 2>/dev/null || true)"
@@ -26,11 +26,16 @@ if [ -n "$DOALL_DISABLED" ] || { [ -n "$RESULT_OWNER" ] && [ "$LOCAL_OWNER" != "
     exit 0
 fi
 
-# Lock the open file, not its existence. Never unlink it: waiters must all
-# refer to the same inode. Children inherit fd 9 so an interrupted parent
-# cannot let another refresh start while its download/parse child still runs.
-exec 9>/tmp/.doall_lock
-flock -x 9
+# Lock the open file, not its existence: the kernel releases the lock when the
+# holder dies, even by SIGKILL (timeout --kill-after), and there is no race
+# between checking and creating the file. Never unlink it: waiters must all
+# refer to the same inode. Children inherit fd 9, so a killed doall cannot let
+# another refresh start while its download/parse child is still running.
+exec 9>/dev/shm/.doall_lock
+if ! flock -n 9; then
+    echo "DoAll already running. Waiting..."
+    flock 9
+fi
 
 download_failed=false
 echo "run download.sh" && ./download.sh || download_failed=true
