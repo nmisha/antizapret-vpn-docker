@@ -1,0 +1,2 @@
+Когда будете делать п.5: в Dockerfile adguard, wireguard, openvpn и proxy заменить COPY --from=xtrime/antizapret-vpn:6.9.1 /usr/bin/routes на ваш образ nmisha/antizapret-vpn:<новая версия>. Собрать его нужно после этих правок, иначе туда попадёт старый routes.
+
