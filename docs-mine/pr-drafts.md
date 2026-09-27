@@ -13,6 +13,7 @@
 | 7 | [#248](https://github.com/xtrime-ru/antizapret-vpn-docker/pull/248) | v6 | `pr/vpn-client-firewall` |
 | 8 | [#249](https://github.com/xtrime-ru/antizapret-vpn-docker/pull/249) | v6 | `pr/firewall-atomic-swap` |
 | 9 | [#250](https://github.com/xtrime-ru/antizapret-vpn-docker/pull/250) | v6 | `pr/firewall-exceptions` (поверх #249) |
+| 10 | [#251](https://github.com/xtrime-ru/antizapret-vpn-docker/pull/251) | v6 | `pr/openvpn-nic-detection` |
 
 Если автор попросит правки: коммитить в соответствующую ветку `pr/*` и пушить в `origin` — PR обновится сам.
 Не удалять ветки `pr/*` в форке до мержа.
