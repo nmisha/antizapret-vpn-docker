@@ -7,7 +7,13 @@ INIT_FILE="/.inited"
 ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
 ADGUARDHOME_PORT=${ADGUARDHOME_PORT:-"3000"}
 
-AUTH=$(echo -n "$ADGUARDHOME_USERNAME:$ADGUARDHOME_PASSWORD" | base64)
+# curl -u builds the header itself: busybox base64 wraps long credentials.
+# Without a plain password (only a hash configured) the API is probed
+# unauthenticated: a 401 still proves liveness, maintenance is skipped.
+AUTH_ARGS=()
+if [ -n "${ADGUARDHOME_PASSWORD:-}" ]; then
+    AUTH_ARGS=(-u "$ADGUARDHOME_USERNAME:$ADGUARDHOME_PASSWORD")
+fi
 
 # resolve domain address to ip address
 function resolve () {
@@ -45,8 +51,19 @@ if [ "$AZ_WORLD_ENABLED" = "1" ]; then
 fi
 
 # Unlike exit metadata, the local API must respond for this check to succeed.
-CLIENTS=$(curl --connect-timeout 2 --max-time 5 -fsS -X GET "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients" -H "Authorization: Basic $AUTH")
-[[ "$CLIENTS" == 404* ]] && echo 'Adguard not ready' && exit 0;
+# A transport error fails liveness; any HTTP answer means AdGuard is alive.
+RESPONSE=$(curl --connect-timeout 2 --max-time 5 -sS -w '\n%{http_code}' "${AUTH_ARGS[@]}" \
+    "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients")
+HTTP_CODE=${RESPONSE##*$'\n'}
+CLIENTS=${RESPONSE%$'\n'*}
+if [ "$HTTP_CODE" = 401 ] || [ "$HTTP_CODE" = 403 ]; then
+    echo "AdGuard API rejected credentials (HTTP $HTTP_CODE): set ADGUARDHOME_PASSWORD to the current password; skipping filter and client maintenance" >&2
+    exit 0
+fi
+if [ "$HTTP_CODE" != 200 ]; then
+    echo "AdGuard API not ready (HTTP $HTTP_CODE)"
+    exit 0
+fi
 
 # Updating remote filters is maintenance, not a liveness requirement.
 # Partial failure retains the checksum and must not restart working DNS.
@@ -59,12 +76,12 @@ refresh_filters() {
     local refresh_failed=0 whitelist
     for whitelist in false true; do
         curl --connect-timeout 2 --max-time 30 -fsS "http://127.0.0.1:$ADGUARDHOME_PORT/control/filtering/refresh" \
-            -X POST -H 'Content-Type: application/json' -H "Authorization: Basic $AUTH" \
+            -X POST -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" \
             --data-raw "{\"whitelist\":$whitelist}" || refresh_failed=1
     done
     [ "$refresh_failed" = 0 ] || return 1
 
-    curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:$ADGUARDHOME_PORT/control/cache_clear" -X 'POST' -H "Authorization: Basic $AUTH" || return 1
+    curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:$ADGUARDHOME_PORT/control/cache_clear" -X 'POST' "${AUTH_ARGS[@]}" || return 1
     # Only acknowledge reachable exits. Pending flags also force a refresh on
     # recovery with an unchanged checksum (e.g. filters missing at cold start).
     if [ "$LOCAL_CHANGED" = 1 ]; then
@@ -99,14 +116,14 @@ update_client() {
             UPDATED_CLIENT=$(echo "$FULL_CLIENT" | jq --argjson ids "$DESIRED_IDS" '.ids = $ids')
             UPDATE_BODY=$(printf '{"name":"%s","data":%s}' "$client_name" "$(echo "$UPDATED_CLIENT" | jq -c .)")
             echo "Updating $client_name ids to $DESIRED_IDS"
-            curl --connect-timeout 2 --max-time 5 -fsS -X POST "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients/update" -H 'Content-Type: application/json' -H "Authorization: Basic $AUTH" --data "$UPDATE_BODY"
+            curl --connect-timeout 2 --max-time 5 -fsS -X POST "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients/update" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" --data "$UPDATE_BODY"
             client_updated=1
         fi
     fi
 
     if [ "$client_updated" = "1" ]; then
         echo "Reset adguard DNS cache"
-        curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:$ADGUARDHOME_PORT/control/cache_clear" -X 'POST' -H "Authorization: Basic $AUTH"
+        curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:$ADGUARDHOME_PORT/control/cache_clear" -X 'POST' "${AUTH_ARGS[@]}"
     fi
 }
 

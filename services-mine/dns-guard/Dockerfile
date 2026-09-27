@@ -1,4 +1,8 @@
-FROM golang:1.25-alpine AS builder
+# Cross-compile on the build host; TARGETARCH comes from buildx (--platform).
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+# No defaults: BuildKit fills them in; an empty GOARCH means the host arch.
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /src
 
@@ -7,7 +11,7 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=$TARGETARCH \
     go build -trimpath -ldflags="-s -w" -o /out/dns-guard ./cmd/dns-guard
 
 FROM alpine:3.20

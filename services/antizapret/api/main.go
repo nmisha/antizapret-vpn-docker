@@ -17,9 +17,11 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -116,121 +118,67 @@ type ListRequest struct {
 	Regex        bool   `schema:"regex"`         //convert each line from an ERE to an AdGuard regex rule
 }
 
+// RegexFilter drops lines matching any exclude pattern (grep -v -E semantics).
+// It is immutable after creation, so concurrent requests need no locking.
 type RegexFilter struct {
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	scanner *bufio.Scanner
-	lock    sync.Mutex
+	re       *regexp.Regexp // nil when the file has no usable patterns
+	patterns int
 }
 
-var excludeMatcherDist *RegexFilter
-var excludeMatcherCustom *RegexFilter
-var excludeMatchersLock sync.RWMutex
+var excludeMatcherDist atomic.Pointer[RegexFilter]
+var excludeMatcherCustom atomic.Pointer[RegexFilter]
 
-const delim = "__DELIM__"
+// GNU grep word boundaries are not RE2 syntax; \b is equivalent for domains.
+var gnuWordBoundary = strings.NewReplacer(`\<`, `\b`, `\>`, `\b`)
 
-func (rf *RegexFilter) Filter(lines []string) ([]string, error) {
-	rf.lock.Lock()
-	defer rf.lock.Unlock()
-	var result []string
-	// Drain stdout while feeding stdin: either pipe can fill for large batches.
-	written := make(chan error, 1)
-	go func() {
-		var err error
-		for _, line := range lines {
-			if _, err = fmt.Fprintln(rf.stdin, line); err != nil {
-				break
-			}
-		}
-		if err == nil {
-			_, err = fmt.Fprintln(rf.stdin, delim)
-		}
-		if err != nil {
-			// Unblock the reader if the delimiter could not be written.
-			_ = rf.cmd.Process.Kill()
-		}
-		written <- err
-	}()
-
-	for {
-		if !rf.scanner.Scan() {
-			err := rf.scanner.Err()
-			if err == nil {
-				err = io.ErrUnexpectedEOF
-			}
-			// Stop grep and join the writer before releasing the transaction lock.
-			_ = rf.cmd.Process.Kill()
-			return result, errors.Join(err, <-written)
-		}
-		text := rf.scanner.Text()
-		if text == delim {
-			break
-		}
-		result = append(result, text)
+func (rf *RegexFilter) Filter(lines []string) []string {
+	if rf == nil || rf.re == nil {
+		return lines
 	}
-
-	return result, <-written
+	result := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if !rf.re.MatchString(line) {
+			result = append(result, line)
+		}
+	}
+	return result
 }
 
-// Close terminates the subprocess cleanly
-func (rf *RegexFilter) Close() error {
-	if rf.stdin != nil {
-		//Ensure at least one line is processed by grep to avoid exit code 1
-		rf.Filter([]string{"example.com"})
-		_ = rf.stdin.Close()
-		rf.stdin = nil
-	}
-	if rf.cmd != nil {
-		err := rf.cmd.Wait()
-		rf.cmd = nil
-		return err
-	}
-	return nil
-}
-
+// NewRegexFilter reads one ERE per line. Empty lines and full-line comments
+// are ignored (an empty pattern would match everything). Patterns wrapped in
+// /.../ are unwrapped, as they are for AdGuard. An invalid pattern is skipped
+// with a warning instead of disabling the whole filter.
 func NewRegexFilter(file string) (*RegexFilter, error) {
-	if out, err := exec.Command("sed", "-i", "s/\\s*$//", file).Output(); err != nil {
-		return nil, fmt.Errorf("Failed to normalize line endings: %v, output: %s", err, string(out))
-	}
-
-	if out, err := exec.Command("gawk", "-i", "inplace", "NF", file).Output(); err != nil {
-		return nil, fmt.Errorf("Failed to remove empty lines: %v, output: %s", err, string(out))
-	}
-
-	cmd := exec.Command(
-		"grep",
-		"--line-buffered",
-		"-v",
-		"-E",
-		"-f",
-		file,
-	)
-
-	stdin, err := cmd.StdinPipe()
+	data, err := os.ReadFile(file)
 	if err != nil {
 		return nil, err
 	}
 
-	stdout, err := cmd.StdoutPipe()
+	var alternatives []string
+	for number, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		if len(line) > 2 && strings.HasPrefix(line, "/") && strings.HasSuffix(line, "/") {
+			line = line[1 : len(line)-1]
+		}
+		line = gnuWordBoundary.Replace(line)
+		if _, err := regexp.Compile(line); err != nil {
+			log.Printf("[WARN] %s:%d: skipping invalid pattern %q: %v", file, number+1, line, err)
+			continue
+		}
+		alternatives = append(alternatives, "(?:"+line+")")
+	}
+
+	if len(alternatives) == 0 {
+		return &RegexFilter{}, nil
+	}
+	re, err := regexp.Compile(strings.Join(alternatives, "|"))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("compile %s: %w", file, err)
 	}
-
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		return nil, err
-	}
-
-	scanner := bufio.NewScanner(stdout)
-	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024) // allow long lines
-
-	return &RegexFilter{
-		cmd:     cmd,
-		stdin:   stdin,
-		scanner: scanner,
-		lock:    sync.Mutex{},
-	}, nil
+	return &RegexFilter{re: re, patterns: len(alternatives)}, nil
 }
 
 var DefaultClient string
@@ -318,6 +266,24 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Take one snapshot of the filters before the status is sent, so a
+	// missing filter is reported as an error and never as a partial list.
+	var distFilter, customFilter *RegexFilter
+	if req.FilterDist {
+		if distFilter = excludeMatcherDist.Load(); distFilter == nil {
+			log.Println("[ERROR] Exclude filter not initialized: dist")
+			http.Error(w, "Exclude filter not initialized: dist", http.StatusServiceUnavailable)
+			return
+		}
+	}
+	if req.FilterCustom {
+		if customFilter = excludeMatcherCustom.Load(); customFilter == nil {
+			log.Println("[ERROR] Exclude filter not initialized: custom")
+			http.Error(w, "Exclude filter not initialized: custom", http.StatusServiceUnavailable)
+			return
+		}
+	}
+
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 
@@ -326,34 +292,8 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 	processBuffer := func() {
 		filtered := buffer
 		buffer = nil
-		excludeMatchersLock.RLock()
-		defer excludeMatchersLock.RUnlock()
-		if req.FilterDist {
-			if excludeMatcherDist == nil {
-				log.Println("[ERROR] Exclude filter not initialized: dist")
-				http.Error(w, "Exclude filter not initialized: dist", http.StatusInternalServerError)
-				return
-			}
-			var err error
-			filtered, err = excludeMatcherDist.Filter(filtered)
-			if err != nil {
-				log.Printf("[ERROR] Dist exclude filter failed: %v", err)
-				return
-			}
-		}
-		if req.FilterCustom {
-			if excludeMatcherCustom == nil {
-				log.Println("[ERROR] Exclude filter not initialized: custom")
-				http.Error(w, "Exclude filter not initialized: custom", http.StatusInternalServerError)
-				return
-			}
-			var err error
-			filtered, err = excludeMatcherCustom.Filter(filtered)
-			if err != nil {
-				log.Printf("[ERROR] Custom exclude filter failed: %v", err)
-				return
-			}
-		}
+		filtered = distFilter.Filter(filtered)
+		filtered = customFilter.Filter(filtered)
 
 		for _, line := range filtered {
 			out := strings.TrimSpace(line)
@@ -450,36 +390,23 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 }
 
+var excludeDistPath = "/root/antizapret/config/exclude-hosts-dist.txt"
+var excludeCustomPath = "/root/antizapret/config/custom/exclude-hosts-custom.txt"
+
+// updateRegexFilter swaps both filters only after both compiled successfully;
+// on error the previous filters stay active.
 func updateRegexFilter() error {
-	excludeMatchersLock.Lock()
-	defer excludeMatchersLock.Unlock()
-
-	newDist, err := NewRegexFilter(
-		"/root/antizapret/config/exclude-hosts-dist.txt",
-	)
+	newDist, err := NewRegexFilter(excludeDistPath)
 	if err != nil {
 		return err
 	}
-
-	newCustom, err := NewRegexFilter(
-		"/root/antizapret/config/custom/exclude-hosts-custom.txt",
-	)
+	newCustom, err := NewRegexFilter(excludeCustomPath)
 	if err != nil {
-		_ = newDist.Close()
 		return err
 	}
-
-	oldDist := excludeMatcherDist
-	oldCustom := excludeMatcherCustom
-	excludeMatcherDist = newDist
-	excludeMatcherCustom = newCustom
-
-	if oldDist != nil {
-		_ = oldDist.Close()
-	}
-	if oldCustom != nil {
-		_ = oldCustom.Close()
-	}
+	excludeMatcherDist.Store(newDist)
+	excludeMatcherCustom.Store(newCustom)
+	log.Printf("Exclude filters loaded: dist=%d custom=%d patterns", newDist.patterns, newCustom.patterns)
 	return nil
 }
 
@@ -604,16 +531,7 @@ func main() {
 	err := updateRegexFilter()
 	if err != nil {
 		log.Fatalf("Failed to initialize regex filters: %v", err)
-		panic(err)
 	}
-	defer func() {
-		if excludeMatcherDist != nil {
-			excludeMatcherDist.Close()
-		}
-		if excludeMatcherCustom != nil {
-			excludeMatcherCustom.Close()
-		}
-	}()
 	// Create a mux so we can wrap all handlers with logging
 	r := http.NewServeMux()
 

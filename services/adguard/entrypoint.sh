@@ -11,6 +11,13 @@ if [[ -n $ADGUARDHOME_PASSWORD ]]; then
     ADGUARDHOME_PASSWORD_HASH=$(htpasswd -B -C 10 -n -b "$ADGUARDHOME_USERNAME" "$ADGUARDHOME_PASSWORD")
     ADGUARDHOME_PASSWORD_HASH=${ADGUARDHOME_PASSWORD_HASH#*:}
 fi
+if [[ -z $ADGUARDHOME_PASSWORD_HASH ]]; then
+    # Never replace a working login with an empty hash.
+    echo "Warning: ADGUARDHOME_PASSWORD and ADGUARDHOME_PASSWORD_HASH are empty; keeping the password from AdGuardHome.yaml" >&2
+fi
+if [[ -z $ADGUARDHOME_PASSWORD ]]; then
+    echo "Warning: ADGUARDHOME_PASSWORD is empty; healthcheck cannot refresh filters or update client IPs" >&2
+fi
 
 ADGUARD_ADDRESS=$(echo "$ROUTES" | grep -E 'adguard:' | head -n1 | cut -d: -f2 | tr -d '[:space:];')
 if [[ ! "$ADGUARD_ADDRESS" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
@@ -109,7 +116,7 @@ yq -i '
     .dns.use_private_ptr_resolvers=false |
     .dns.local_ptr_upstreams=[] |
     .users[0].name=strenv(ADGUARDHOME_USERNAME) |
-    .users[0].password=strenv(ADGUARDHOME_PASSWORD_HASH) |
+    (select(strenv(ADGUARDHOME_PASSWORD_HASH) != "") | .users[0].password) = strenv(ADGUARDHOME_PASSWORD_HASH) |
     (.clients.persistent[] | select(.name == "az-local") | .ids) = ["az-local", strenv(AZ_LOCAL_HOST)] |
     (.clients.persistent[] | select(.name == "az-world") | .ids) = env(AZ_WORLD_CLIENT_IDS) |
     (.clients.persistent[] | select(.name == "coredns") | .ids) = [strenv(COREDNS_HOST)]

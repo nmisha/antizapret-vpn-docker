@@ -31,7 +31,12 @@ case "$*" in
 *az-world.antizapret*) [ "${WORLD_DOWN:-0}" != 1 ] || exit 28; echo "${WORLD_HASH:-new-world}";;
 */control/clients/update*) :;;
 */control/clients*) [ "${API_DOWN:-0}" != 1 ] || exit 7
- echo '{"clients":[{"name":"az-local","ids":["az-local","10.0.0.2"]},{"name":"az-world","ids":["az-world"]},{"name":"coredns","ids":["10.0.0.3"]}]}' ;;
+ if [ "${API_CODE:-200}" = 200 ]; then
+   echo '{"clients":[{"name":"az-local","ids":["az-local","10.0.0.2"]},{"name":"az-world","ids":["az-world"]},{"name":"coredns","ids":["10.0.0.3"]}]}'
+ else
+   echo 'Unauthorized'
+ fi
+ case "$*" in *http_code*) printf '\\n%s' "${API_CODE:-200}";; esac ;;
 */filtering/refresh*) [ "${REFRESH_FAIL:-0}" != 1 ] || exit 22;;
 */cache_clear*) :;;
 *) exit 99;;
@@ -72,6 +77,26 @@ esac''')
 
     def test_local_api_failure_still_fails_healthcheck(self):
         self.assertNotEqual(self.healthcheck(API_DOWN='1').returncode, 0)
+
+    def test_rejected_credentials_keep_dns_healthy_and_skip_maintenance(self):
+        result = self.healthcheck(API_CODE='401')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('rejected credentials', result.stderr)
+        requests = (self.root / 'requests').read_text()
+        self.assertNotIn('/filtering/refresh', requests)
+        self.assertNotIn('/control/clients/update', requests)
+        # Not acknowledged: the refresh is retried once credentials work.
+        self.assertFalse((self.root / '.config_md5.local').exists())
+
+    def test_credentials_are_sent_without_base64_wrapping(self):
+        password = 'p' * 80
+        self.assertEqual(self.healthcheck(ADGUARDHOME_PASSWORD=password).returncode, 0)
+        self.assertIn('-u admin:' + password, (self.root / 'requests').read_text())
+
+    def test_without_plain_password_api_is_probed_unauthenticated(self):
+        result = self.healthcheck(ADGUARDHOME_PASSWORD='', API_CODE='401')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn(' -u ', (self.root / 'requests').read_text())
 
     def test_startup_dependency_phase_does_not_wait_for_world(self):
         text = (SOURCE / 'entrypoint.sh').read_text()

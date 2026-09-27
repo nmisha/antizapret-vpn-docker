@@ -24,7 +24,9 @@ services:
       - "adguardteam.github.io=185.199.110.153"
       - "nmisha.github.io=185.199.110.153"
     healthcheck:
-      test: ["CMD", "/root/healthcheck.sh"]
+      # Plain Compose does not restart unhealthy containers: stop PID 1 so that
+      # `restart: unless-stopped` recovers a hung AdGuard. tee keeps the output in docker logs.
+      test: (timeout 90s /root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
       interval: 10s
       timeout: 2m
       start_period: 90s
@@ -61,3 +63,4 @@ services:
       - ADGUARDHOME_PORT
       - ADGUARDHOME_USERNAME
       - ADGUARDHOME_PASSWORD
+      - ADGUARDHOME_PASSWORD_HASH

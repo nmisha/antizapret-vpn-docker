@@ -19,14 +19,26 @@ filter_exclusions() {
 }
 
 for kind in ips ips-world asn asn-world; do
+    # Sanitize the exclude list first: an empty line is a pattern that matches
+    # every input line, so `grep -v` would silently publish an empty list.
+    exclude="config/custom/exclude-$kind-custom.txt"
     if [[ "$kind" == asn* ]]; then
-        options=(-v -i -F -x)
+        sanitize_options=(-v whole_line=1)
         sort_options=(-f)
         uniq_options=(-i)
+        awk "${sanitize_options[@]}" -f scripts/sanitize-lists.awk "$exclude" > "$STAGING/exclude-exact"
+        : > "$STAGING/exclude-regex"
+        exact_options=(-v -i -F -x)
     else
-        options=(-v -E)
+        sanitize_options=()
         sort_options=()
         uniq_options=()
+        awk -f scripts/sanitize-lists.awk "$exclude" > "$STAGING/exclude"
+        # Plain addresses/CIDRs are compared exactly (10.0.0.0/8 must not also
+        # exclude 110.0.0.0/8); anything else stays an ERE for compatibility.
+        awk -v mode=exact -f scripts/validate-ipv4.awk "$STAGING/exclude" > "$STAGING/exclude-exact"
+        awk -v mode=regex -f scripts/validate-ipv4.awk "$STAGING/exclude" > "$STAGING/exclude-regex"
+        exact_options=(-v -F -x)
     fi
     # Write inputs separately so a failed cat cannot be masked by echo.
     cat "config/custom/include-$kind-custom.txt" > "$STAGING/input"
@@ -42,8 +54,14 @@ for kind in ips ips-world asn asn-world; do
     if [ -n "$source_url" ] || [ -e "config/include-$kind-dist.txt" ]; then
         cat "config/include-$kind-dist.txt" >> "$STAGING/input"
     fi
-    awk -f scripts/sanitize-lists.awk "$STAGING/input" |
-        filter_exclusions "${options[@]}" -f "config/custom/exclude-$kind-custom.txt" |
+    awk "${sanitize_options[@]}" -f scripts/sanitize-lists.awk "$STAGING/input" > "$STAGING/sanitized"
+    if [[ "$kind" != asn* ]]; then
+        # Skip IPv6/typos with a warning instead of failing every list.
+        awk -v list="$kind" -f scripts/validate-ipv4.awk "$STAGING/sanitized" > "$STAGING/valid"
+        mv -f "$STAGING/valid" "$STAGING/sanitized"
+    fi
+    filter_exclusions "${exact_options[@]}" -f "$STAGING/exclude-exact" < "$STAGING/sanitized" |
+        filter_exclusions -v -E -f "$STAGING/exclude-regex" |
         sort "${sort_options[@]}" | uniq "${uniq_options[@]}" > "$STAGING/$kind.txt"
 done
 

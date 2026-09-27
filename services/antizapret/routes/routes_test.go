@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/vishvananda/netlink"
@@ -329,6 +330,54 @@ func TestReplaceRoutesFromFileReturnsRouteReplaceError(t *testing.T) {
 	err := (&app{}).replaceRoutesFromFile(path, "az-world", "10.200.0.3")
 	if err == nil {
 		t.Fatal("replaceRoutesFromFile() error = nil, want error")
+	}
+}
+
+func TestRouteListSkipsInvalidLinesAndContinuesAfterErrors(t *testing.T) {
+	stubRouteGet(t, 42)
+	path := filepath.Join(t.TempDir(), "routes.txt")
+	list := "2001:db8::/32\n1.2.3.0/24\nnot-a-route\n5.6.7.0/24\n9.9.9.9\n"
+	if err := os.WriteFile(path, []byte(list), 0644); err != nil {
+		t.Fatalf("WriteFile() error = %v", err)
+	}
+
+	original := routeReplace
+	t.Cleanup(func() {
+		routeReplace = original
+	})
+	var applied []string
+	routeReplace = func(route *netlink.Route) error {
+		applied = append(applied, route.Dst.String())
+		if route.Dst.String() == "1.2.3.0/24" {
+			return errors.New("route replace failed")
+		}
+		return nil
+	}
+
+	err := (&app{}).replaceRoutesFromFile(path, "az-world", "10.200.0.3")
+	if err == nil {
+		t.Fatal("replaceRoutesFromFile() error = nil, want the failed route error")
+	}
+	want := []string{"1.2.3.0/24", "5.6.7.0/24", "9.9.9.9/32"}
+	if strings.Join(applied, ",") != strings.Join(want, ",") {
+		t.Fatalf("applied = %v, want %v", applied, want)
+	}
+}
+
+func TestValidRouteListNeedsOneValidRoute(t *testing.T) {
+	if !validRouteList([]byte("2001:db8::/32\n1.2.3.0/24\n")) {
+		t.Fatal("a list with one valid route was rejected")
+	}
+	if validRouteList([]byte("<html>error</html>\n2001:db8::/32\n")) {
+		t.Fatal("a list without valid IPv4 routes was accepted")
+	}
+}
+
+func TestRouteListURLsDoNotApplyHostExclusions(t *testing.T) {
+	for _, path := range []string{azLocalListPath, azWorldListPath} {
+		if !strings.Contains(path, "filter_custom=0") {
+			t.Fatalf("%s applies exclude-hosts-custom regexes to IP routes", path)
+		}
 	}
 }
 

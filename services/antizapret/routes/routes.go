@@ -21,8 +21,9 @@ import (
 )
 
 const (
-	azLocalListPath   = "http://az-local.antizapret/list/?raw=1&file=/root/antizapret/result/ips.txt"
-	azWorldListPath   = "http://az-local.antizapret/list/?raw=1&file=/root/antizapret/result/ips-world.txt"
+	// filter_custom=0: host exclusion regexes must not filter IP route lists.
+	azLocalListPath   = "http://az-local.antizapret/list/?raw=1&filter_custom=0&file=/root/antizapret/result/ips.txt"
+	azWorldListPath   = "http://az-local.antizapret/list/?raw=1&filter_custom=0&file=/root/antizapret/result/ips-world.txt"
 	vpnDefaultRoute   = "default"
 	mainRouteTable    = 254
 	vpnRouteTable     = 100
@@ -324,6 +325,9 @@ func parseRouteDst(subnet string) (*net.IPNet, error) {
 		if err != nil {
 			return nil, err
 		}
+		if dst.IP.To4() == nil {
+			return nil, fmt.Errorf("invalid IPv4 route destination: %s", subnet)
+		}
 		return dst, nil
 	}
 	ip := net.ParseIP(subnet)
@@ -514,12 +518,15 @@ func (a *app) applyAZRoutes(host, gateway, listPath string) error {
 		}
 		a.vpnLists[host] = subnets
 	}
+	// One failing route must not leave the rest of the list unapplied.
+	var errs []error
 	for _, subnet := range a.vpnLists[host] {
 		if err := a.replaceRoute(routeSpec{host: host, subnet: subnet}, gateway, true); err != nil {
-			return err
+			fmt.Fprintf(os.Stderr, "applying route %s via %s: %v\n", subnet, gateway, err)
+			errs = append(errs, err)
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // subnetForHost returns the configured ROUTES subnet for host.
@@ -552,7 +559,9 @@ func (a *app) replaceRoutesFromFile(path, host, gateway string) error {
 	})
 }
 
-// forEachRouteLine reads a route list and calls fn for every non-empty route line.
+// forEachRouteLine reads a route list and calls fn for every valid route line.
+// Invalid lines are logged and skipped; fn errors are collected so that one
+// failing route does not prevent the remaining routes from being applied.
 func forEachRouteLine(path string, fn func(string) error) error {
 	file, err := openRouteList(path)
 	if err != nil {
@@ -560,23 +569,28 @@ func forEachRouteLine(path string, fn func(string) error) error {
 	}
 	defer file.Close()
 
+	var errs []error
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" {
 			continue
 		}
+		if _, err := parseRouteDst(line); err != nil {
+			fmt.Fprintf(os.Stderr, "skipping invalid route in list %s: %q: %v\n", path, line, err)
+			continue
+		}
 		if err := fn(line); err != nil {
 			fmt.Fprintf(os.Stderr, "applying route from list %s: %v\n", path, err)
-			return err
+			errs = append(errs, err)
 		}
 	}
 
 	if err := scanner.Err(); err != nil {
 		fmt.Fprintf(os.Stderr, "reading routes list %s: %v\n", path, err)
-		return err
+		errs = append(errs, err)
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 // openRouteList opens a local route file or downloads and validates an HTTP route list.
@@ -608,7 +622,9 @@ func openRouteList(path string) (io.ReadCloser, error) {
 	return os.Open(path)
 }
 
-// validRouteList verifies that a downloaded list contains at least one valid route.
+// validRouteList verifies that a downloaded list contains at least one valid
+// route. Individual invalid lines are skipped later by forEachRouteLine; a
+// response without any valid route (e.g. an error page) is rejected.
 func validRouteList(data []byte) bool {
 	scanner := bufio.NewScanner(bytes.NewReader(data))
 	lines := 0
@@ -617,10 +633,9 @@ func validRouteList(data []byte) bool {
 		if line == "" {
 			continue
 		}
-		if _, err := parseRouteDst(line); err != nil {
-			return false
+		if _, err := parseRouteDst(line); err == nil {
+			lines++
 		}
-		lines++
 	}
 	return lines > 0 && scanner.Err() == nil
 }

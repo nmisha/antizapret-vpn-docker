@@ -157,6 +157,48 @@ class ListCacheTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual((self.root / 'result/ips.txt').read_text(), '')
 
+    def test_blank_lines_and_comments_in_exclude_do_not_empty_the_list(self):
+        self.prepare_real_parser()
+        (self.root / 'config/custom/exclude-ips-custom.txt').write_text(
+            '\n   \n# comment\r\n\n')
+        (self.root / 'config/custom/exclude-asn-custom.txt').write_text('\n\n')
+        (self.root / 'config/include-asn-dist.txt').write_text('Telegram\n')
+        result = self.run_shell('bash parse.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/ips.txt').read_text(), '192.0.2.0/24\n')
+        self.assertEqual((self.root / 'result/asn.txt').read_text(), 'Telegram\n')
+
+    def test_cidr_exclusion_is_exact_and_regex_exclusion_still_works(self):
+        self.prepare_real_parser()
+        (self.root / 'config/include-ips-dist.txt').write_text(
+            '10.0.0.0/8\n110.0.0.0/8\n198.51.100.0/24\n203.0.113.0/24\n')
+        (self.root / 'config/custom/exclude-ips-custom.txt').write_text(
+            '10.0.0.0/8\n^203\\.0\\.113\\.\n')
+        result = self.run_shell('bash parse.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/ips.txt').read_text(),
+                         '110.0.0.0/8\n198.51.100.0/24\n')
+
+    def test_invalid_ip_entries_are_skipped_not_fatal(self):
+        self.prepare_real_parser()
+        (self.root / 'config/custom/include-ips-custom.txt').write_text(
+            '2001:db8::/32\n300.1.1.1\n10.0.0.0/33\nnot-an-ip\n198.51.100.7\n')
+        result = self.run_shell('bash parse.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/ips.txt').read_text(),
+                         '192.0.2.0/24\n198.51.100.7\n')
+        self.assertIn('Skipping invalid IPv4 entry in ips list: 2001:db8::/32', result.stderr)
+
+    def test_asn_organization_names_keep_spaces(self):
+        self.prepare_real_parser()
+        (self.root / 'config/include-asn-dist.txt').write_text(
+            'Google LLC\n/cloud flare/  # comment\nAS13335\n')
+        (self.root / 'config/custom/exclude-asn-custom.txt').write_text('as13335\n')
+        result = self.run_shell('bash parse.sh')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.root / 'result/asn.txt').read_text(),
+                         '/cloud flare/\nGoogle LLC\n')
+
     def test_parallel_refreshes_are_serialized_and_stale_file_is_harmless(self):
         self.script('download.sh', 'exit 0')
         self.env.update(IPS_URL='', ASN_URL='')

@@ -22,7 +22,9 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime:ro
     healthcheck:
-      test: ["CMD", "/root/healthcheck.sh"]
+      # Plain Compose does not restart unhealthy containers: stop PID 1 so that
+      # `restart: unless-stopped` recovers. tee keeps the output in docker logs.
+      test: (timeout 50s /root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
       interval: 10s
       timeout: 1m
       start_period: 90s
