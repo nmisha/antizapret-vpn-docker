@@ -48,8 +48,8 @@ esac''')
         path.chmod(0o755)
 
     def run_script(self, text, **environment):
-        text = text.replace('/.inited', str(self.root / '.inited')).replace(
-            '/.config_md5', str(self.root / '.config_md5'))
+        text = text.replace('/dev/shm/.inited', str(self.root / '.inited')).replace(
+            '/dev/shm/.config_md5', str(self.root / '.config_md5'))
         return subprocess.run(['bash', '-c', text], env=dict(self.env, **environment),
                               capture_output=True, text=True, timeout=15)
 

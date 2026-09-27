@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-INIT_FILE="/.inited"
-rm -f "$INIT_FILE"
+INIT_FILE="/dev/shm/.inited"
 
 cp -n /root/AdGuardHome.yaml /opt/adguardhome/conf/AdGuardHome.yaml
 
@@ -65,13 +64,13 @@ if [ "$AZ_WORLD_ENABLED" = "1" ]; then
         AZ_WORLD_CLIENT_IDS='["az-world", "'$AZ_WORLD_HOST'"]'
     fi
 fi
-echo "$CONFIG_MD5" > /.config_md5
+echo "$CONFIG_MD5" > /dev/shm/.config_md5
 # Runtime filter state can differ after restart, especially after a cold start
 # without world. Reconcile both exits once the local API becomes available.
-rm -f /.config_md5.local /.config_md5.world
-touch /.config_md5.local_pending
+# /dev/shm starts empty on every container start, so no applied checksums exist.
+touch /dev/shm/.config_md5.local_pending
 if [ "$AZ_WORLD_ENABLED" = "1" ]; then
-    touch /.config_md5.world_pending
+    touch /dev/shm/.config_md5.world_pending
 fi
 
 function ensure_filter () {
