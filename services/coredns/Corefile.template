@@ -9,8 +9,13 @@
         failover SERVFAIL
         # SERVFAIL is a routing decision, not a failed health check.
         # Only transport failures should take an exit out of rotation.
-        max_fails 1
-        health_check 1s
+        # A failed query starts probing (". NS", 1s timeout, any reply is
+        # healthy) every health_check until one succeeds; an exit is down when
+        # failed probes > max_fails. 2/2s: down after ~7s of consecutive
+        # timeouts, so one slow reply does not reroute world domains; back in
+        # rotation within ~2s after recovery.
+        max_fails 2
+        health_check 2s
     }
     finalize force_resolve
 
