@@ -102,7 +102,8 @@ func notifyAdminsAboutStranger(bot *tgbotapi.BotAPI, usersStore *UsersStore, msg
 	if isJoinIgnored(id) {
 		return
 	}
-	// Updates are handled one at a time, so check-then-mark needs no extra locking.
+	// The dispatcher serializes updates from the same sender, so this sender's
+	// check-then-mark needs no extra locking across delivery.
 	// Only a successful delivery starts the per-user cooldown and keeps the global slot.
 	if joinPerUser.remaining(id, time.Now()) > 0 {
 		return

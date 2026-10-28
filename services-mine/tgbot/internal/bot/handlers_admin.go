@@ -308,11 +308,15 @@ func sendBroadcast(ctx *Ctx, text string, entities []tgbotapi.MessageEntity) {
 func sendAdminMessageToUser(ctx *Ctx, targetID int64, targetName, text string, entities []tgbotapi.MessageEntity) {
 	// The target may have been deleted or disabled while the admin was typing.
 	u, ok, err := ctx.UsersStore.GetByID(targetID)
-	if err == nil && !ok {
+	if err != nil {
+		replyServiceError(ctx, "бот", "Не удалось проверить получателя, сообщение не отправлено", err)
+		return
+	}
+	if !ok {
 		reply(ctx.Bot, ctx.ChatID, "Пользователь "+targetName+" удалён, сообщение не отправлено.")
 		return
 	}
-	if err == nil && u.Disabled {
+	if u.Disabled {
 		reply(ctx.Bot, ctx.ChatID, "Пользователь "+targetName+" отключён, сообщение не отправлено. Включить: /users_admin")
 		return
 	}
