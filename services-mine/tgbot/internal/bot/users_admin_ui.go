@@ -19,34 +19,29 @@ var botUserNameRe = regexp.MustCompile(`^[\p{L}\p{N}_.-]{1,32}$`)
 
 func RegisterUsersAdminHandlers(reg *CommandRegistry) {
 	reg.Command(CommandSpec{Cmd: "/users_admin", Desc: "UI: пользователи бота, роли, префиксы профилей, заявки", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUsersAdmin,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Управление пользователями доступно только в личных сообщениях с ботом."),
 	)
 	reg.Alias("users_admin", "/users_admin")
 
 	reg.Command(CommandSpec{Cmd: "/prefix_add", Args: "<name> <wg|ovpn|mtproto> <prefix>", Desc: "добавить префикс профилей пользователю", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handlePrefixAdd,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /prefix_add доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /prefix_add <name> <wg|ovpn|mtproto> <prefix>"),
 	)
 	reg.Alias("prefix_add", "/prefix_add")
 
 	reg.Command(CommandSpec{Cmd: "/prefix_del", Args: "<name> <wg|ovpn|mtproto> <prefix>", Desc: "убрать префикс профилей у пользователя", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handlePrefixDel,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /prefix_del доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /prefix_del <name> <wg|ovpn|mtproto> <prefix>"),
 	)
 	reg.Alias("prefix_del", "/prefix_del")
 
 	reg.Command(CommandSpec{Cmd: "/user_disable", Args: "<name>", Desc: "отключить пользователя от бота и уведомлений", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUserDisable,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /user_disable доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /user_disable <name>"),
 	)
 	reg.Alias("user_disable", "/user_disable")
 
 	reg.Command(CommandSpec{Cmd: "/user_enable", Args: "<name>", Desc: "снова включить пользователя", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUserEnable,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /user_enable доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /user_enable <name>"),
 	)

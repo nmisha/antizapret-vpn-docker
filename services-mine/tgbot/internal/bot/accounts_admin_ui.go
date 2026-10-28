@@ -28,7 +28,6 @@ func accm(action string, parts ...string) string {
 
 func RegisterAdminAccountsUIHandlers(reg *CommandRegistry) {
 	reg.Command(CommandSpec{Cmd: "/accounts_admin", Desc: "UI: управление учётными записями", Section: secAdminAccounts, NeedAny: []Role{RoleAdmin}}, handleAccountsAdminOpen,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivate("Управление учётными записями доступно только в личных сообщениях с ботом."),
 	)
 	reg.Alias("accounts_admin", "/accounts_admin")

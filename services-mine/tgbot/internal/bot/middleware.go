@@ -41,6 +41,19 @@ func RequireAnyRole(msg string, roles ...Role) Middleware {
 	}
 }
 
+// needAnyDeniedText: "Недостаточно прав. Нужна роль DomainEditor или ServiceManager (или Admin)."
+func needAnyDeniedText(roles []Role) string {
+	names := make([]string, 0, len(roles))
+	for _, r := range roles {
+		names = append(names, string(r))
+	}
+	msg := "Недостаточно прав. Нужна роль " + strings.Join(names, " или ")
+	if len(roles) != 1 || roles[0] != RoleAdmin {
+		msg += " (или Admin)"
+	}
+	return msg + "."
+}
+
 func RequireNonEmptyArg(msg string) Middleware {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(ctx *Ctx, arg string) {

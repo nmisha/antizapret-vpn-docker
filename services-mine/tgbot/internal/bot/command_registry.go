@@ -41,7 +41,12 @@ func (cr *CommandRegistry) Alias(alias, cmd string) {
 }
 
 // Command registers a user-facing command and adds it to registry for /help.
+// NeedAny is enforced here: the roles that show a command in /help are the roles
+// that may run it, so the two cannot drift apart.
 func (cr *CommandRegistry) Command(spec CommandSpec, h HandlerFunc, mws ...Middleware) {
+	if len(spec.NeedAny) > 0 {
+		mws = append([]Middleware{RequireAnyRole(needAnyDeniedText(spec.NeedAny), spec.NeedAny...)}, mws...)
+	}
 	cr.R.Handle(spec.Cmd, h, mws...)
 	cr.addSpec(spec)
 }

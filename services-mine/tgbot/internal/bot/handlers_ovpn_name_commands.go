@@ -18,7 +18,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameCreate,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_create <certificate_name>"),
 	)
 	reg.Command(
@@ -30,7 +29,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameConf,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_conf <profile_name_or_prefix>"),
 	)
 	reg.Command(
@@ -42,7 +40,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameStatsProfile,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_stats_profile <profile_name_or_prefix>"),
 	)
 	reg.Command(
@@ -54,7 +51,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameScore,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_score <profile_name_or_prefix>"),
 	)
 	reg.Command(
@@ -66,7 +62,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameResetScore,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_reset_score <profile_name_or_prefix>"),
 	)
 	reg.Command(
@@ -78,7 +73,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameRevoke,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_revoke <profile_name_or_prefix>"),
 	)
 	reg.Command(
@@ -90,7 +84,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameBurn,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_burn <profile_name_or_prefix>"),
 	)
 	reg.Command(
@@ -102,7 +95,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameRestart,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_restart <profile_name_or_prefix>"),
 	)
 	reg.Command(
@@ -114,7 +106,6 @@ func RegisterOvpnNameCommands(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleOvpnNameRestartContainer,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequireNonEmptyArg("Формат: /ovpn_restart_container <profile_name_or_prefix>"),
 	)
 }

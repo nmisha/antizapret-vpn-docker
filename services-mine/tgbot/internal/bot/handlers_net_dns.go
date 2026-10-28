@@ -13,14 +13,10 @@ import (
 )
 
 func RegisterNetHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/net_dns_resolve", Args: "[domain]", Desc: "DNS resolve через заданный DNS-сервер", Section: secNet, NeedAny: []Role{RoleNetUser}}, handleNetDNSResolve,
-		RequireRole(RoleNetUser, "Недостаточно прав."),
-	)
+	reg.Command(CommandSpec{Cmd: "/net_dns_resolve", Args: "[domain]", Desc: "DNS resolve через заданный DNS-сервер", Section: secNet, NeedAny: []Role{RoleNetUser}}, handleNetDNSResolve)
 	reg.Alias("net_dns_resolve", "/net_dns_resolve")
 
-	reg.Command(CommandSpec{Cmd: "/net_get_iperf3", Desc: "готовые iperf3 команды для near/far node", Section: secNet, NeedAny: []Role{RoleNetUser}}, handleNetGetIperf3,
-		RequireRole(RoleNetUser, "Недостаточно прав."),
-	)
+	reg.Command(CommandSpec{Cmd: "/net_get_iperf3", Desc: "готовые iperf3 команды для near/far node", Section: secNet, NeedAny: []Role{RoleNetUser}}, handleNetGetIperf3)
 	reg.Alias("net_get_iperf3", "/net_get_iperf3")
 }
 

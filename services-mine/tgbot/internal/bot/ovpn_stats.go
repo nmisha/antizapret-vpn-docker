@@ -13,25 +13,21 @@ import (
 
 func RegisterOvpnStatsHandlers(reg *CommandRegistry) {
 	reg.Command(CommandSpec{Cmd: "/ovpnstats", Desc: "статистика OpenVPN (legacy alias)", Section: secOvpn, NeedAny: []Role{RoleOvpnStats}, Hidden: true}, handleOvpnStats,
-		RequireRole(RoleOvpnStats, "Недостаточно прав. Нужна роль OvpnStats (или Admin)."),
 		RequirePrivateWithOpenDM("Статистика OpenVPN доступна только в личных сообщениях с ботом."),
 	)
 	reg.Alias("ovpnstats", "/ovpnstats")
 
 	reg.Command(CommandSpec{Cmd: "/ovpn_stats", Desc: "статистика OpenVPN по своим профилям", Section: secOvpn, NeedAny: []Role{RoleOvpnStats}}, handleOvpnStats,
-		RequireRole(RoleOvpnStats, "Недостаточно прав. Нужна роль OvpnStats (или Admin)."),
 		RequirePrivateWithOpenDM("Статистика OpenVPN доступна только в личных сообщениях с ботом."),
 	)
 	reg.Alias("ovpn_stats", "/ovpn_stats")
 
 	reg.Command(CommandSpec{Cmd: "/ovpnstats_admin", Desc: "статистика OpenVPN (legacy alias)", Section: secAdminOvpn, NeedAny: []Role{RoleAdmin}, Hidden: true}, handleOvpnStatsAdmin,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Статистика OpenVPN доступна только в личных сообщениях с ботом."),
 	)
 	reg.Alias("ovpnstats_admin", "/ovpnstats_admin")
 
 	reg.Command(CommandSpec{Cmd: "/ovpn_stats_admin", Desc: "статистика OpenVPN (admin)", Section: secAdminOvpn, NeedAny: []Role{RoleAdmin}}, handleOvpnStatsAdmin,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Статистика OpenVPN доступна только в личных сообщениях с ботом."),
 	)
 	reg.Alias("ovpn_stats_admin", "/ovpn_stats_admin")

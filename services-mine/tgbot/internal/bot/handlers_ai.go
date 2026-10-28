@@ -16,7 +16,6 @@ func RegisterAIHandlers(reg *CommandRegistry) {
 	reg.Command(CommandSpec{Cmd: "/accounts", Desc: "UI: получить учётные записи", Section: secAccounts, NeedAny: []Role{RoleAiUser}}, handleAccounts,
 		LogCommand(),
 		WithTyping(),
-		RequireRole(RoleAiUser, "Недостаточно прав. Нужна роль AiUser (или Admin)."),
 	)
 	reg.Alias("accounts", "/accounts")
 }

@@ -43,7 +43,6 @@ func RegisterGuardNotifyHandlers(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleGuardNotMeNotifyOff,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /guard_notme_notify_off доступна только в личных сообщениях с ботом."),
 	)
 
@@ -56,7 +55,6 @@ func RegisterGuardNotifyHandlers(reg *CommandRegistry) {
 			NeedAny: []Role{RoleAdmin},
 		},
 		handleGuardNotMeNotifyOn,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /guard_notme_notify_on доступна только в личных сообщениях с ботом."),
 	)
 }

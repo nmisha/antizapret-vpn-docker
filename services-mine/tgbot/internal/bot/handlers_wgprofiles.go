@@ -17,15 +17,11 @@ const (
 
 // /wg_profiles (WgUserControl) - user menu
 func RegisterWgProfilesHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/wg_profiles", Desc: "UI: мои WireGuard профили", Section: secWg, NeedAny: []Role{RoleWgUserControl}}, handleWgProfiles,
-		RequireRole(RoleWgUserControl, "Недостаточно прав. Нужна роль WgUserControl (или Admin)."),
-	)
+	reg.Command(CommandSpec{Cmd: "/wg_profiles", Desc: "UI: мои WireGuard профили", Section: secWg, NeedAny: []Role{RoleWgUserControl}}, handleWgProfiles)
 	reg.Alias("wg_profiles", "/wg_profiles")
 
 	// admin menu
-	reg.Command(CommandSpec{Cmd: "/wg_profiles_admin", Desc: "UI: WireGuard профили (admin)", Section: secAdminWg, NeedAny: []Role{RoleAdmin}}, handleWgProfilesAdmin,
-		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
-	)
+	reg.Command(CommandSpec{Cmd: "/wg_profiles_admin", Desc: "UI: WireGuard профили (admin)", Section: secAdminWg, NeedAny: []Role{RoleAdmin}}, handleWgProfilesAdmin)
 	reg.Alias("wg_profiles_admin", "/wg_profiles_admin")
 }
 
