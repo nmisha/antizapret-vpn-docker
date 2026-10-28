@@ -710,6 +710,7 @@ func handleUsrDeleteConfirm(ctx *Ctx, payload string) {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
 		return
 	}
+	clearUserUIState(id)
 	reply(ctx.Bot, ctx.ChatID, msg)
 	ctx.MessageID = 0
 	showUsersAdminList(ctx)

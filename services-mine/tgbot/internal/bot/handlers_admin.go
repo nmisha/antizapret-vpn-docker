@@ -131,10 +131,14 @@ func handleUserDel(ctx *Ctx, arg string) {
 		reply(ctx.Bot, ctx.ChatID, "Формат: /user_del <name>")
 		return
 	}
+	u, found, _ := ctx.UsersStore.GetByName(name)
 	msg, err := ctx.UsersStore.DeleteByName(name)
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
 		return
+	}
+	if found {
+		clearUserUIState(u.TelegramID)
 	}
 	reply(ctx.Bot, ctx.ChatID, msg)
 }
@@ -302,7 +306,13 @@ func sendBroadcast(ctx *Ctx, text string, entities []tgbotapi.MessageEntity) {
 }
 
 func sendAdminMessageToUser(ctx *Ctx, targetID int64, targetName, text string, entities []tgbotapi.MessageEntity) {
-	if u, ok, err := ctx.UsersStore.GetByID(targetID); err == nil && ok && u.Disabled {
+	// The target may have been deleted or disabled while the admin was typing.
+	u, ok, err := ctx.UsersStore.GetByID(targetID)
+	if err == nil && !ok {
+		reply(ctx.Bot, ctx.ChatID, "Пользователь "+targetName+" удалён, сообщение не отправлено.")
+		return
+	}
+	if err == nil && u.Disabled {
 		reply(ctx.Bot, ctx.ChatID, "Пользователь "+targetName+" отключён, сообщение не отправлено. Включить: /users_admin")
 		return
 	}

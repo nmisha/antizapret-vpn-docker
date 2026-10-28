@@ -61,11 +61,13 @@ func clearConv(chatID, tgID int64) {
 	setConv(chatID, tgID, ConvState{Mode: ConvNone})
 }
 
-// clearUserUIState discards all flows belonging to a removed or disabled user.
+// clearUserUIState discards all flows belonging to a removed or disabled user. Admin dialogs that
+// target the user stay: sendAdminMessageToUser re-checks the target before sending.
 func clearUserUIState(tgID int64) {
 	privatePendingMu.Lock()
 	defer privatePendingMu.Unlock()
 	clearPrivatePendings(tgID)
+	clearPending(tgID)
 	convMu.Lock()
 	for key := range conv {
 		if key.tgID == tgID {

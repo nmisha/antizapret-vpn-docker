@@ -23,4 +23,3 @@ func clearOvpnAdminScope(tgID int64) {
 	defer ovpnScopeMu.Unlock()
 	delete(ovpnAdminScopes, tgID)
 }
-

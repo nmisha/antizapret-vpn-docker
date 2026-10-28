@@ -50,6 +50,7 @@ func TestDeleteUserClearsAllUIState(t *testing.T) {
 	const id int64 = 400
 	t.Cleanup(func() { clearUserUIState(id) })
 	setUsrPending(id, usrPending{Kind: usrPendingRename})
+	setPending(id, PendingAdd{Candidate: "example.com"})
 	setConv(-10, id, ConvState{Mode: ConvSupportAwaitText})
 	scope := wgAdminScope{Mode: wgScopeAll}
 	setAdminScope(id, scope)
@@ -63,6 +64,9 @@ func TestDeleteUserClearsAllUIState(t *testing.T) {
 	if clearPrivatePendings(id) {
 		t.Fatal("pending survived deletion")
 	}
+	if _, ok := getPending(id); ok {
+		t.Fatal("domain pending survived deletion")
+	}
 	if _, ok := getConv(-10, id); ok {
 		t.Fatal("group dialog survived deletion")
 	}
@@ -71,11 +75,34 @@ func TestDeleteUserClearsAllUIState(t *testing.T) {
 			t.Fatal("scope survived deletion")
 		}
 	}
-	if _, err := us.Add("petya", id); err != nil {
+}
+
+func TestUserDelCommandClearsUIState(t *testing.T) {
+	bot, _ := newFakeTelegram(t)
+	us := newTestUsersStore(t, disabledFixture)
+	const id int64 = 400
+	t.Cleanup(func() { clearUserUIState(id) })
+	setConv(-10, id, ConvState{Mode: ConvSupportAwaitText})
+	handleUserDel(adminCtx(t, bot, us), "petya")
+	if _, ok, _ := us.GetByID(id); ok {
+		t.Fatal("user was not deleted")
+	}
+	if _, ok := getConv(-10, id); ok {
+		t.Fatal("group dialog survived /user_del")
+	}
+}
+
+func TestDirectMessageToDeletedRefused(t *testing.T) {
+	bot, ft := newFakeTelegram(t)
+	us := newTestUsersStore(t, disabledFixture)
+	ctx := adminCtx(t, bot, us)
+	// The admin picked petya, then petya was deleted before the text was sent.
+	if _, err := us.DeleteByName("petya"); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok := getConv(id, id); ok {
-		t.Fatal("readded user inherited a dialog")
+	sendAdminMessageToUser(ctx, 400, "petya", "hi", nil)
+	if ft.sentTo("400") {
+		t.Fatalf("message delivered to deleted user: %v", ft.sent())
 	}
 }
 
@@ -120,11 +147,20 @@ func TestJoinCooldownOnlyAfterDelivery(t *testing.T) {
 	if !cooling(limited) || ft.count("sendMessage:100") != 1 {
 		t.Fatal("retry was not delivered")
 	}
-	// No admins: no daily cooldown.
+	globalUsed := func() int {
+		joinGlobalMu.Lock()
+		defer joinGlobalMu.Unlock()
+		return len(joinGlobalSent)
+	}
+	used := globalUsed()
+	// No admins: no daily cooldown, no global slot.
 	empty := newTestUsersStore(t, `[]`)
 	notifyAdminsAboutStranger(bot, empty, msg(86703))
 	if cooling(86703) {
 		t.Fatal("no-admin request started a daily cooldown")
+	}
+	if globalUsed() != used {
+		t.Fatal("no-admin request took a global slot")
 	}
 	// Telegram rejects every send: no daily cooldown.
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -140,8 +176,14 @@ func TestJoinCooldownOnlyAfterDelivery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	notifyAdminsAboutStranger(failing, us, msg(86704))
+	// Repeated messages from one stranger must not drain the global quota while delivery fails.
+	for i := 0; i <= joinGlobalMax; i++ {
+		notifyAdminsAboutStranger(failing, us, msg(86704))
+	}
 	if cooling(86704) {
 		t.Fatal("failed delivery started a daily cooldown")
+	}
+	if globalUsed() != used {
+		t.Fatal("failed delivery kept a global slot")
 	}
 }

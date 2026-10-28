@@ -46,6 +46,15 @@ func joinGlobalAllow(now time.Time) bool {
 	return true
 }
 
+// joinGlobalRelease returns a slot taken by joinGlobalAllow(at) when nothing was delivered.
+func joinGlobalRelease(at time.Time) {
+	joinGlobalMu.Lock()
+	defer joinGlobalMu.Unlock()
+	if i := slices.IndexFunc(joinGlobalSent, at.Equal); i >= 0 {
+		joinGlobalSent = slices.Delete(joinGlobalSent, i, i+1)
+	}
+}
+
 func isJoinIgnored(id int64) bool {
 	return slices.Contains(getSettingsCached().IgnoredJoinIDs, id)
 }
@@ -93,18 +102,17 @@ func notifyAdminsAboutStranger(bot *tgbotapi.BotAPI, usersStore *UsersStore, msg
 	if isJoinIgnored(id) {
 		return
 	}
-	// Serialize admission and delivery so concurrent messages cannot duplicate a request.
-	// Only a successful delivery starts the per-user cooldown.
-	joinPerUser.mu.Lock()
-	defer joinPerUser.mu.Unlock()
-	if last, ok := joinPerUser.last[id]; ok && time.Since(last) < joinPerUser.cooldown {
-		return
-	}
-	if !joinGlobalAllow(time.Now()) {
+	// Updates are handled one at a time, so check-then-mark needs no extra locking.
+	// Only a successful delivery starts the per-user cooldown and keeps the global slot.
+	if joinPerUser.remaining(id, time.Now()) > 0 {
 		return
 	}
 	admins, err := usersStore.ListAdmins()
 	if err != nil || len(admins) == 0 {
+		return
+	}
+	admitted := time.Now()
+	if !joinGlobalAllow(admitted) {
 		return
 	}
 
@@ -135,9 +143,11 @@ func notifyAdminsAboutStranger(bot *tgbotapi.BotAPI, usersStore *UsersStore, msg
 		}
 		logSendErrorIfEnabled(a.TelegramID, err, "send message", "join request")
 	}
-	if delivered {
-		joinPerUser.last[id] = time.Now()
+	if !delivered {
+		joinGlobalRelease(admitted)
+		return
 	}
+	joinPerUser.mark(id, time.Now())
 }
 
 // handleJoinRequestCallback handles "usr:j:<act>:<tg_id>[:<name>]" from a join request card.

@@ -35,6 +35,25 @@ func (l *cooldownLimiter) allow(userID int64) (bool, time.Duration) {
 	return true, 0
 }
 
+// remaining returns how long userID still has to wait at now. Unlike allow it starts no cooldown.
+func (l *cooldownLimiter) remaining(userID int64, now time.Time) time.Duration {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	if t, ok := l.last[userID]; ok {
+		if elapsed := now.Sub(t); elapsed < l.cooldown {
+			return l.cooldown - elapsed
+		}
+	}
+	return 0
+}
+
+// mark starts the cooldown of userID at now.
+func (l *cooldownLimiter) mark(userID int64, now time.Time) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.last[userID] = now
+}
+
 func fmtDurationRu(d time.Duration) string {
 	if d < 0 {
 		d = 0
