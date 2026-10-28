@@ -49,10 +49,10 @@ func TestTelemtClientListUsers(t *testing.T) {
 func TestTelemtClientError(t *testing.T) {
 	c := newTestTelemtClient(t, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusConflict)
-		io.WriteString(w, `{"ok":false,"error":{"code":"last_user_forbidden","message":"cannot delete last user"},"request_id":1}`)
+		io.WriteString(w, `{"ok":false,"error":{"code":"revision_conflict","message":"config changed"},"request_id":1}`)
 	})
-	err := c.deleteUser("admin")
-	if err == nil || !strings.Contains(err.Error(), "last_user_forbidden") {
+	err := c.resetQuota("admin")
+	if err == nil || !strings.Contains(err.Error(), "revision_conflict") {
 		t.Fatalf("err = %v", err)
 	}
 }

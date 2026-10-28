@@ -93,7 +93,8 @@ sudo $t del vasya
 
 Лимиты: `--ips --conns --expires --quota --up --down`; `none` снимает индивидуальный лимит. Скрипту нужен токен API:
 он берётся из `TELEMT_TOKEN` или из `auth_header` в `config.toml` (файл читается root/uid 65532, поэтому `sudo`).
-Можно зафиксировать токен переменной `TELEMT_API_TOKEN` в override и передавать его скрипту как `TELEMT_TOKEN`.
+Можно передать текущий токен скрипту как `TELEMT_TOKEN`. Новый токен через `TELEMT_API_TOKEN` не задавайте без
+обновления telemt-panel (см. «Управление из tgbot»).
 
 ## Про лимиты соединений
 
@@ -147,24 +148,37 @@ sudo nsenter -t "$pid" -n bash services-mine/telemt/telemt-users.sh link admin
 
 ## Управление из tgbot
 
-tgbot ходит в тот же API по overlay (`telemt.antizapret:9091`). Нужен один и тот же токен у обоих сервисов,
-в `config-docker-swarm/docker-compose.override.yml`:
+tgbot ходит в тот же API по overlay (`telemt.antizapret:9091`) с **текущим** токеном telemt.
+Возьмите `auth_header` на world-ноде и передайте его боту в `config-docker-swarm/docker-compose.override.yml`:
 
-```yaml
-telemt:
-  environment:
-    - TELEMT_API_TOKEN=<токен A-Za-z0-9._->
-tgbot:
-  environment:
-    - TELEMT_TOKEN=<тот же токен>
+```sh
+sudo sed -n 's/^auth_header *= *"\(.*\)"/\1/p' config-mine/telemt/config.toml
 ```
 
-Без `TELEMT_API_TOKEN` в telemt можно взять `auth_header` из `config-mine/telemt/config.toml`.
+```yaml
+tgbot:
+  environment:
+    - TELEMT_TOKEN=<значение auth_header>
+```
+
+Без `TELEMT_TOKEN` раздел MTProto в боте выключен: команд `/mtproto` и `/mtproto_admin` нет в `/help`,
+в логе бота при старте строка «MTProto: TELEMT_TOKEN не задан». После добавления токена бот нужно перезапустить
+(Swarm пересоздаёт контейнер при смене environment сам).
+
+Не задавайте новый токен через `TELEMT_API_TOKEN` у telemt: entrypoint перепишет `auth_header`, а telemt-panel
+берёт токен только при первом создании своего конфига и дальше его не обновляет — панель потеряет доступ к API.
+Если токен всё же меняется, обновите его во всех трёх местах и перезапустите сервисы:
+`auth_header` в `config-mine/telemt/config.toml` (или `TELEMT_API_TOKEN`), `[telemt].auth_header` в
+`config-mine/telemt-panel/config/config.toml` и `TELEMT_TOKEN` у tgbot.
+
+Удаления прокси в боте нет: удаляйте в telemt-panel. Панель хранит по имени пользователя правило автосброса
+квоты, историю трафика и IP, а также убирает его из WEB-профилей telemt; удаление в обход панели оставило бы
+эти данные, и прокси, созданный позже с тем же именем, их унаследовал бы. Вместо удаления в боте есть «Disable».
 
 - `/mtproto` (роль `MtprotoUserControl`): свои прокси — статистика, ссылка с кнопкой «Подключить» и QR,
   выпуск нового секрета.
 - `/mtproto_admin` (Admin), scope My/User/All: всё то же, плюс создание, лимиты (IP, соединения, срок,
-  квота, скорость; `none` возвращает значение по умолчанию), включение/отключение, сброс квоты, удаление.
+  квота, скорость; `none` возвращает значение по умолчанию), включение/отключение, сброс квоты. Удаление — только в telemt-panel (см. выше).
 
 Привязка к пользователю бота — префиксы имён (`mtproto_profiles` в `users.json`, как у `wg_profiles`/`ovpn_profiles`).
 Править файл вручную не нужно: роль и префиксы задаются в боте через `/users_admin` → пользователь →

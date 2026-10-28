@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"log"
 	"sort"
 	"strings"
 	"time"
@@ -12,13 +13,23 @@ import (
 
 const mtpCbPrefix = "mtp:"
 
-// Telegram limits callback data to 64 bytes; the longest prefix is "confirm:mtp:a:delete:" (21).
+// Telegram limits callback data to 64 bytes; the longest prefix is "confirm:mtp:a:rotate:" (21).
 const mtpMaxButtonName = 40
 
 // Names created from the bot are shorter, so every action button fits.
 const mtpMaxNewName = 32
 
+// mtprotoEnabled: the MTProto section exists only with TELEMT_TOKEN set. Commands are registered
+// at startup; callbacks check it again to answer buttons from old messages.
+func mtprotoEnabled() bool { return envTrim("TELEMT_TOKEN") != "" }
+
+const mtprotoDisabledText = "Раздел MTProto выключен."
+
 func RegisterMtprotoHandlers(reg *CommandRegistry) {
+	if !mtprotoEnabled() {
+		log.Printf("MTProto: TELEMT_TOKEN не задан, раздел /mtproto выключен")
+		return
+	}
 	reg.Command(CommandSpec{Cmd: "/mtproto", Desc: "UI: мои MTProto прокси для Telegram", Section: "MTProto", NeedAny: []Role{RoleMtprotoUserControl}}, handleMtproto,
 		RequireRole(RoleMtprotoUserControl, "Недостаточно прав. Нужна роль MtprotoUserControl (или Admin)."),
 		RequirePrivateWithOpenDM("Ссылки на MTProto прокси выдаются только в личных сообщениях с ботом."),
@@ -308,9 +319,10 @@ func sendMtpUserActions(ctx *Ctx, u telemtUser, admin bool) {
 				toggle,
 				tgbotapi.NewInlineKeyboardButtonData("Reset quota", "mtp:a:x:rq:"+name),
 			),
+			// No Delete: telemt-panel keeps per-user state (quota auto-reset, history, WEB profiles)
+			// that only its own delete cleans up. Disable covers the bot's needs.
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("New secret", "mtp:a:x:rot:"+name),
-				tgbotapi.NewInlineKeyboardButtonData("Delete", "mtp:a:x:del:"+name),
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				tgbotapi.NewInlineKeyboardButtonData("Back", "mtp:a:back"),

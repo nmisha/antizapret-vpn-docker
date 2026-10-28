@@ -208,7 +208,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 		handleUsrDeleteConfirm(ctx, payload)
 		return true
 
-	case "mtp:u:rotate", "mtp:a:rotate", "mtp:a:delete":
+	case "mtp:u:rotate", "mtp:a:rotate":
 		handleMtpConfirm(ctx, kind, strings.TrimSpace(payload))
 		return true
 

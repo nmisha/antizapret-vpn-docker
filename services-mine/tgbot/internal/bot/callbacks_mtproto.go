@@ -5,6 +5,10 @@ import (
 )
 
 func handleMtprotoCallback(ctx *Ctx, data string) {
+	if !mtprotoEnabled() {
+		reply(ctx.Bot, ctx.ChatID, mtprotoDisabledText)
+		return
+	}
 	if !ctx.IsPrivate {
 		reply(ctx.Bot, ctx.ChatID, "MTProto прокси доступны только в личных сообщениях боту.")
 		return
@@ -153,7 +157,8 @@ func handleMtprotoAdminCallback(ctx *Ctx, client *telemtClient, data string) {
 		case "rot":
 			sendConfirm(ctx, "Выпустить новый секрет для "+name+"? Старая ссылка перестанет работать на всех устройствах.", "mtp:a:rotate", name)
 		case "del":
-			sendConfirm(ctx, "Удалить MTProto прокси "+name+"? Активные сессии будут разорваны.", "mtp:a:delete", name)
+			// Button from messages sent before removal of delete.
+			reply(ctx.Bot, ctx.ChatID, "Удаление прокси — в telemt-panel: она заодно убирает своё правило автосброса, историю и WEB-профили. В боте можно отключить прокси (Disable).")
 		default:
 			reply(ctx.Bot, ctx.ChatID, "Неизвестное действие.")
 		}
@@ -196,8 +201,12 @@ func refreshMtpUserLinks(client *telemtClient, u telemtUser) telemtUser {
 	return u
 }
 
-// handleMtpConfirm performs confirmed destructive actions; kind is "mtp:<u|a>:<rotate|delete>".
+// handleMtpConfirm performs confirmed actions; kind is "mtp:<u|a>:rotate".
 func handleMtpConfirm(ctx *Ctx, kind, name string) {
+	if !mtprotoEnabled() {
+		reply(ctx.Bot, ctx.ChatID, mtprotoDisabledText)
+		return
+	}
 	client, err := newTelemtClientFromEnv()
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, err.Error())
@@ -223,12 +232,6 @@ func handleMtpConfirm(ctx *Ctx, kind, name string) {
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: новый секрет выпущен, старая ссылка больше не работает.")
 		sendMtpLink(ctx, refreshMtpUserLinks(client, u))
-	case kind == "mtp:a:delete":
-		if err := client.deleteUser(name); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Не удалось удалить:\n"+truncate(err.Error(), 3500))
-			return
-		}
-		reply(ctx.Bot, ctx.ChatID, "OK: deleted "+name)
 	default:
 		reply(ctx.Bot, ctx.ChatID, "Неизвестное подтверждение: "+kind)
 	}

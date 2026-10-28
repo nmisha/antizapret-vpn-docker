@@ -167,10 +167,6 @@ func (c *telemtClient) patchUser(name string, patch map[string]any) (telemtUser,
 	return out, err
 }
 
-func (c *telemtClient) deleteUser(name string) error {
-	return c.do(http.MethodDelete, telemtUserPath(name), nil, nil)
-}
-
 // setEnabled disables (and drops active sessions) or enables the user.
 func (c *telemtClient) setEnabled(name string, enabled bool) (telemtUser, error) {
 	act := "/disable"
