@@ -143,8 +143,42 @@ sudo nsenter -t "$pid" -n bash services-mine/telemt/telemt-users.sh link admin
 Нужны `nsenter`, `bash`, `curl`, `jq` и `column` на world-хосте.
 `nsenter -n` меняет только сеть; скрипт и config.toml читаются с хоста.
 Порт наружу не публикуется. Документация:
-<https://github.com/telemt/telemt/blob/main/docs/Architecture/API/API.md>. Следующий этап — раздел в tgbot поверх этого API
-(`POST/PATCH/DELETE /v1/users`, ссылки в `links.tls`).
+<https://github.com/telemt/telemt/blob/main/docs/Architecture/API/API.md>.
+
+## Управление из tgbot
+
+tgbot ходит в тот же API по overlay (`telemt.antizapret:9091`). Нужен один и тот же токен у обоих сервисов,
+в `config-docker-swarm/docker-compose.override.yml`:
+
+```yaml
+telemt:
+  environment:
+    - TELEMT_API_TOKEN=<токен A-Za-z0-9._->
+tgbot:
+  environment:
+    - TELEMT_TOKEN=<тот же токен>
+```
+
+Без `TELEMT_API_TOKEN` в telemt можно взять `auth_header` из `config-mine/telemt/config.toml`.
+
+- `/mtproto` (роль `MtprotoUserControl`): свои прокси — статистика, ссылка с кнопкой «Подключить» и QR,
+  выпуск нового секрета.
+- `/mtproto_admin` (Admin), scope My/User/All: всё то же, плюс создание, лимиты (IP, соединения, срок,
+  квота, скорость; `none` возвращает значение по умолчанию), включение/отключение, сброс квоты, удаление.
+
+Привязка к пользователю бота — префиксы имён в `users.json`, как у `wg_profiles`/`ovpn_profiles`:
+
+```json
+{"telegram_id": 123, "name": "vasya", "roles": ["MtprotoUserControl"], "mtproto_profiles": ["vasya"]}
+```
+
+Бот ничего не хранит у себя: список берётся из API telemt. Уже созданные пользователи telemt (`admin`,
+заведённые через `telemt-users.sh`) остаются как есть и сразу видны в `/mtproto_admin` → All;
+чтобы выдать такой прокси пользователю бота, добавьте его имя или префикс в `mtproto_profiles`.
+Сравнение префиксов без учёта регистра. Новые имена бот создаёт в регистре, как введено (до 32 символов),
+и не даёт создать имя, отличающееся от существующего только регистром.
+Прокси с именем длиннее 40 символов в боте не показываются (лимит Telegram на callback data),
+ими управляет `telemt-users.sh`.
 
 ## Не проверено на реальных нодах
 

@@ -19,6 +19,7 @@ func handleRolesCatalog(ctx *Ctx, _ string) {
 		{RoleWgUserControl, "Доступ к /wg_profiles: статистика, конфиг и QR по своим WireGuard-профилям."},
 		{RoleAwgUserControl, "Доступ к /awg_profiles: статистика, конфиг и QR по своим Amnezia WireGuard-профилям."},
 		{RoleOvpnUserControl, "Доступ к /ovpn_profiles: выдача OpenVPN-профилей."},
+		{RoleMtprotoUserControl, "Доступ к /mtproto: ссылки, QR и статистика по своим MTProto прокси для Telegram."},
 		{RoleSupport, "Получает сообщения из /support."},
 		{RoleAiUser, "Доступ к командам выдачи учётных записей других сервисов, если это настроено."},
 	}

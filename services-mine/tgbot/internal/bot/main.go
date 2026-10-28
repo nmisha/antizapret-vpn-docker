@@ -182,6 +182,11 @@ func Run(register func(reg *CommandRegistry)) error {
 			continue
 		}
 
+		// pending mtproto admin actions (create proxy, set limit)
+		if handleMtpPendingIfAny(ctx, text) {
+			continue
+		}
+
 		// pending admin accounts ui actions
 		if handleAccAdminPendingIfAny(ctx, text) {
 			continue

@@ -165,6 +165,12 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
+	if strings.HasPrefix(data, mtpCbPrefix) {
+		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
+		handleMtprotoCallback(ctx, data)
+		return
+	}
+
 	// domains pending callbacks (add:...)
 	handleDomainPendingCallback(bot, ctx, q)
 }

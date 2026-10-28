@@ -1,6 +1,6 @@
 services:
   tgbot:
-    image: nmisha/antizapret-vpn-tgbot:6.0.37
+    image: nmisha/antizapret-vpn-tgbot:6.0.38
 #    container_name: tg-domain-bot
     hostname: tgbot.antizapret
     restart: unless-stopped
@@ -68,6 +68,12 @@ services:
       OVPN_PORT: "8080"
       OVPN_USERNAME: "admin"
       OVPN_PASSWORD: "password"
+
+      # telemt (MTProto proxy) control API, see services-mine/telemt/README.md
+      TELEMT_HOST: "telemt.antizapret"
+      TELEMT_PORT: "9091"
+      TELEMT_TOKEN: "" # = TELEMT_API_TOKEN of the telemt service (or auth_header from its config.toml)
+      TELEMT_TIMEOUT_SECONDS: "15"
 
       NET_DNS_SERVER: "adguard.antizapret" #"antizapret_coredns"
 

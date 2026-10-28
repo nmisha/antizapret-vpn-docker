@@ -74,6 +74,12 @@ MTProto-прокси для Telegram: **секрет на каждого пол�
 
 ## Этап 2: интеграция в tgbot
 
+✅ Реализовано: `/mtproto` и `/mtproto_admin`, роль `MtprotoUserControl`, поле `mtproto_profiles` в `users.json`
+(файлы `telemt_client.go`, `handlers_mtproto.go`, `callbacks_mtproto.go`, `mtproto_*.go`, тесты `telemt_client_test.go`).
+Настройка — README, раздел «Управление из tgbot». Не проверено на живом telemt.
+
+Исходный план:
+
 В [services-mine/tgbot/](../tgbot/) уже есть управление профилями wg, ovpn и awg (Go, `internal/bot/`). Добавить по аналогии раздел MTProto:
 
 1. Клиент REST API telemt: `internal/bot/telemt_client.go`. Адрес `http://telemt.antizapret:9091/v1`, заголовок `Authorization: <токен>`.

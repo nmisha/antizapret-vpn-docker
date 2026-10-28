@@ -9,33 +9,36 @@ import (
 type Role string
 
 const (
-	RoleDomainEditor    Role = "DomainEditor"
-	RoleDomainManager   Role = "DomainManager"
-	RoleServiceManager  Role = "ServiceManager" // renamed from Manager
-	RoleInfo            Role = "Info"
-	RoleWgStats         Role = "WgStats"
-	RoleAwgStats        Role = "AwgStats"
-	RoleOvpnStats       Role = "OvpnStats"
-	RoleWgUserControl   Role = "WgUserControl"
-	RoleAwgUserControl  Role = "AwgUserControl"
-	RoleOvpnUserControl Role = "OvpnUserControl"
-	RoleSupport         Role = "Support"
-	RoleAdmin           Role = "Admin"
-	RoleAiUser          Role = "AiUser"
-	RoleNetUser         Role = "NetUser"
+	RoleDomainEditor       Role = "DomainEditor"
+	RoleDomainManager      Role = "DomainManager"
+	RoleServiceManager     Role = "ServiceManager" // renamed from Manager
+	RoleInfo               Role = "Info"
+	RoleWgStats            Role = "WgStats"
+	RoleAwgStats           Role = "AwgStats"
+	RoleOvpnStats          Role = "OvpnStats"
+	RoleWgUserControl      Role = "WgUserControl"
+	RoleAwgUserControl     Role = "AwgUserControl"
+	RoleOvpnUserControl    Role = "OvpnUserControl"
+	RoleMtprotoUserControl Role = "MtprotoUserControl"
+	RoleSupport            Role = "Support"
+	RoleAdmin              Role = "Admin"
+	RoleAiUser             Role = "AiUser"
+	RoleNetUser            Role = "NetUser"
 )
 
 type User struct {
-	TelegramID         int64         `json:"telegram_id"`
-	Name               string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
-	WgProfilesRaw      []string      `json:"wg_profiles,omitempty"`
-	OvpnProfilesRaw    []string      `json:"ovpn_profiles,omitempty"`
-	RolesRaw           []string      `json:"roles"` // persisted canonical role names
-	GuardNotifyEnabled *bool         `json:"guard_notify_enabled,omitempty"`
-	GuardNotMeNotifyEnabled *bool    `json:"guard_notme_notify_enabled,omitempty"`
-	Roles              map[Role]bool `json:"-"` // runtime
-	WgProfiles         []string      `json:"-"` // normalized (lower-case) wg profile prefixes/names
-	OvpnProfiles       []string      `json:"-"` // normalized (lower-case) ovpn profile prefixes/names
+	TelegramID              int64         `json:"telegram_id"`
+	Name                    string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
+	WgProfilesRaw           []string      `json:"wg_profiles,omitempty"`
+	OvpnProfilesRaw         []string      `json:"ovpn_profiles,omitempty"`
+	MtprotoProfilesRaw      []string      `json:"mtproto_profiles,omitempty"`
+	RolesRaw                []string      `json:"roles"` // persisted canonical role names
+	GuardNotifyEnabled      *bool         `json:"guard_notify_enabled,omitempty"`
+	GuardNotMeNotifyEnabled *bool         `json:"guard_notme_notify_enabled,omitempty"`
+	Roles                   map[Role]bool `json:"-"` // runtime
+	WgProfiles              []string      `json:"-"` // normalized (lower-case) wg profile prefixes/names
+	OvpnProfiles            []string      `json:"-"` // normalized (lower-case) ovpn profile prefixes/names
+	MtprotoProfiles         []string      `json:"-"` // normalized (lower-case) telemt user prefixes/names
 }
 
 // Admin includes permissions of all other roles.
@@ -94,6 +97,8 @@ func normalizeRoleString(s string) (Role, error) {
 		return RoleAwgUserControl, nil
 	case strings.ToLower(string(RoleOvpnUserControl)):
 		return RoleOvpnUserControl, nil
+	case strings.ToLower(string(RoleMtprotoUserControl)):
+		return RoleMtprotoUserControl, nil
 	case strings.ToLower(string(RoleSupport)):
 		return RoleSupport, nil
 	case strings.ToLower(string(RoleAdmin)):
@@ -173,6 +178,17 @@ func normalizeUser(u User) (User, error) {
 		u.OvpnProfiles = append(u.OvpnProfiles, pp)
 	}
 	sort.Strings(u.OvpnProfiles)
+
+	u.MtprotoProfilesRaw = uniqueStringsCaseInsensitive(u.MtprotoProfilesRaw)
+	u.MtprotoProfiles = make([]string, 0, len(u.MtprotoProfilesRaw))
+	for _, p := range u.MtprotoProfilesRaw {
+		pp := strings.ToLower(strings.TrimSpace(p))
+		if pp == "" {
+			continue
+		}
+		u.MtprotoProfiles = append(u.MtprotoProfiles, pp)
+	}
+	sort.Strings(u.MtprotoProfiles)
 
 	return u, nil
 }

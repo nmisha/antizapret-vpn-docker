@@ -28,6 +28,9 @@ func sendConfirm(ctx *Ctx, prompt string, kind string, payload string) {
 	if strings.Contains(kind, "reset_score") {
 		confirmLabel = "Reset"
 	}
+	if strings.HasSuffix(kind, ":rotate") {
+		confirmLabel = "New secret"
+	}
 	kb := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(confirmLabel, cb),
@@ -192,6 +195,10 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 			return true
 		}
 		resetDNSGuardRiskScore(ctx, "ovpn", profileName)
+		return true
+
+	case "mtp:u:rotate", "mtp:a:rotate", "mtp:a:delete":
+		handleMtpConfirm(ctx, kind, strings.TrimSpace(payload))
 		return true
 
 	case "wgn:delete":
