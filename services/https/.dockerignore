@@ -2,3 +2,9 @@ docker-compose.yml
 Dockerfile
 /caddy_data
 /caddy_config
+
+# Backups, obsolete script variants and Python bytecode
+**/*.bak
+**/__pycache__
+**/*.pyc
+**/init_my_old*.sh

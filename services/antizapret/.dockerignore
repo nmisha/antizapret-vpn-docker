@@ -1,3 +1,9 @@
 .dockerignore
 docker-compose.*
 Dockerfile*
+
+# Backups, obsolete script variants and Python bytecode
+**/*.bak
+**/__pycache__
+**/*.pyc
+**/init_my_old*.sh

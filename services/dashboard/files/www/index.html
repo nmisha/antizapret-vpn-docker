@@ -15,7 +15,7 @@
       <div id="pageTitle">
         <a
                 id="logout-link"
-                href="https://github.com/xtrime-ru/antizapret-vpn-docker"
+                href="#"
                 target="_blank"
                 class="page-title-link"
         >
@@ -26,9 +26,10 @@
     </div>
     <div id="contentWrapper"></div>
     <script>
-      // Устанавливаем ссылку на текущий домен с портом 9091
+      // Портал Authelia: заменяем первый поддомен Dashboard на auth.
+      const authHostname = window.location.hostname.replace(/^[^.]+\./, "auth.");
       document.getElementById("logout-link").href =
-        window.location.protocol + "//" + window.location.hostname + ":9091";
+        "https://" + authHostname;
     </script>
     <script src="index.js"></script>
   </div>
