@@ -86,13 +86,12 @@ func handleLogTailSet(ctx *Ctx, arg string) {
 		reply(ctx.Bot, ctx.ChatID, "Укажи число строк 1..2000. Например: /log_tail 200")
 		return
 	}
-	s := getSettingsCached()
-	s.LogTailLines = n
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.LogTailLines = n
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Ок. /log будет показывать последние "+strconv.Itoa(n)+" строк.")
 }
 
@@ -109,99 +108,91 @@ func handleLogClear(ctx *Ctx, _ string) {
 }
 
 func handleLogErrorsOn(ctx *Ctx, _ string) {
-	s := getSettingsCached()
-	s.LogErrorsEnabled = true
-	s.LoggingEnabled = true // legacy mirror
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.LogErrorsEnabled = true
+		s.LoggingEnabled = true // legacy mirror
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Логирование ошибок включено.")
 }
 
 func handleLogErrorsOff(ctx *Ctx, _ string) {
-	s := getSettingsCached()
-	s.LogErrorsEnabled = false
-	// legacy: keep in sync if both disabled
-	s.LoggingEnabled = s.LogErrorsEnabled || s.LogCommandsEnabled
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.LogErrorsEnabled = false
+		// legacy: keep in sync if both disabled
+		s.LoggingEnabled = s.LogErrorsEnabled || s.LogCommandsEnabled
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Логирование ошибок отключено.")
 }
 
 func handleLogCmdOn(ctx *Ctx, _ string) {
-	s := getSettingsCached()
-	s.LogCommandsEnabled = true
-	s.LoggingEnabled = true // legacy mirror
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.LogCommandsEnabled = true
+		s.LoggingEnabled = true // legacy mirror
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Логирование команд включено.")
 }
 
 func handleLogCmdOff(ctx *Ctx, _ string) {
-	s := getSettingsCached()
-	s.LogCommandsEnabled = false
-	s.LoggingEnabled = s.LogErrorsEnabled || s.LogCommandsEnabled
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.LogCommandsEnabled = false
+		s.LoggingEnabled = s.LogErrorsEnabled || s.LogCommandsEnabled
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Логирование команд отключено.")
 }
 
 func handleLogOn(ctx *Ctx, _ string) {
-	s := getSettingsCached()
-	s.LogErrorsEnabled = true
-	s.LogCommandsEnabled = true
-	s.LoggingEnabled = true
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.LogErrorsEnabled = true
+		s.LogCommandsEnabled = true
+		s.LoggingEnabled = true
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Логирование включено.")
 }
 
 func handleLogOff(ctx *Ctx, _ string) {
-	s := getSettingsCached()
-	s.LogErrorsEnabled = false
-	s.LogCommandsEnabled = false
-	s.LoggingEnabled = false
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.LogErrorsEnabled = false
+		s.LogCommandsEnabled = false
+		s.LoggingEnabled = false
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Логирование отключено.")
 }
 
 func handleBotOn(ctx *Ctx, _ string) {
-	s := getSettingsCached()
-	s.BotEnabledForUsers = true
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.BotEnabledForUsers = true
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Бот включён для пользователей.")
 }
 
 func handleBotOff(ctx *Ctx, _ string) {
-	s := getSettingsCached()
-	s.BotEnabledForUsers = false
-	if err := gSettings.Save(s); err != nil {
+	if _, err := updateSettings(func(s *BotSettings) {
+		s.BotEnabledForUsers = false
+	}); err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения настроек: "+err.Error())
 		return
 	}
-	setSettingsCached(s)
 	reply(ctx.Bot, ctx.ChatID, "Бот отключён для пользователей (кроме Admin).")
 }
 

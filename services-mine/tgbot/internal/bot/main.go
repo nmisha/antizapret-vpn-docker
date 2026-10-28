@@ -81,142 +81,160 @@ func Run(register func(reg *CommandRegistry)) error {
 	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
+	h := &updateHandler{bot: bot, usersStore: usersStore, store: store, accountsStore: accountsStore, router: router}
+	d := newUpdateDispatcher(updateMaxParallel, updateQueueLen, updateIdleTimeout, h.handleUpdate)
 	for update := range updates {
-		if update.CallbackQuery != nil {
-			//			handleCallback(bot, usersStore, store, update.CallbackQuery)
-			handleCallback(bot, usersStore, store, accountsStore, update.CallbackQuery)
-
-			continue
-		}
-
-		if update.Message == nil || update.Message.From == nil {
-			continue
-		}
-
-		chatID := update.Message.Chat.ID
-		tgID := update.Message.From.ID
-		fromLabel := tgUserLabel(update.Message.From)
-		setChatUserLabel(chatID, fromLabel)
-
-		text := Trim(update.Message.Text)
-		if text == "" {
-			continue
-		}
-
-		// log incoming
-		if gLogger != nil {
-			s := getSettingsCached()
-			if s.LogCommandsEnabled {
-				gLogger.Append(formatLogLine("IN", chatID, fromLabel, text))
-			}
-		}
-
-		user, ok, err := usersStore.GetByID(tgID)
-		if err != nil {
-			// Cannot tell users from strangers: answer like to a stranger and keep details in the log.
-			log.Printf("users.json read failed (tg_id=%d): %v", tgID, err)
-			reply(bot, chatID, randomJoke())
-			continue
-		}
-		if !ok || user.Disabled {
-			// A disabled user looks like a stranger, but admins already know them: no join request.
-			reply(bot, chatID, randomJoke())
-			if !ok {
-				notifyAdminsAboutStranger(bot, usersStore, update.Message)
-			}
-			continue
-		}
-
-		// enrich chat label with user record name (if present)
-		label := strings.TrimSpace(fromLabel)
-		if user.Name != "" {
-			if label != "" {
-				label = label + "/" + user.Name
-			} else {
-				label = user.Name
-			}
-		}
-		setChatUserLabel(chatID, label)
-
-		isPriv := update.Message.Chat != nil && update.Message.Chat.IsPrivate()
-		chatType := ""
-		chatTitle := ""
-		if update.Message.Chat != nil {
-			chatType = update.Message.Chat.Type
-			chatTitle = update.Message.Chat.Title
-		}
-
-		// global disable for non-admin
-		s := getSettingsCached()
-		if !s.BotEnabledForUsers && !user.Has(RoleAdmin) {
-			reply(bot, chatID, "Бот временно отключён.")
-			continue
-		}
-
-		cmd, arg, argStartUTF16 := splitCmdMeta(text)
-		argEntities := sliceEntitiesForSuffix(update.Message.Entities, argStartUTF16)
-
-		ctx := &Ctx{
-			Bot:             bot,
-			ChatID:          chatID,
-			TgID:            tgID,
-			User:            user,
-			UsersStore:      usersStore,
-			Domains:         store,
-			Accounts:        accountsStore,
-			IsPrivate:       isPriv,
-			ChatType:        chatType,
-			ChatTitle:       chatTitle,
-			FromUser:        fromLabel,
-			MessageText:     text,
-			MessageEntities: update.Message.Entities,
-			ArgEntities:     argEntities,
-		}
-
-		// A new command leaves the previous private input flow; /cancel is answered here.
-		if resetPrivateFlowsOnCommand(ctx, text, cmd) {
-			continue
-		}
-
-		// pending wg admin actions (rename/add)
-		if handleWgPendingIfAny(ctx, text) {
-			continue
-		}
-
-		// pending awg admin actions (rename/add)
-		if handleAwgPendingIfAny(ctx, text) {
-			continue
-		}
-
-		// pending ovpn admin actions (create certificate)
-		if handleOvpnPendingIfAny(ctx, text) {
-			continue
-		}
-
-		// pending mtproto admin actions (create proxy, set limit)
-		if handleMtpPendingIfAny(ctx, text) {
-			continue
-		}
-
-		// pending users admin ui actions (add, rename, prefix)
-		if handleUsrPendingIfAny(ctx, text) {
-			continue
-		}
-
-		// pending admin accounts ui actions
-		if handleAccAdminPendingIfAny(ctx, text) {
-			continue
-		}
-
-		// soft UI wizards (support + admin messaging)
-		if handleConversationStateIfAny(ctx, text, cmd, arg) {
-			continue
-		}
-
-		if handled := router.Dispatch(ctx, cmd, arg); !handled {
-			reply(bot, chatID, "Не понял команду. /help")
-		}
+		d.submit(update)
 	}
 
 	return nil
+}
+
+// updateHandler carries what one update needs; the dispatcher calls handleUpdate concurrently
+// for different senders.
+type updateHandler struct {
+	bot           *tgbotapi.BotAPI
+	usersStore    *UsersStore
+	store         *Store
+	accountsStore *AccountsStore
+	router        *Router
+}
+
+func (h *updateHandler) handleUpdate(update tgbotapi.Update) {
+	bot, usersStore, store, accountsStore, router := h.bot, h.usersStore, h.store, h.accountsStore, h.router
+
+	if update.CallbackQuery != nil {
+		//			handleCallback(bot, usersStore, store, update.CallbackQuery)
+		handleCallback(bot, usersStore, store, accountsStore, update.CallbackQuery)
+
+		return
+	}
+
+	if update.Message == nil || update.Message.From == nil {
+		return
+	}
+
+	chatID := update.Message.Chat.ID
+	tgID := update.Message.From.ID
+	fromLabel := tgUserLabel(update.Message.From)
+	setChatUserLabel(chatID, fromLabel)
+
+	text := Trim(update.Message.Text)
+	if text == "" {
+		return
+	}
+
+	// log incoming
+	if gLogger != nil {
+		s := getSettingsCached()
+		if s.LogCommandsEnabled {
+			gLogger.Append(formatLogLine("IN", chatID, fromLabel, text))
+		}
+	}
+
+	user, ok, err := usersStore.GetByID(tgID)
+	if err != nil {
+		// Cannot tell users from strangers: answer like to a stranger and keep details in the log.
+		log.Printf("users.json read failed (tg_id=%d): %v", tgID, err)
+		reply(bot, chatID, randomJoke())
+		return
+	}
+	if !ok || user.Disabled {
+		// A disabled user looks like a stranger, but admins already know them: no join request.
+		reply(bot, chatID, randomJoke())
+		if !ok {
+			notifyAdminsAboutStranger(bot, usersStore, update.Message)
+		}
+		return
+	}
+
+	// enrich chat label with user record name (if present)
+	label := strings.TrimSpace(fromLabel)
+	if user.Name != "" {
+		if label != "" {
+			label = label + "/" + user.Name
+		} else {
+			label = user.Name
+		}
+	}
+	setChatUserLabel(chatID, label)
+
+	isPriv := update.Message.Chat != nil && update.Message.Chat.IsPrivate()
+	chatType := ""
+	chatTitle := ""
+	if update.Message.Chat != nil {
+		chatType = update.Message.Chat.Type
+		chatTitle = update.Message.Chat.Title
+	}
+
+	// global disable for non-admin
+	s := getSettingsCached()
+	if !s.BotEnabledForUsers && !user.Has(RoleAdmin) {
+		reply(bot, chatID, "Бот временно отключён.")
+		return
+	}
+
+	cmd, arg, argStartUTF16 := splitCmdMeta(text)
+	argEntities := sliceEntitiesForSuffix(update.Message.Entities, argStartUTF16)
+
+	ctx := &Ctx{
+		Bot:             bot,
+		ChatID:          chatID,
+		TgID:            tgID,
+		User:            user,
+		UsersStore:      usersStore,
+		Domains:         store,
+		Accounts:        accountsStore,
+		IsPrivate:       isPriv,
+		ChatType:        chatType,
+		ChatTitle:       chatTitle,
+		FromUser:        fromLabel,
+		MessageText:     text,
+		MessageEntities: update.Message.Entities,
+		ArgEntities:     argEntities,
+	}
+
+	// A new command leaves the previous private input flow; /cancel is answered here.
+	if resetPrivateFlowsOnCommand(ctx, text, cmd) {
+		return
+	}
+
+	// pending wg admin actions (rename/add)
+	if handleWgPendingIfAny(ctx, text) {
+		return
+	}
+
+	// pending awg admin actions (rename/add)
+	if handleAwgPendingIfAny(ctx, text) {
+		return
+	}
+
+	// pending ovpn admin actions (create certificate)
+	if handleOvpnPendingIfAny(ctx, text) {
+		return
+	}
+
+	// pending mtproto admin actions (create proxy, set limit)
+	if handleMtpPendingIfAny(ctx, text) {
+		return
+	}
+
+	// pending users admin ui actions (add, rename, prefix)
+	if handleUsrPendingIfAny(ctx, text) {
+		return
+	}
+
+	// pending admin accounts ui actions
+	if handleAccAdminPendingIfAny(ctx, text) {
+		return
+	}
+
+	// soft UI wizards (support + admin messaging)
+	if handleConversationStateIfAny(ctx, text, cmd, arg) {
+		return
+	}
+
+	if handled := router.Dispatch(ctx, cmd, arg); !handled {
+		reply(bot, chatID, "Не понял команду. /help")
+	}
 }

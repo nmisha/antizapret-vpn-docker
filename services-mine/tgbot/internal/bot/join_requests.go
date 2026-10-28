@@ -52,27 +52,16 @@ func isJoinIgnored(id int64) bool {
 
 // setJoinIgnored persists the ignore list in bot_settings.json.
 func setJoinIgnored(id int64, ignored bool) error {
-	if gSettings == nil {
-		return fmt.Errorf("настройки бота не инициализированы")
-	}
-	s, err := gSettings.Load()
-	if err != nil {
-		return err
-	}
-	has := slices.Contains(s.IgnoredJoinIDs, id)
-	switch {
-	case ignored && !has:
-		s.IgnoredJoinIDs = append(s.IgnoredJoinIDs, id)
-	case !ignored && has:
-		s.IgnoredJoinIDs = slices.DeleteFunc(s.IgnoredJoinIDs, func(v int64) bool { return v == id })
-	default:
-		return nil
-	}
-	if err := gSettings.Save(s); err != nil {
-		return err
-	}
-	setSettingsCached(s)
-	return nil
+	_, err := updateSettings(func(s *BotSettings) {
+		has := slices.Contains(s.IgnoredJoinIDs, id)
+		switch {
+		case ignored && !has:
+			s.IgnoredJoinIDs = append(s.IgnoredJoinIDs, id)
+		case !ignored && has:
+			s.IgnoredJoinIDs = slices.DeleteFunc(s.IgnoredJoinIDs, func(v int64) bool { return v == id })
+		}
+	})
+	return err
 }
 
 func formatJoinRequest(from *tgbotapi.User, text string) string {
