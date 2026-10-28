@@ -208,19 +208,12 @@ func handleRename(ctx *Ctx, arg string) {
 	oldName := fields[0]
 	newName := fields[1]
 
-	msg1, err := ctx.UsersStore.Rename(oldName, newName)
+	msg, err := renameUserWithSection(ctx, oldName, newName)
 	if err != nil {
 		reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error())
 		return
 	}
-
-	msg2, err := ctx.Domains.RenameSection(oldName, newName)
-	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, msg1+"\n\nОшибка при переименовании секции доменов: "+err.Error())
-		return
-	}
-
-	reply(ctx.Bot, ctx.ChatID, msg1+"\n"+msg2)
+	reply(ctx.Bot, ctx.ChatID, msg)
 }
 
 func handleBroadcast(ctx *Ctx, arg string) {
@@ -272,9 +265,13 @@ func sendBroadcast(ctx *Ctx, text string, entities []tgbotapi.MessageEntity) {
 		return
 	}
 
-	sent, failed := 0, 0
+	sent, failed, skipped := 0, 0, 0
 	failLines := make([]string, 0, 8)
 	for _, u := range users {
+		if u.Disabled {
+			skipped++
+			continue
+		}
 		body, bodyEntities := prependAndShiftEntities("📢 Сообщение от администратора:\n\n", text, entities)
 		m := tgbotapi.NewMessage(u.TelegramID, body)
 		m.Entities = bodyEntities
@@ -291,6 +288,9 @@ func sendBroadcast(ctx *Ctx, text string, entities []tgbotapi.MessageEntity) {
 	}
 
 	msg := fmt.Sprintf("Готово. Отправлено: %d. Ошибок: %d.", sent, failed)
+	if skipped > 0 {
+		msg += fmt.Sprintf(" Пропущено (отключены): %d.", skipped)
+	}
 	reply(ctx.Bot, ctx.ChatID, msg)
 	if failed > 0 {
 		details := "Не доставлено:\n" + strings.Join(failLines, "\n")
@@ -302,6 +302,10 @@ func sendBroadcast(ctx *Ctx, text string, entities []tgbotapi.MessageEntity) {
 }
 
 func sendAdminMessageToUser(ctx *Ctx, targetID int64, targetName, text string, entities []tgbotapi.MessageEntity) {
+	if u, ok, err := ctx.UsersStore.GetByID(targetID); err == nil && ok && u.Disabled {
+		reply(ctx.Bot, ctx.ChatID, "Пользователь "+targetName+" отключён, сообщение не отправлено. Включить: /users_admin")
+		return
+	}
 	body, bodyEntities := prependAndShiftEntities("✉️ Сообщение от администратора:\n\n", text, entities)
 	m := tgbotapi.NewMessage(targetID, body)
 	m.Entities = bodyEntities

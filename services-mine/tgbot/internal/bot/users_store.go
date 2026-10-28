@@ -252,7 +252,7 @@ func (us *UsersStore) ListAdmins() ([]User, error) {
 	}
 	out := make([]User, 0, len(snap.List))
 	for _, u := range snap.List {
-		if u.HasExact(RoleAdmin) {
+		if u.HasExact(RoleAdmin) && !u.Disabled {
 			out = append(out, u)
 		}
 	}

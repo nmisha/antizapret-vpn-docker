@@ -116,8 +116,12 @@ func Run(register func(reg *CommandRegistry)) error {
 			reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
 			continue
 		}
-		if !ok {
+		if !ok || user.Disabled {
+			// A disabled user looks like a stranger, but admins already know them: no join request.
 			reply(bot, chatID, randomJoke())
+			if !ok {
+				notifyAdminsAboutStranger(bot, usersStore, update.Message)
+			}
 			continue
 		}
 
@@ -184,6 +188,11 @@ func Run(register func(reg *CommandRegistry)) error {
 
 		// pending mtproto admin actions (create proxy, set limit)
 		if handleMtpPendingIfAny(ctx, text) {
+			continue
+		}
+
+		// pending users admin ui actions (add, rename, prefix)
+		if handleUsrPendingIfAny(ctx, text) {
 			continue
 		}
 

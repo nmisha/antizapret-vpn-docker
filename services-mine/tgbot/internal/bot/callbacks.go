@@ -23,7 +23,7 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
 		return
 	}
-	if !ok {
+	if !ok || user.Disabled {
 		reply(bot, chatID, randomJoke())
 		return
 	}
@@ -53,6 +53,7 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		Domains:    store,
 		Accounts:   accounts,
 		FromUser:   fromLabel,
+		MessageID:  q.Message.MessageID,
 	}
 
 	data := q.Data
@@ -168,6 +169,12 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
+	if strings.HasPrefix(data, usrCbPrefix) {
+		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
+		handleUsersAdminCallback(ctx, data)
+		return
+	}
+
 	if strings.HasPrefix(data, mtpCbPrefix) {
 		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
 		handleMtprotoCallback(ctx, data)
@@ -184,5 +191,6 @@ func clearPrivatePendings(tgID int64) {
 	popAwgPending(tgID)
 	popOvpnPending(tgID)
 	popMtpPending(tgID)
+	popUsrPending(tgID)
 	popAccAdminPending(tgID)
 }

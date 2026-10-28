@@ -19,6 +19,9 @@ type BotSettings struct {
 	LogTailLines int `json:"log_tail_lines"`
 
 	BotEnabledForUsers bool `json:"bot_enabled_for_users"` // if false -> non-admin gets "Bot temporarily disabled"
+
+	// Telegram IDs whose messages to the bot are not reported to admins as join requests.
+	IgnoredJoinIDs []int64 `json:"ignored_join_ids,omitempty"`
 }
 
 type SettingsStore struct {

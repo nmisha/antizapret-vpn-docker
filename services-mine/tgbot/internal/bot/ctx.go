@@ -19,6 +19,9 @@ type Ctx struct {
 	// telegram sender label (from telegram, may be empty)
 	FromUser string
 
+	// callback: message with the pressed button (0 for text messages), for edit-in-place menus
+	MessageID int
+
 	// middleware/runtime
 	Cmd             string
 	Fields          []string

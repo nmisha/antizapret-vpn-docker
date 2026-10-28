@@ -27,11 +27,13 @@ const (
 )
 
 type User struct {
-	TelegramID              int64         `json:"telegram_id"`
-	Name                    string        `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
-	WgProfilesRaw           []string      `json:"wg_profiles,omitempty"`
-	OvpnProfilesRaw         []string      `json:"ovpn_profiles,omitempty"`
-	MtprotoProfilesRaw      []string      `json:"mtproto_profiles,omitempty"`
+	TelegramID         int64    `json:"telegram_id"`
+	Name               string   `json:"name"` // UNIQUE (case-insensitive -> stored normalized)
+	WgProfilesRaw      []string `json:"wg_profiles,omitempty"`
+	OvpnProfilesRaw    []string `json:"ovpn_profiles,omitempty"`
+	MtprotoProfilesRaw []string `json:"mtproto_profiles,omitempty"`
+	// Disabled cuts the user off from the bot and its notifications; absent means active.
+	Disabled                bool          `json:"disabled,omitempty"`
 	RolesRaw                []string      `json:"roles"` // persisted canonical role names
 	GuardNotifyEnabled      *bool         `json:"guard_notify_enabled,omitempty"`
 	GuardNotMeNotifyEnabled *bool         `json:"guard_notme_notify_enabled,omitempty"`

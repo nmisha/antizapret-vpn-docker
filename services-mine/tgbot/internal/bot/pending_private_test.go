@@ -21,6 +21,8 @@ func TestPendingHandlersIgnoreGroupInput(t *testing.T) {
 			func() bool { _, ok := popOvpnPending(id); return ok }},
 		{"accounts", func() { setAccAdminPending(id, accAdminPending{Kind: accAdminAdd}) }, handleAccAdminPendingIfAny,
 			func() bool { _, ok := popAccAdminPending(id); return ok }},
+		{"users", func() { setUsrPending(id, usrPending{Kind: usrPendingAdd, TargetID: 5}) }, handleUsrPendingIfAny,
+			func() bool { _, ok := popUsrPending(id); return ok }},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -44,6 +46,7 @@ func TestClearPrivatePendings(t *testing.T) {
 	setOvpnPending(id, ovpnPending{Kind: ovpnPendingAdd})
 	setMtpPending(id, mtpPending{Kind: mtpPendingAdd})
 	setAccAdminPending(id, accAdminPending{Kind: accAdminAdd})
+	setUsrPending(id, usrPending{Kind: usrPendingAdd})
 
 	clearPrivatePendings(id)
 
@@ -61,5 +64,8 @@ func TestClearPrivatePendings(t *testing.T) {
 	}
 	if _, ok := popAccAdminPending(id); ok {
 		t.Error("accounts pending left")
+	}
+	if _, ok := popUsrPending(id); ok {
+		t.Error("users pending left")
 	}
 }

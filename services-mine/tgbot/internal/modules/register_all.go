@@ -6,6 +6,7 @@ import "tgbot/internal/bot"
 // Keep the order stable.
 func RegisterAll(reg *bot.CommandRegistry) {
 	bot.RegisterAdminHandlers(reg)
+	bot.RegisterUsersAdminHandlers(reg)
 	bot.RegisterAdminAccountsHandlers(reg)
 	bot.RegisterAdminAccountsUIHandlers(reg)
 	bot.RegisterAdminSettingsHandlers(reg)

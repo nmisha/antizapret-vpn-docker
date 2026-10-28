@@ -36,7 +36,7 @@ func sendSupportMessage(ctx *Ctx, msg string, entities []tgbotapi.MessageEntity)
 	sent := 0
 	for _, u := range users {
 		// Only explicit Support role (Admin should not auto-receive unless explicitly given Support).
-		if !u.HasExact(RoleSupport) {
+		if !u.HasExact(RoleSupport) || u.Disabled {
 			continue
 		}
 

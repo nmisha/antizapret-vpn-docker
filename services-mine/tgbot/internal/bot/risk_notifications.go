@@ -115,7 +115,7 @@ func deliverRiskNotification(botAPI *tgbotapi.BotAPI, usersStore *UsersStore, ev
 		if !shouldSendRiskNotificationToOwner(evt) {
 			continue
 		}
-		if !owner.GuardNotificationsEnabled() {
+		if owner.Disabled || !owner.GuardNotificationsEnabled() {
 			continue
 		}
 		msg := tgbotapi.NewMessage(owner.TelegramID, userMsg)
@@ -231,7 +231,11 @@ func formatRiskAdminMessage(evt riskNotificationEvent, owners []User) string {
 	if len(owners) > 0 {
 		parts := make([]string, 0, len(owners))
 		for _, owner := range owners {
-			parts = append(parts, fmt.Sprintf("<b>%s</b> (<code>%d</code>)", html.EscapeString(owner.Name), owner.TelegramID))
+			mark := ""
+			if owner.Disabled {
+				mark = " ⛔ отключён"
+			}
+			parts = append(parts, fmt.Sprintf("<b>%s</b> (<code>%d</code>)%s", html.EscapeString(owner.Name), owner.TelegramID, mark))
 		}
 		ownerLine = "Owners: " + strings.Join(parts, ", ")
 	}

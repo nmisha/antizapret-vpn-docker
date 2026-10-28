@@ -209,7 +209,16 @@ func formatUsers(list []User) string {
 		if roles == "" {
 			roles = "(нет)"
 		}
-		fmt.Fprintf(&b, "• %s — tg_id=%d — %s\n", u.Name, u.TelegramID, roles)
+		mark := ""
+		if u.Disabled {
+			mark = " ⛔ отключён"
+		}
+		fmt.Fprintf(&b, "• %s%s — tg_id=%d — %s\n", u.Name, mark, u.TelegramID, roles)
+		for _, k := range profileKinds {
+			if list := *k.prefixes(&u); len(list) > 0 {
+				fmt.Fprintf(&b, "    %s: %s\n", k.Label(), strings.Join(list, ", "))
+			}
+		}
 	}
 	return b.String()
 }

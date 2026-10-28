@@ -81,6 +81,9 @@ func showAdminPickUser(ctx *Ctx, prefix string) {
 	filtered := make([]User, 0, len(users))
 	pfx := strings.ToLower(strings.TrimSpace(prefix))
 	for _, u := range users {
+		if u.Disabled {
+			continue
+		}
 		if pfx == "" || strings.HasPrefix(strings.ToLower(u.Name), pfx) {
 			filtered = append(filtered, u)
 		}
