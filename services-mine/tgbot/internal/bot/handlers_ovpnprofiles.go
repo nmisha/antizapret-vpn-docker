@@ -11,13 +11,13 @@ import (
 const ovpnCbPrefix = "ovpn:"
 
 func RegisterOvpnProfilesHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/ovpn_profiles", Desc: "UI: мои OpenVPN профили", Section: "OpenVPN", NeedAny: []Role{RoleOvpnUserControl}}, handleOvpnProfiles,
+	reg.Command(CommandSpec{Cmd: "/ovpn_profiles", Desc: "UI: мои OpenVPN профили", Section: secOvpn, NeedAny: []Role{RoleOvpnUserControl}}, handleOvpnProfiles,
 		RequireRole(RoleOvpnUserControl, "Недостаточно прав. Нужна роль OvpnUserControl (или Admin)."),
 		RequirePrivateWithOpenDM("Управление OpenVPN профилями доступно только в личных сообщениях с ботом."),
 	)
 	reg.Alias("ovpn_profiles", "/ovpn_profiles")
 
-	reg.Command(CommandSpec{Cmd: "/ovpn_profiles_admin", Desc: "UI: OpenVPN профили (admin)", Section: "Админ: OpenVPN", NeedAny: []Role{RoleAdmin}}, handleOvpnProfilesAdmin,
+	reg.Command(CommandSpec{Cmd: "/ovpn_profiles_admin", Desc: "UI: OpenVPN профили (admin)", Section: secAdminOvpn, NeedAny: []Role{RoleAdmin}}, handleOvpnProfilesAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Управление OpenVPN профилями доступно только в личных сообщениях с ботом."),
 	)

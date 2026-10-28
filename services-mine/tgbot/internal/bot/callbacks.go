@@ -172,6 +172,11 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 		return
 	}
 
+	if strings.HasPrefix(data, helpCbPrefix) {
+		handleHelpCallback(ctx, data)
+		return
+	}
+
 	if strings.HasPrefix(data, usrCbPrefix) {
 		ctx.IsPrivate = q.Message.Chat != nil && q.Message.Chat.IsPrivate()
 		handleUsersAdminCallback(ctx, data)

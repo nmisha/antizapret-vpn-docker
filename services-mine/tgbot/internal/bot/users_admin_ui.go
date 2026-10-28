@@ -18,34 +18,34 @@ const usrCbPrefix = "usr:"
 var botUserNameRe = regexp.MustCompile(`^[\p{L}\p{N}_.-]{1,32}$`)
 
 func RegisterUsersAdminHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/users_admin", Desc: "UI: пользователи бота, роли, префиксы профилей, заявки", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUsersAdmin,
+	reg.Command(CommandSpec{Cmd: "/users_admin", Desc: "UI: пользователи бота, роли, префиксы профилей, заявки", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUsersAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Управление пользователями доступно только в личных сообщениях с ботом."),
 	)
 	reg.Alias("users_admin", "/users_admin")
 
-	reg.Command(CommandSpec{Cmd: "/prefix_add", Args: "<name> <wg|ovpn|mtproto> <prefix>", Desc: "добавить префикс профилей пользователю", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handlePrefixAdd,
+	reg.Command(CommandSpec{Cmd: "/prefix_add", Args: "<name> <wg|ovpn|mtproto> <prefix>", Desc: "добавить префикс профилей пользователю", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handlePrefixAdd,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /prefix_add доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /prefix_add <name> <wg|ovpn|mtproto> <prefix>"),
 	)
 	reg.Alias("prefix_add", "/prefix_add")
 
-	reg.Command(CommandSpec{Cmd: "/prefix_del", Args: "<name> <wg|ovpn|mtproto> <prefix>", Desc: "убрать префикс профилей у пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handlePrefixDel,
+	reg.Command(CommandSpec{Cmd: "/prefix_del", Args: "<name> <wg|ovpn|mtproto> <prefix>", Desc: "убрать префикс профилей у пользователя", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handlePrefixDel,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /prefix_del доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /prefix_del <name> <wg|ovpn|mtproto> <prefix>"),
 	)
 	reg.Alias("prefix_del", "/prefix_del")
 
-	reg.Command(CommandSpec{Cmd: "/user_disable", Args: "<name>", Desc: "отключить пользователя от бота и уведомлений", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUserDisable,
+	reg.Command(CommandSpec{Cmd: "/user_disable", Args: "<name>", Desc: "отключить пользователя от бота и уведомлений", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUserDisable,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /user_disable доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /user_disable <name>"),
 	)
 	reg.Alias("user_disable", "/user_disable")
 
-	reg.Command(CommandSpec{Cmd: "/user_enable", Args: "<name>", Desc: "снова включить пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUserEnable,
+	reg.Command(CommandSpec{Cmd: "/user_enable", Args: "<name>", Desc: "снова включить пользователя", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUserEnable,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /user_enable доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /user_enable <name>"),
@@ -161,8 +161,8 @@ func validateBotUserName(raw string) (string, error) {
 	return name, nil
 }
 
-// usrShow edits the menu message the button belongs to, or sends a new one.
-func usrShow(ctx *Ctx, text string, kb tgbotapi.InlineKeyboardMarkup) {
+// showOrEditHTML edits the menu message the button belongs to, or sends a new one.
+func showOrEditHTML(ctx *Ctx, text string, kb tgbotapi.InlineKeyboardMarkup) {
 	if ctx.MessageID != 0 {
 		edit := tgbotapi.NewEditMessageTextAndMarkup(ctx.ChatID, ctx.MessageID, text, kb)
 		edit.ParseMode = "HTML"
@@ -233,7 +233,7 @@ func showUsersAdminList(ctx *Ctx) {
 		),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("✖ Закрыть", "ui:cancel")),
 	)
-	usrShow(ctx, fmt.Sprintf("👥 Пользователи бота: %d", len(users)), tgbotapi.NewInlineKeyboardMarkup(rows...))
+	showOrEditHTML(ctx, fmt.Sprintf("👥 Пользователи бота: %d", len(users)), tgbotapi.NewInlineKeyboardMarkup(rows...))
 }
 
 func formatPrefixList(list []string) string {
@@ -292,7 +292,7 @@ func showUserCard(ctx *Ctx, id int64) {
 		),
 		tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("← Назад", usrCb("list"))),
 	)
-	usrShow(ctx, b.String(), kb)
+	showOrEditHTML(ctx, b.String(), kb)
 }
 
 func showUserRoles(ctx *Ctx, id int64) {
@@ -318,7 +318,7 @@ func showUserRoles(ctx *Ctx, id int64) {
 		rows = append(rows, row)
 	}
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(tgbotapi.NewInlineKeyboardButtonData("← Назад", usrCb("u", idStr(id)))))
-	usrShow(ctx, fmt.Sprintf("🎭 Роли <b>%s</b>: нажми, чтобы выдать или снять.\nAdmin включает все остальные роли. Описание: /roles_catalog", htmlEscape(u.Name)),
+	showOrEditHTML(ctx, fmt.Sprintf("🎭 Роли <b>%s</b>: нажми, чтобы выдать или снять.\nAdmin включает все остальные роли. Описание: /roles_catalog", htmlEscape(u.Name)),
 		tgbotapi.NewInlineKeyboardMarkup(rows...))
 }
 
@@ -371,7 +371,7 @@ func showUserPrefixes(ctx *Ctx, kind profileKind, id int64) {
 	text := fmt.Sprintf("<b>%s</b>: префиксы пользователя <b>%s</b>\n%s\n\nПрофиль доступен пользователю, если его имя начинается с одного из префиксов (регистр не важен). "+
 		"Чтобы префикс не захватил чужие имена, добавляйте разделитель: <code>vasya_</code>.\nНажми на префикс, чтобы убрать его.",
 		kind.Label(), htmlEscape(u.Name), formatPrefixList(list))
-	usrShow(ctx, text, tgbotapi.NewInlineKeyboardMarkup(rows...))
+	showOrEditHTML(ctx, text, tgbotapi.NewInlineKeyboardMarkup(rows...))
 }
 
 func showIgnoredJoins(ctx *Ctx) {
@@ -386,7 +386,7 @@ func showIgnoredJoins(ctx *Ctx) {
 	if len(ids) == 0 {
 		text = "🙈 Игнор-лист заявок пуст."
 	}
-	usrShow(ctx, text, tgbotapi.NewInlineKeyboardMarkup(rows...))
+	showOrEditHTML(ctx, text, tgbotapi.NewInlineKeyboardMarkup(rows...))
 }
 
 func handleUsersAdminCallback(ctx *Ctx, data string) {

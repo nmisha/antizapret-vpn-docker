@@ -3,20 +3,20 @@ package bot
 import "strings"
 
 func RegisterAwgStatsHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/awgstats", Desc: "статистика AWG (legacy alias)", Section: "Amnezia WireGuard", NeedAny: []Role{RoleAwgStats}, Hidden: true}, handleAwgStats,
+	reg.Command(CommandSpec{Cmd: "/awgstats", Desc: "статистика AWG (legacy alias)", Section: secAwg, NeedAny: []Role{RoleAwgStats}, Hidden: true}, handleAwgStats,
 		RequireRole(RoleAwgStats, "Недостаточно прав. Нужна роль AwgStats (или Admin)."),
 	)
 	reg.Alias("awgstats", "/awgstats")
-	reg.Command(CommandSpec{Cmd: "/awg_stats", Desc: "статистика AWG по своим профилям", Section: "Amnezia WireGuard", NeedAny: []Role{RoleAwgStats}}, handleAwgStats,
+	reg.Command(CommandSpec{Cmd: "/awg_stats", Desc: "статистика AWG по своим профилям", Section: secAwg, NeedAny: []Role{RoleAwgStats}}, handleAwgStats,
 		RequireRole(RoleAwgStats, "Недостаточно прав. Нужна роль AwgStats (или Admin)."),
 	)
 	reg.Alias("awg_stats", "/awg_stats")
 
-	reg.Command(CommandSpec{Cmd: "/awgstats_admin", Desc: "статистика AWG (legacy alias)", Section: "Админ: Amnezia WireGuard", NeedAny: []Role{RoleAdmin}, Hidden: true}, handleAwgStatsAdmin,
+	reg.Command(CommandSpec{Cmd: "/awgstats_admin", Desc: "статистика AWG (legacy alias)", Section: secAdminAwg, NeedAny: []Role{RoleAdmin}, Hidden: true}, handleAwgStatsAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("awgstats_admin", "/awgstats_admin")
-	reg.Command(CommandSpec{Cmd: "/awg_stats_admin", Desc: "статистика AWG (admin)", Section: "Админ: Amnezia WireGuard", NeedAny: []Role{RoleAdmin}}, handleAwgStatsAdmin,
+	reg.Command(CommandSpec{Cmd: "/awg_stats_admin", Desc: "статистика AWG (admin)", Section: secAdminAwg, NeedAny: []Role{RoleAdmin}}, handleAwgStatsAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("awg_stats_admin", "/awg_stats_admin")

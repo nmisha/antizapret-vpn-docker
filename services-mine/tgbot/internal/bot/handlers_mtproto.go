@@ -30,13 +30,13 @@ func RegisterMtprotoHandlers(reg *CommandRegistry) {
 		log.Printf("MTProto: TELEMT_TOKEN не задан, раздел /mtproto выключен")
 		return
 	}
-	reg.Command(CommandSpec{Cmd: "/mtproto", Desc: "UI: мои MTProto прокси для Telegram", Section: "MTProto", NeedAny: []Role{RoleMtprotoUserControl}}, handleMtproto,
+	reg.Command(CommandSpec{Cmd: "/mtproto", Desc: "UI: мои MTProto прокси для Telegram", Section: secMtproto, NeedAny: []Role{RoleMtprotoUserControl}}, handleMtproto,
 		RequireRole(RoleMtprotoUserControl, "Недостаточно прав. Нужна роль MtprotoUserControl (или Admin)."),
 		RequirePrivateWithOpenDM("Ссылки на MTProto прокси выдаются только в личных сообщениях с ботом."),
 	)
 	reg.Alias("mtproto", "/mtproto")
 
-	reg.Command(CommandSpec{Cmd: "/mtproto_admin", Desc: "UI: MTProto прокси (admin)", Section: "Админ: MTProto", NeedAny: []Role{RoleAdmin}}, handleMtprotoAdmin,
+	reg.Command(CommandSpec{Cmd: "/mtproto_admin", Desc: "UI: MTProto прокси (admin)", Section: secAdminMtproto, NeedAny: []Role{RoleAdmin}}, handleMtprotoAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Управление MTProto прокси доступно только в личных сообщениях с ботом."),
 	)

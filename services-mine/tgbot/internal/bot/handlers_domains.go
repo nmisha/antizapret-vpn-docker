@@ -7,24 +7,24 @@ import (
 )
 
 func RegisterDomainHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/add", Args: "<domain>", Desc: "добавить домен в твою секцию", Section: "Домены", NeedAny: []Role{RoleDomainEditor}}, handleAdd,
+	reg.Command(CommandSpec{Cmd: "/add", Args: "<domain>", Desc: "добавить домен в твою секцию", Section: secDomains, NeedAny: []Role{RoleDomainEditor}}, handleAdd,
 		RequireRole(RoleDomainEditor, "Недостаточно прав. Нужна роль DomainEditor (или Admin)."),
 		RequireNonEmptyArg("Укажи домен: /add example.com"),
 	)
 	reg.Alias("add", "/add")
 
-	reg.Command(CommandSpec{Cmd: "/del", Args: "<domain>", Desc: "удалить домен из твоей секцию", Section: "Домены", NeedAny: []Role{RoleDomainEditor}}, handleDel,
+	reg.Command(CommandSpec{Cmd: "/del", Args: "<domain>", Desc: "удалить домен из твоей секции", Section: secDomains, NeedAny: []Role{RoleDomainEditor}}, handleDel,
 		RequireRole(RoleDomainEditor, "Недостаточно прав. Нужна роль DomainEditor (или Admin)."),
 		RequireNonEmptyArg("Укажи домен: /del example.com"),
 	)
 	reg.Alias("del", "/del")
 
-	reg.Command(CommandSpec{Cmd: "/list", Desc: "показать домены в твоей секции", Section: "Домены", NeedAny: []Role{RoleDomainEditor}}, handleList,
+	reg.Command(CommandSpec{Cmd: "/list", Desc: "показать домены в твоей секции", Section: secDomains, NeedAny: []Role{RoleDomainEditor}}, handleList,
 		RequireRole(RoleDomainEditor, "Недостаточно прав. Нужна роль DomainEditor (или Admin)."),
 	)
 	reg.Alias("list", "/list")
 
-	reg.Command(CommandSpec{Cmd: "/export", Desc: "экспортировать все домены", Section: "Домены", NeedAny: []Role{RoleDomainManager}}, handleExport,
+	reg.Command(CommandSpec{Cmd: "/export", Desc: "экспортировать все домены", Section: secDomains, NeedAny: []Role{RoleDomainManager}}, handleExport,
 		RequireRole(RoleDomainManager, "Недостаточно прав. Нужна роль DomainManager (или Admin)."),
 	)
 	reg.Alias("export", "/export")

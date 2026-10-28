@@ -40,4 +40,8 @@ func ValidateHelpCoverage(reg *CommandRegistry) {
 		}
 		log.Printf("HELP: command present in registry but not registered: %s", cmd)
 	}
+
+	for _, p := range HelpProblems(reg) {
+		log.Printf("HELP: %s", p)
+	}
 }

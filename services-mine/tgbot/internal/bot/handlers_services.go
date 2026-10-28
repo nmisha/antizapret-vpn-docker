@@ -43,38 +43,38 @@ var aghLastRefreshAt time.Time
 
 func RegisterServiceHandlers(reg *CommandRegistry) {
 	// WireGuard stats (historically used both /wgstats and /wg_stats)
-	reg.Command(CommandSpec{Cmd: "/wgstats", Desc: "статистика WG (legacy alias)", Section: "WireGuard", NeedAny: []Role{RoleWgStats}, Hidden: true}, handleWgStats,
+	reg.Command(CommandSpec{Cmd: "/wgstats", Desc: "статистика WG (legacy alias)", Section: secWg, NeedAny: []Role{RoleWgStats}, Hidden: true}, handleWgStats,
 		RequireRole(RoleWgStats, "Недостаточно прав. Нужна роль WgStats (или Admin)."),
 	)
 	reg.Alias("wgstats", "/wgstats")
-	reg.Command(CommandSpec{Cmd: "/wg_stats", Desc: "статистика WG (для своего пользователя)", Section: "WireGuard", NeedAny: []Role{RoleWgStats}}, handleWgStats,
+	reg.Command(CommandSpec{Cmd: "/wg_stats", Desc: "статистика WG (для своего пользователя)", Section: secWg, NeedAny: []Role{RoleWgStats}}, handleWgStats,
 		RequireRole(RoleWgStats, "Недостаточно прав. Нужна роль WgStats (или Admin)."),
 	)
 	reg.Alias("wg_stats", "/wg_stats")
 
-	reg.Command(CommandSpec{Cmd: "/wgstats_admin", Desc: "статистика WG (legacy alias)", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}, Hidden: true}, handleWgStatsAdmin,
+	reg.Command(CommandSpec{Cmd: "/wgstats_admin", Desc: "статистика WG (legacy alias)", Section: secAdminWg, NeedAny: []Role{RoleAdmin}, Hidden: true}, handleWgStatsAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("wgstats_admin", "/wgstats_admin")
-	reg.Command(CommandSpec{Cmd: "/wg_stats_admin", Desc: "статистика WG (admin)", Section: "Админ: WireGuard", NeedAny: []Role{RoleAdmin}}, handleWgStatsAdmin,
+	reg.Command(CommandSpec{Cmd: "/wg_stats_admin", Desc: "статистика WG (admin)", Section: secAdminWg, NeedAny: []Role{RoleAdmin}}, handleWgStatsAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("wg_stats_admin", "/wg_stats_admin")
 
 	// AdGuard Home: update filter lists (blocklists + whitelists)
 	// Canonical command: /agh_update_lists
-	reg.Command(CommandSpec{Cmd: "/agh_update_lists", Desc: "обновить списки AdGuard Home (filters)", Section: "Сервисы", NeedAny: []Role{RoleDomainEditor, RoleServiceManager}}, handleAghUpdateLists,
+	reg.Command(CommandSpec{Cmd: "/agh_update_lists", Desc: "обновить списки AdGuard Home (filters)", Section: secServices, NeedAny: []Role{RoleDomainEditor, RoleServiceManager}}, handleAghUpdateLists,
 		RequireAnyRole("Недостаточно прав. Нужна роль DomainEditor или ServiceManager (или Admin).", RoleDomainEditor, RoleServiceManager),
 	)
 	reg.Alias("agh_update_lists", "/agh_update_lists")
 	// Backward compatible (old name):
-	reg.Command(CommandSpec{Cmd: "/sr_agh_update_lists", Desc: "legacy alias", Section: "Сервисы", NeedAny: []Role{RoleDomainEditor, RoleServiceManager}, Hidden: true}, handleAghUpdateLists,
+	reg.Command(CommandSpec{Cmd: "/sr_agh_update_lists", Desc: "legacy alias", Section: secServices, NeedAny: []Role{RoleDomainEditor, RoleServiceManager}, Hidden: true}, handleAghUpdateLists,
 		RequireAnyRole("Недостаточно прав. Нужна роль DomainEditor или ServiceManager (или Admin).", RoleDomainEditor, RoleServiceManager),
 	)
 	reg.Alias("sr_agh_update_lists", "/sr_agh_update_lists")
 
 	// AdGuard Home: show last update time (Admin only)
-	reg.Command(CommandSpec{Cmd: "/agh_last_update", Desc: "дата и время последнего обновления списков AdGuard Home", Section: "Админ: сервисы", NeedAny: []Role{RoleAdmin}}, handleAghLastUpdate,
+	reg.Command(CommandSpec{Cmd: "/agh_last_update", Desc: "дата и время последнего обновления списков AdGuard Home", Section: secAdminServices, NeedAny: []Role{RoleAdmin}}, handleAghLastUpdate,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("agh_last_update", "/agh_last_update")

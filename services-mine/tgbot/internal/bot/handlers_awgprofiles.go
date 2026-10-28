@@ -11,12 +11,12 @@ import (
 )
 
 func RegisterAwgProfilesHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/awg_profiles", Desc: "UI: мои Amnezia WireGuard профили", Section: "Amnezia WireGuard", NeedAny: []Role{RoleAwgUserControl}}, handleAwgProfiles,
+	reg.Command(CommandSpec{Cmd: "/awg_profiles", Desc: "UI: мои Amnezia WireGuard профили", Section: secAwg, NeedAny: []Role{RoleAwgUserControl}}, handleAwgProfiles,
 		RequireRole(RoleAwgUserControl, "Недостаточно прав. Нужна роль AwgUserControl (или Admin)."),
 	)
 	reg.Alias("awg_profiles", "/awg_profiles")
 
-	reg.Command(CommandSpec{Cmd: "/awg_profiles_admin", Desc: "UI: Amnezia WireGuard профили (admin)", Section: "Админ: Amnezia WireGuard", NeedAny: []Role{RoleAdmin}}, handleAwgProfilesAdmin,
+	reg.Command(CommandSpec{Cmd: "/awg_profiles_admin", Desc: "UI: Amnezia WireGuard профили (admin)", Section: secAdminAwg, NeedAny: []Role{RoleAdmin}}, handleAwgProfilesAdmin,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("awg_profiles_admin", "/awg_profiles_admin")

@@ -8,7 +8,7 @@ import (
 )
 
 func RegisterSupportHandlers(reg *CommandRegistry) {
-	reg.Command(CommandSpec{Cmd: "/support", Args: "[сообщение]", Desc: "написать в поддержку (без аргумента откроет UI)", Section: "Быстрый старт"}, handleSupport)
+	reg.Command(CommandSpec{Cmd: "/support", Args: "[сообщение]", Desc: "написать в поддержку (без аргумента откроет UI)", Section: secQuickStart}, handleSupport)
 	reg.Alias("support", "/support")
 }
 

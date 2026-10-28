@@ -10,25 +10,25 @@ import (
 
 func RegisterAdminHandlers(reg *CommandRegistry) {
 	// help
-	reg.Command(CommandSpec{Cmd: "/start", Desc: "показать справку", Section: "Быстрый старт"}, handleHelp)
-	reg.Command(CommandSpec{Cmd: "/help", Desc: "показать эту справку", Section: "Быстрый старт"}, handleHelp)
+	reg.Command(CommandSpec{Cmd: "/start", Desc: "показать справку", Section: secQuickStart}, handleStart)
+	reg.Command(CommandSpec{Cmd: "/help", Args: "[раздел|all]", Desc: "показать эту справку", Section: secQuickStart}, handleHelp)
 	reg.Alias("help", "/help")
 
 	// users/admin
-	reg.Command(CommandSpec{Cmd: "/users", Desc: "список пользователей и ролей", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUsers,
+	reg.Command(CommandSpec{Cmd: "/users", Desc: "список пользователей и ролей", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUsers,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /users доступна только в личных сообщениях с ботом."),
 	)
 	reg.Alias("users", "/users")
 
 	// user management
-	reg.Command(CommandSpec{Cmd: "/user_add", Args: "<name> <tg_id>", Desc: "добавить пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUserAdd,
+	reg.Command(CommandSpec{Cmd: "/user_add", Args: "<name> <tg_id>", Desc: "добавить пользователя", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUserAdd,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /user_add доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /user_add <name> <tg_id>"),
 	)
 	reg.Alias("user_add", "/user_add")
-	reg.Command(CommandSpec{Cmd: "/user_del", Args: "<name>", Desc: "удалить пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleUserDel,
+	reg.Command(CommandSpec{Cmd: "/user_del", Args: "<name>", Desc: "удалить пользователя", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleUserDel,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /user_del доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /user_del <name>"),
@@ -36,18 +36,18 @@ func RegisterAdminHandlers(reg *CommandRegistry) {
 	reg.Alias("user_del", "/user_del")
 
 	// roles
-	reg.Command(CommandSpec{Cmd: "/roles", Args: "[name]", Desc: "показать роли (свои; Admin может смотреть чужие)", Section: "Быстрый старт"}, handleRoles)
+	reg.Command(CommandSpec{Cmd: "/roles", Args: "[name]", Desc: "показать роли (свои; Admin может смотреть чужие)", Section: secQuickStart}, handleRoles)
 	reg.Alias("roles", "/roles")
 
 	// roles catalog (admin)
-	reg.Command(CommandSpec{Cmd: "/roles_catalog", Desc: "все роли с описанием", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleRolesCatalog,
+	reg.Command(CommandSpec{Cmd: "/roles_catalog", Desc: "все роли с описанием", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleRolesCatalog,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /roles_catalog доступна только в личных сообщениях с ботом."),
 	)
 	reg.Alias("roles_catalog", "/roles_catalog")
 
 	// grant/revoke/rename — admin only + обязательные аргументы (где нужно)
-	reg.Command(CommandSpec{Cmd: "/grant", Args: "<name> <role>", Desc: "выдать роль пользователю", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleGrant,
+	reg.Command(CommandSpec{Cmd: "/grant", Args: "<name> <role>", Desc: "выдать роль пользователю", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleGrant,
 
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /grant доступна только в личных сообщениях с ботом."),
@@ -55,7 +55,7 @@ func RegisterAdminHandlers(reg *CommandRegistry) {
 	)
 	reg.Alias("grant", "/grant")
 
-	reg.Command(CommandSpec{Cmd: "/revoke", Args: "<name> <role>", Desc: "снять роль с пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleRevoke,
+	reg.Command(CommandSpec{Cmd: "/revoke", Args: "<name> <role>", Desc: "снять роль с пользователя", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleRevoke,
 
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /revoke доступна только в личных сообщениях с ботом."),
@@ -63,7 +63,7 @@ func RegisterAdminHandlers(reg *CommandRegistry) {
 	)
 	reg.Alias("revoke", "/revoke")
 
-	reg.Command(CommandSpec{Cmd: "/rename", Args: "<old_name> <new_name>", Desc: "переименовать пользователя", Section: "Админ: пользователи и роли", NeedAny: []Role{RoleAdmin}}, handleRename,
+	reg.Command(CommandSpec{Cmd: "/rename", Args: "<old_name> <new_name>", Desc: "переименовать пользователя", Section: secAdminUsers, NeedAny: []Role{RoleAdmin}}, handleRename,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 		RequirePrivateWithOpenDM("Команда /rename доступна только в личных сообщениях с ботом."),
 		RequireNonEmptyArg("Формат: /rename <old_name> <new_name>"),
@@ -71,18 +71,18 @@ func RegisterAdminHandlers(reg *CommandRegistry) {
 	reg.Alias("rename", "/rename")
 
 	// admin messaging
-	reg.Command(CommandSpec{Cmd: "/adminmsg", Desc: "UI: написать пользователю", Section: "Админ: сообщения", NeedAny: []Role{RoleAdmin}}, handleAdminMsgMenu,
+	reg.Command(CommandSpec{Cmd: "/adminmsg", Desc: "UI: написать пользователю", Section: secAdminMessages, NeedAny: []Role{RoleAdmin}}, handleAdminMsgMenu,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("adminmsg", "/adminmsg")
 
-	reg.Command(CommandSpec{Cmd: "/broadcast", Args: "<text>", Desc: "отправить всем (без аргумента откроет UI)", Section: "Админ: сообщения", NeedAny: []Role{RoleAdmin}}, handleBroadcast,
+	reg.Command(CommandSpec{Cmd: "/broadcast", Args: "<text>", Desc: "отправить всем (без аргумента откроет UI)", Section: secAdminMessages, NeedAny: []Role{RoleAdmin}}, handleBroadcast,
 
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("broadcast", "/broadcast")
 
-	reg.Command(CommandSpec{Cmd: "/message", Args: "<name> <text>", Desc: "написать пользователю (без UI)", Section: "Админ: сообщения", NeedAny: []Role{RoleAdmin}}, handleMessageUser,
+	reg.Command(CommandSpec{Cmd: "/message", Args: "<name> <text>", Desc: "написать пользователю (без UI)", Section: secAdminMessages, NeedAny: []Role{RoleAdmin}}, handleMessageUser,
 		RequireRole(RoleAdmin, "Недостаточно прав. Нужна роль Admin."),
 	)
 	reg.Alias("msg", "/message")
@@ -92,8 +92,13 @@ func handleAdminMsgMenu(ctx *Ctx, _ string) {
 	showAdminMessagingMenu(ctx)
 }
 
-func handleHelp(ctx *Ctx, _ string) {
-	replyHTMLChunks(ctx.Bot, ctx.ChatID, helpForUser(ctx.User))
+func handleHelp(ctx *Ctx, arg string) {
+	showHelp(ctx, arg)
+}
+
+// handleStart ignores the /start payload (Telegram deep links) and shows the help index.
+func handleStart(ctx *Ctx, _ string) {
+	showHelp(ctx, "")
 }
 
 func handleUsers(ctx *Ctx, _ string) {
