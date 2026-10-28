@@ -2,6 +2,9 @@ package bot
 
 import "sync"
 
+// Serialize replacement across all private admin input handlers.
+var privatePendingMu sync.Mutex
+
 type usrPendingKind string
 
 const (
@@ -20,6 +23,9 @@ var usrPendMu sync.Mutex
 var usrPendings = map[int64]usrPending{}
 
 func setUsrPending(tgID int64, p usrPending) {
+	privatePendingMu.Lock()
+	defer privatePendingMu.Unlock()
+	clearPrivatePendings(tgID)
 	usrPendMu.Lock()
 	defer usrPendMu.Unlock()
 	usrPendings[tgID] = p

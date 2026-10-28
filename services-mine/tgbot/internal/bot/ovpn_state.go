@@ -16,6 +16,9 @@ var ovpnPendMu sync.Mutex
 var ovpnPendings = map[int64]ovpnPending{}
 
 func setOvpnPending(tgID int64, p ovpnPending) {
+	privatePendingMu.Lock()
+	defer privatePendingMu.Unlock()
+	clearPrivatePendings(tgID)
 	ovpnPendMu.Lock()
 	defer ovpnPendMu.Unlock()
 	ovpnPendings[tgID] = p

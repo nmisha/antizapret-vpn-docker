@@ -173,6 +173,11 @@ func Run(register func(reg *CommandRegistry)) error {
 			ArgEntities:     argEntities,
 		}
 
+		// A new command leaves the previous private input flow; /cancel is answered here.
+		if resetPrivateFlowsOnCommand(ctx, text, cmd) {
+			continue
+		}
+
 		// pending wg admin actions (rename/add)
 		if handleWgPendingIfAny(ctx, text) {
 			continue

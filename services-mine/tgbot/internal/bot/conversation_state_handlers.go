@@ -117,3 +117,27 @@ func previewBox(title, body string) string {
 	}
 	return fmt.Sprintf("%s\n\n%s", title, body)
 }
+
+// resetPrivateFlowsOnCommand ends unfinished private input flows (pending admin input, wizards) when
+// a command arrives. /cancel is answered here, so no pending handler can take "/cancel" as a value
+// (a profile name, a login, a password). Returns true if the message was consumed.
+func resetPrivateFlowsOnCommand(ctx *Ctx, text, cmd string) bool {
+	if !ctx.IsPrivate || !strings.HasPrefix(text, "/") {
+		return false
+	}
+	privatePendingMu.Lock()
+	hadPending := clearPrivatePendings(ctx.TgID)
+	privatePendingMu.Unlock()
+	_, hadConv := getConv(ctx.ChatID, ctx.TgID)
+	clearConv(ctx.ChatID, ctx.TgID)
+
+	if !strings.EqualFold(cmd, "/cancel") {
+		return false
+	}
+	if hadPending || hadConv {
+		reply(ctx.Bot, ctx.ChatID, "Ок, отменил.")
+	} else {
+		reply(ctx.Bot, ctx.ChatID, "Нечего отменять.")
+	}
+	return true
+}

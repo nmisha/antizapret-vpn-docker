@@ -69,3 +69,35 @@ func TestClearPrivatePendings(t *testing.T) {
 		t.Error("users pending left")
 	}
 }
+
+func TestPrivatePendingSwitchesBetweenSections(t *testing.T) {
+	const id int64 = 76547
+	setters := []func(){
+		func() { setWgPending(id, wgPending{Kind: wgPendingAdd}) },
+		func() { setAwgPending(id, wgPending{Kind: wgPendingAdd}) },
+		func() { setOvpnPending(id, ovpnPending{Kind: ovpnPendingAdd}) },
+		func() { setMtpPending(id, mtpPending{Kind: mtpPendingAdd}) },
+		func() { setAccAdminPending(id, accAdminPending{Kind: accAdminAdd}) },
+		func() { setUsrPending(id, usrPending{Kind: usrPendingAdd}) },
+	}
+	pops := []func() bool{
+		func() bool { _, ok := popWgPending(id); return ok },
+		func() bool { _, ok := popAwgPending(id); return ok },
+		func() bool { _, ok := popOvpnPending(id); return ok },
+		func() bool { _, ok := popMtpPending(id); return ok },
+		func() bool { _, ok := popAccAdminPending(id); return ok },
+		func() bool { _, ok := popUsrPending(id); return ok },
+	}
+	t.Cleanup(func() { clearPrivatePendings(id) })
+	for previous, setPrevious := range setters {
+		for next, setNext := range setters {
+			setPrevious()
+			setNext()
+			for section, pop := range pops {
+				if got := pop(); got != (section == next) {
+					t.Fatalf("switch %d -> %d: section %d pending=%v", previous, next, section, got)
+				}
+			}
+		}
+	}
+}

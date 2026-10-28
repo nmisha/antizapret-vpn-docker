@@ -189,11 +189,13 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 }
 
 // clearPrivatePendings drops admin text-input waits (rename/add/limits); they exist only in the private chat.
-func clearPrivatePendings(tgID int64) {
-	popWgPending(tgID)
-	popAwgPending(tgID)
-	popOvpnPending(tgID)
-	popMtpPending(tgID)
-	popUsrPending(tgID)
-	popAccAdminPending(tgID)
+// Reports whether anything was pending.
+func clearPrivatePendings(tgID int64) bool {
+	_, wg := popWgPending(tgID)
+	_, awg := popAwgPending(tgID)
+	_, ovpn := popOvpnPending(tgID)
+	_, mtp := popMtpPending(tgID)
+	_, usr := popUsrPending(tgID)
+	_, acc := popAccAdminPending(tgID)
+	return wg || awg || ovpn || mtp || usr || acc
 }

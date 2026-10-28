@@ -48,6 +48,9 @@ var mtpPendMu sync.Mutex
 var mtpPendings = map[int64]mtpPending{}
 
 func setMtpPending(tgID int64, p mtpPending) {
+	privatePendingMu.Lock()
+	defer privatePendingMu.Unlock()
+	clearPrivatePendings(tgID)
 	mtpPendMu.Lock()
 	defer mtpPendMu.Unlock()
 	mtpPendings[tgID] = p

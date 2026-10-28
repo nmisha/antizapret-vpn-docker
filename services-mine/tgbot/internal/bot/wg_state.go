@@ -54,6 +54,9 @@ var wgPendMu sync.Mutex
 var wgPendings = map[int64]wgPending{} // key: TelegramID
 
 func setWgPending(tgID int64, p wgPending) {
+	privatePendingMu.Lock()
+	defer privatePendingMu.Unlock()
+	clearPrivatePendings(tgID)
 	wgPendMu.Lock()
 	defer wgPendMu.Unlock()
 	wgPendings[tgID] = p
