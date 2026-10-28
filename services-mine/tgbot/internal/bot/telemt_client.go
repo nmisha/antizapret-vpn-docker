@@ -3,6 +3,7 @@ package bot
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -127,15 +128,35 @@ func (c *telemtClient) do(method, path string, body any, out any) error {
 		return fmt.Errorf("telemt API: HTTP %d: %s", resp.StatusCode, truncate(strings.TrimSpace(string(raw)), 500))
 	}
 	if !env.OK || resp.StatusCode >= 300 {
+		e := &telemtAPIError{Status: resp.StatusCode}
 		if env.Error != nil {
-			return fmt.Errorf("telemt API: %s (%s)", env.Error.Message, env.Error.Code)
+			e.Code, e.Message = env.Error.Code, env.Error.Message
 		}
-		return fmt.Errorf("telemt API: HTTP %d", resp.StatusCode)
+		return e
 	}
 	if out == nil {
 		return nil
 	}
 	return json.Unmarshal(env.Data, out)
+}
+
+// telemtAPIError is an error envelope (or a non-2xx status) returned by the telemt API.
+type telemtAPIError struct {
+	Status  int
+	Code    string
+	Message string
+}
+
+func (e *telemtAPIError) Error() string {
+	if e.Code == "" && e.Message == "" {
+		return fmt.Sprintf("telemt API: HTTP %d", e.Status)
+	}
+	return fmt.Sprintf("telemt API: %s (%s)", e.Message, e.Code)
+}
+
+func isTelemtNotFound(err error) bool {
+	var e *telemtAPIError
+	return errors.As(err, &e) && e.Status == http.StatusNotFound
 }
 
 func telemtUserPath(name string) string { return "/users/" + url.PathEscape(name) }

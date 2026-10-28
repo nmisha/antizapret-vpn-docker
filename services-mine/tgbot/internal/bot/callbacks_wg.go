@@ -20,11 +20,11 @@ func handleWgCallback(ctx *Ctx, data string) {
 		peerID := strings.TrimPrefix(data, "wg:u:p:")
 		client, err := makeWgClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 			return
 		}
 		if _, err := validateWgUserPeerAccess(ctx, client, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+			replyServiceError(ctx, "WireGuard", "Доступ к профилю недоступен", err)
 			return
 		}
 		sendUserProfileActions(ctx, peerID)
@@ -40,11 +40,11 @@ func handleWgCallback(ctx *Ctx, data string) {
 		act, peerID := parts[0], parts[1]
 		client, err := makeWgClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 			return
 		}
 		if _, err := validateWgUserPeerAccess(ctx, client, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+			replyServiceError(ctx, "WireGuard", "Доступ к профилю недоступен", err)
 			return
 		}
 		switch act {
@@ -53,7 +53,7 @@ func handleWgCallback(ctx *Ctx, data string) {
 		case "score":
 			peer, err := validateWgUserPeerAccess(ctx, client, peerID)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+				replyServiceError(ctx, "WireGuard", "Доступ к профилю недоступен", err)
 				return
 			}
 			sendDNSGuardRiskScore(ctx, "wg", peer.Name, false)
@@ -88,7 +88,7 @@ func handleWgCallback(ctx *Ctx, data string) {
 			setAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeMy})
 			peers, err := getPeersForScope(ctx, wgAdminScope{Mode: wgScopeMy})
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "WireGuard", "Не удалось получить список профилей", err)
 				return
 			}
 			sendWgProfilesList(ctx, peers, "wg:a:p:")
@@ -97,7 +97,7 @@ func handleWgCallback(ctx *Ctx, data string) {
 			setAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeAll})
 			peers, err := getPeersForScope(ctx, wgAdminScope{Mode: wgScopeAll})
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "WireGuard", "Не удалось получить список профилей", err)
 				return
 			}
 			sendWgProfilesList(ctx, peers, "wg:a:p:")
@@ -118,7 +118,7 @@ func handleWgCallback(ctx *Ctx, data string) {
 
 		peers, err := getPeersForScope(ctx, wgAdminScope{Mode: wgScopeUser, UserName: name})
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "WireGuard", "Не удалось получить список профилей", err)
 			return
 		}
 		sendWgProfilesList(ctx, peers, "wg:a:p:")
@@ -136,11 +136,11 @@ func handleWgCallback(ctx *Ctx, data string) {
 		peerID := strings.TrimPrefix(data, "wg:a:p:")
 		client, err := makeWgClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 			return
 		}
 		if _, err := validateWgAdminPeerAccess(ctx, client, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 			return
 		}
 		sendAdminProfileActions(ctx, peerID)
@@ -162,17 +162,17 @@ func handleWgCallback(ctx *Ctx, data string) {
 
 		client, err := makeWgClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 			return
 		}
 		if act == "add" {
 			if err := validateWgAdminAddAccess(ctx); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 				return
 			}
 		} else {
 			if _, err := validateWgAdminPeerAccess(ctx, client, peerID); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 				return
 			}
 		}
@@ -183,14 +183,14 @@ func handleWgCallback(ctx *Ctx, data string) {
 		case "score":
 			peer, err := validateWgAdminPeerAccess(ctx, client, peerID)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 				return
 			}
 			sendDNSGuardRiskScore(ctx, "wg", peer.Name, true)
 		case "reset_score":
 			peer, err := validateWgAdminPeerAccess(ctx, client, peerID)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 				return
 			}
 			sendConfirm(ctx, "Сбросить risk score и state для WireGuard профиля "+peer.Name+"?", "wg:reset_score", peer.Name)
@@ -206,13 +206,13 @@ func handleWgCallback(ctx *Ctx, data string) {
 			sendConfirm(ctx, "Мигрировать профиль в AWG? Целевой профиль с тем же именем будет удалён и пересоздан, исходный WG-профиль будет удалён.", "wg:a:migrate:awg", peerID)
 		case "enable":
 			if err := client.enableClient(peerID); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Не удалось включить:\n"+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "WireGuard", "Не удалось включить", err)
 				return
 			}
 			reply(ctx.Bot, ctx.ChatID, "OK: enabled")
 		case "disable":
 			if err := client.disableClient(peerID); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Не удалось выключить:\n"+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "WireGuard", "Не удалось выключить", err)
 				return
 			}
 			reply(ctx.Bot, ctx.ChatID, "OK: disabled")

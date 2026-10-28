@@ -29,12 +29,12 @@ func handleAwgProfiles(ctx *Ctx, _ string) {
 	}
 	client, err := makeAwgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 		return
 	}
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить список профилей:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить список профилей", err)
 		return
 	}
 	filtered := filterPeersByUserPrefixes(peers, ctx.User.WgProfiles)
@@ -90,7 +90,7 @@ func sendAwgProfilesList(ctx *Ctx, peers []wgEasyPeer, pickPrefix string) {
 func sendAwgUsersList(ctx *Ctx) {
 	users, err := ctx.UsersStore.ListUsers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+		replyServiceError(ctx, "бот", "Не удалось прочитать список пользователей", err)
 		return
 	}
 	sort.Slice(users, func(i, j int) bool { return users[i].Name < users[j].Name })
@@ -207,7 +207,7 @@ func sendAwgUserProfileActions(ctx *Ctx, peerID string) {
 func sendAwgConfigAsFile(ctx *Ctx, client *wgEasyClient, peerID string) {
 	data, filename, err := client.getConfiguration(peerID)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить конфигурацию:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить конфигурацию", err)
 		return
 	}
 	doc := tgbotapi.NewDocument(ctx.ChatID, tgbotapi.FileBytes{Name: normalizeWgConfigFilename(filename), Bytes: data})
@@ -219,7 +219,7 @@ func sendAwgConfigAsFile(ctx *Ctx, client *wgEasyClient, peerID string) {
 func sendAwgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 	confData, _, err := client.getConfiguration(peerID)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Failed to get QR data:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить QR-код", err)
 		return
 	}
 	qrPayload := normalizeWgQRPayload(confData)
@@ -229,7 +229,7 @@ func sendAwgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 	}
 	pngData, err := qrcode.Encode(qrPayload, qrcode.High, 2048)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Failed to generate QR:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "Amnezia WireGuard", "Не удалось сделать QR-код", err)
 		return
 	}
 	photo := tgbotapi.NewPhoto(ctx.ChatID, tgbotapi.FileBytes{Name: "qrcode.png", Bytes: pngData})
@@ -250,7 +250,7 @@ func sendAwgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 func sendAwgStatsForPeerID(ctx *Ctx, client *wgEasyClient, peerID string) {
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить статистику", err)
 		return
 	}
 	for _, p := range peers {

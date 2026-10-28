@@ -39,7 +39,7 @@ func handleAdd(ctx *Ctx, arg string) {
 
 	match, err := ctx.Domains.FindLongestContainingDomain(d)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения списка: "+err.Error())
+		replyServiceError(ctx, "домены", "Не удалось прочитать список доменов", err)
 		return
 	}
 
@@ -58,7 +58,7 @@ func handleAdd(ctx *Ctx, arg string) {
 		m.ReplyMarkup = kb
 		sent, err := ctx.Bot.Send(m)
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка отправки: "+err.Error())
+			replyServiceError(ctx, "бот", "Не удалось отправить сообщение", err)
 			return
 		}
 
@@ -75,7 +75,7 @@ func handleAdd(ctx *Ctx, arg string) {
 
 	added, err := ctx.Domains.AddDomain(ctx.User.Name, d)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения: "+err.Error())
+		replyServiceError(ctx, "домены", "Не удалось сохранить домен", err)
 		return
 	}
 	if !added {
@@ -100,7 +100,7 @@ func handleDel(ctx *Ctx, arg string) {
 func handleList(ctx *Ctx, _ string) {
 	list, err := ctx.Domains.List(ctx.User.Name)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения: "+err.Error())
+		replyServiceError(ctx, "домены", "Не удалось прочитать список доменов", err)
 		return
 	}
 	if len(list) == 0 {
@@ -113,7 +113,7 @@ func handleList(ctx *Ctx, _ string) {
 func handleExport(ctx *Ctx, _ string) {
 	all, err := ctx.Domains.ExportAll()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка экспорта: "+err.Error())
+		replyServiceError(ctx, "домены", "Не удалось экспортировать домены", err)
 		return
 	}
 	if Trim(all) == "" {

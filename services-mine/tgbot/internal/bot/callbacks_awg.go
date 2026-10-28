@@ -12,11 +12,11 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		peerID := strings.TrimPrefix(data, "awg:u:p:")
 		client, err := makeAwgClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 			return
 		}
 		if _, err := validateAwgUserPeerAccess(ctx, client, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+			replyServiceError(ctx, "Amnezia WireGuard", "Доступ к профилю недоступен", err)
 			return
 		}
 		sendAwgUserProfileActions(ctx, peerID)
@@ -32,11 +32,11 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		act, peerID := parts[0], parts[1]
 		client, err := makeAwgClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 			return
 		}
 		if _, err := validateAwgUserPeerAccess(ctx, client, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+			replyServiceError(ctx, "Amnezia WireGuard", "Доступ к профилю недоступен", err)
 			return
 		}
 		switch act {
@@ -45,7 +45,7 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		case "score":
 			peer, err := validateAwgUserPeerAccess(ctx, client, peerID)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+				replyServiceError(ctx, "Amnezia WireGuard", "Доступ к профилю недоступен", err)
 				return
 			}
 			sendDNSGuardRiskScore(ctx, "awg", peer.Name, false)
@@ -72,7 +72,7 @@ func handleAwgCallback(ctx *Ctx, data string) {
 			setAwgAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeMy})
 			peers, err := getAwgPeersForScope(ctx, wgAdminScope{Mode: wgScopeMy})
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить список профилей", err)
 				return
 			}
 			sendAwgProfilesList(ctx, peers, "awg:a:p:")
@@ -81,7 +81,7 @@ func handleAwgCallback(ctx *Ctx, data string) {
 			setAwgAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeAll})
 			peers, err := getAwgPeersForScope(ctx, wgAdminScope{Mode: wgScopeAll})
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить список профилей", err)
 				return
 			}
 			sendAwgProfilesList(ctx, peers, "awg:a:p:")
@@ -100,7 +100,7 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		setAwgAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeUser, UserName: name})
 		peers, err := getAwgPeersForScope(ctx, wgAdminScope{Mode: wgScopeUser, UserName: name})
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить список профилей", err)
 			return
 		}
 		sendAwgProfilesList(ctx, peers, "awg:a:p:")
@@ -116,7 +116,7 @@ func handleAwgCallback(ctx *Ctx, data string) {
 	if strings.HasPrefix(data, "awg:a:p:") {
 		peerID := strings.TrimPrefix(data, "awg:a:p:")
 		if _, err := validateAwgAdminPeerAccess(ctx, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 			return
 		}
 		sendAwgAdminProfileActions(ctx, peerID)
@@ -137,17 +137,17 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		}
 		client, err := makeAwgClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 			return
 		}
 		if act == "add" {
 			if err := validateAwgAdminAddAccess(ctx); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 				return
 			}
 		} else {
 			if _, err := validateAwgAdminPeerAccess(ctx, peerID); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 				return
 			}
 		}
@@ -157,14 +157,14 @@ func handleAwgCallback(ctx *Ctx, data string) {
 		case "score":
 			peer, err := validateAwgAdminPeerAccess(ctx, peerID)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 				return
 			}
 			sendDNSGuardRiskScore(ctx, "awg", peer.Name, true)
 		case "reset_score":
 			peer, err := validateAwgAdminPeerAccess(ctx, peerID)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 				return
 			}
 			sendConfirm(ctx, "Сбросить risk score и state для Amnezia WireGuard профиля "+peer.Name+"?", "awg:reset_score", peer.Name)
@@ -180,13 +180,13 @@ func handleAwgCallback(ctx *Ctx, data string) {
 			sendConfirm(ctx, "Мигрировать профиль в WG? Целевой профиль с тем же именем будет удалён и пересоздан, исходный AWG-профиль будет удалён.", "awg:a:migrate:wg", peerID)
 		case "enable":
 			if err := client.enableClient(peerID); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Не удалось включить:\n"+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "Amnezia WireGuard", "Не удалось включить", err)
 				return
 			}
 			reply(ctx.Bot, ctx.ChatID, "OK: enabled")
 		case "disable":
 			if err := client.disableClient(peerID); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Не удалось выключить:\n"+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "Amnezia WireGuard", "Не удалось выключить", err)
 				return
 			}
 			reply(ctx.Bot, ctx.ChatID, "OK: disabled")

@@ -37,12 +37,12 @@ func handleWgProfiles(ctx *Ctx, _ string) {
 
 	client, err := makeWgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 		return
 	}
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить список профилей:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "WireGuard", "Не удалось получить список профилей", err)
 		return
 	}
 
@@ -118,7 +118,7 @@ func makeWgClientFromEnv() (*wgEasyClient, error) {
 func sendWgUsersList(ctx *Ctx) {
 	users, err := ctx.UsersStore.ListUsers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+		replyServiceError(ctx, "бот", "Не удалось прочитать список пользователей", err)
 		return
 	}
 	// sort by name
@@ -241,7 +241,7 @@ func sendUserProfileActions(ctx *Ctx, peerID string) {
 func sendWgConfigAsFile(ctx *Ctx, client *wgEasyClient, peerID string) {
 	data, filename, err := client.getConfiguration(peerID)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить конфигурацию:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "WireGuard", "Не удалось получить конфигурацию", err)
 		return
 	}
 	doc := tgbotapi.NewDocument(ctx.ChatID, tgbotapi.FileBytes{Name: normalizeWgConfigFilename(filename), Bytes: data})
@@ -253,7 +253,7 @@ func sendWgConfigAsFile(ctx *Ctx, client *wgEasyClient, peerID string) {
 func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 	confData, _, err := client.getConfiguration(peerID)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Failed to get QR data:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "WireGuard", "Не удалось получить QR-код", err)
 		return
 	}
 
@@ -266,7 +266,7 @@ func sendWgQRCode(ctx *Ctx, client *wgEasyClient, peerID string) {
 	// Generate a larger QR so Telegram photo compression is less likely to break scanning/import.
 	pngData, err := qrcode.Encode(qrPayload, qrcode.High, 2048)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Failed to generate QR:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "WireGuard", "Не удалось сделать QR-код", err)
 		return
 	}
 
@@ -295,7 +295,7 @@ func normalizeWgQRPayload(confData []byte) string {
 func sendWgStatsForPeerID(ctx *Ctx, client *wgEasyClient, peerID string) {
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "WireGuard", "Не удалось получить статистику", err)
 		return
 	}
 	for _, p := range peers {

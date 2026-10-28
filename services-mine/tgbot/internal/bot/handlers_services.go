@@ -91,7 +91,7 @@ func handleWgStats(ctx *Ctx, arg string) {
 	if strings.TrimSpace(arg) != "" && ctx.User.Has(RoleAdmin) {
 		u, ok, err := ctx.UsersStore.GetByName(arg)
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+			replyServiceError(ctx, "бот", "Не удалось прочитать список пользователей", err)
 			return
 		}
 		if !ok {
@@ -102,13 +102,13 @@ func handleWgStats(ctx *Ctx, arg string) {
 	}
 	client, err := makeWgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 		return
 	}
 
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику WireGuard:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "WireGuard", "Не удалось получить статистику", err)
 		return
 	}
 
@@ -129,13 +129,13 @@ func handleWgStatsAdmin(ctx *Ctx, _ string) {
 	}
 	client, err := makeWgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 		return
 	}
 
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику WireGuard:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "WireGuard", "Не удалось получить статистику", err)
 		return
 	}
 
@@ -275,7 +275,7 @@ func handleAghLastUpdate(ctx *Ctx, _ string) {
 	blockT, whiteT, err := client.lastFilterUpdateTimes()
 	if err != nil {
 		logAghErrorIfEnabled(ctx, "AdGuard status failed: "+err.Error())
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статус обновлений AdGuard Home:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "AdGuard", "Не удалось получить статус обновлений", err)
 		return
 	}
 

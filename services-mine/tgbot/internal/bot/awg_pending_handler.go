@@ -23,7 +23,7 @@ func handleAwgPendingIfAny(ctx *Ctx, text string) bool {
 
 	client, err := makeAwgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 		return true
 	}
 
@@ -34,22 +34,22 @@ func handleAwgPendingIfAny(ctx *Ctx, text string) bool {
 			return true
 		}
 		if _, err := validateAwgAdminPeerAccess(ctx, p.PeerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 			return true
 		}
 		if err := client.renameClient(p.PeerID, input); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Не удалось переименовать:\n"+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "Amnezia WireGuard", "Не удалось переименовать", err)
 			return true
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: renamed")
 		return true
 	case wgPendingAdd:
 		if err := validateAwgAdminAddAccess(ctx); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 			return true
 		}
 		if err := client.createClient(input); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Не удалось добавить профиль:\n"+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "Amnezia WireGuard", "Не удалось добавить профиль", err)
 			return true
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: created")

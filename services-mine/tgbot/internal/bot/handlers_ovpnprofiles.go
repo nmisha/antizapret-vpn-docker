@@ -27,12 +27,12 @@ func RegisterOvpnProfilesHandlers(reg *CommandRegistry) {
 func handleOvpnProfiles(ctx *Ctx, _ string) {
 	client, err := newOvpnUIClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 		return
 	}
 	profiles, err := client.listProfiles()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить список OpenVPN профилей:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "OpenVPN", "Не удалось получить список профилей", err)
 		return
 	}
 	filtered := filterOvpnProfilesByUserPrefixes(profiles, ctx.User.OvpnProfiles)
@@ -90,7 +90,7 @@ func sendOvpnProfilesList(ctx *Ctx, profiles []ovpnProfile, pickPrefix string) {
 func sendOvpnUsersList(ctx *Ctx) {
 	users, err := ctx.UsersStore.ListUsers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+		replyServiceError(ctx, "бот", "Не удалось прочитать список пользователей", err)
 		return
 	}
 	sort.Slice(users, func(i, j int) bool { return users[i].Name < users[j].Name })
@@ -164,7 +164,7 @@ func sendOvpnProfileActions(ctx *Ctx, profileName, scope string) {
 func sendOvpnConfigAsFile(ctx *Ctx, client *ovpnUIClient, profileName string) {
 	data, filename, err := client.downloadProfile(profileName)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить OpenVPN конфигурацию:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "OpenVPN", "Не удалось получить конфигурацию", err)
 		return
 	}
 	doc := tgbotapi.NewDocument(ctx.ChatID, tgbotapi.FileBytes{Name: filename, Bytes: data})

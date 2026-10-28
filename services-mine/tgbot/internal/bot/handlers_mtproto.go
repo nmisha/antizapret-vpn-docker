@@ -46,12 +46,12 @@ func RegisterMtprotoHandlers(reg *CommandRegistry) {
 func handleMtproto(ctx *Ctx, _ string) {
 	client, err := newTelemtClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "MTProto", "Не удалось получить список прокси", err)
 		return
 	}
 	users, err := client.listUsers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить список MTProto прокси:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "MTProto", "Не удалось получить список прокси", err)
 		return
 	}
 	filtered := filterMtpUsersByPrefixes(users, ctx.User.MtprotoProfiles)
@@ -207,12 +207,15 @@ func findMtpUser(users []telemtUser, name string) (telemtUser, bool) {
 
 func validateMtpUserAccess(ctx *Ctx, client *telemtClient, name string) (telemtUser, error) {
 	if !ctx.User.Has(RoleMtprotoUserControl) {
-		return telemtUser{}, fmt.Errorf("недостаточно прав")
+		return telemtUser{}, userErrorf("недостаточно прав")
 	}
 	if !canAccessOvpnProfileByPrefixes(name, ctx.User.MtprotoProfiles) && !ctx.User.Has(RoleAdmin) {
-		return telemtUser{}, fmt.Errorf("доступ к прокси отозван")
+		return telemtUser{}, userErrorf("доступ к прокси отозван")
 	}
 	u, err := client.getUser(name)
+	if isTelemtNotFound(err) {
+		return telemtUser{}, userErrorf("прокси больше не найден")
+	}
 	if err != nil {
 		return telemtUser{}, err
 	}
@@ -221,11 +224,11 @@ func validateMtpUserAccess(ctx *Ctx, client *telemtClient, name string) (telemtU
 
 func validateMtpAdminAccess(ctx *Ctx, client *telemtClient, name string) (telemtUser, error) {
 	if !ctx.User.Has(RoleAdmin) {
-		return telemtUser{}, fmt.Errorf("недостаточно прав")
+		return telemtUser{}, userErrorf("недостаточно прав")
 	}
 	scope, ok := getMtpAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
-		return telemtUser{}, fmt.Errorf("кнопка устарела, открой список прокси заново")
+		return telemtUser{}, userErrorf("кнопка устарела, открой список прокси заново")
 	}
 	users, err := getMtpUsersForScope(ctx, client, scope)
 	if err != nil {
@@ -233,7 +236,7 @@ func validateMtpAdminAccess(ctx *Ctx, client *telemtClient, name string) (telemt
 	}
 	u, ok := findMtpUser(users, name)
 	if !ok {
-		return telemtUser{}, fmt.Errorf("прокси больше не доступен в текущем scope")
+		return telemtUser{}, userErrorf("прокси больше не доступен в текущем scope")
 	}
 	return u, nil
 }
@@ -376,7 +379,7 @@ func sendMtpLimitsMenu(ctx *Ctx, u telemtUser) {
 func sendMtpLink(ctx *Ctx, u telemtUser) {
 	link := telemtWebLink(u.TLSLink())
 	if link == "" {
-		reply(ctx.Bot, ctx.ChatID, "У прокси нет fake-TLS ссылки (проверьте [general.links] в config.toml telemt).")
+		replyServiceError(ctx, "MTProto", "Не удалось получить ссылку", fmt.Errorf("у прокси %s нет fake-TLS ссылки: проверьте [general.links] в config.toml telemt", u.Username))
 		return
 	}
 
@@ -396,7 +399,7 @@ func sendMtpLink(ctx *Ctx, u telemtUser) {
 
 	pngData, err := qrcode.Encode(link, qrcode.Medium, 1024)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Failed to generate QR:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "MTProto", "Не удалось сделать QR-код", err)
 		return
 	}
 	photo := tgbotapi.NewPhoto(ctx.ChatID, tgbotapi.FileBytes{Name: "qrcode.png", Bytes: pngData})

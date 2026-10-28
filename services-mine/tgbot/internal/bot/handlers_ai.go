@@ -35,7 +35,7 @@ func handleAccounts(ctx *Ctx, _ string) {
 
 	list, err := ctx.Accounts.List()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения accounts файла: "+err.Error())
+		replyServiceError(ctx, "аккаунты", "Не удалось прочитать список учётных записей", err)
 		return
 	}
 	if len(list) == 0 {
@@ -48,7 +48,7 @@ func handleAccounts(ctx *Ctx, _ string) {
 	msg.ReplyMarkup = kb
 	_, err = ctx.Bot.Send(msg)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка отправки: "+err.Error())
+		replyServiceError(ctx, "бот", "Не удалось отправить сообщение", err)
 		return
 	}
 }
@@ -109,7 +109,7 @@ func handleAccountsCallback(bot *tgbotapi.BotAPI, ctx *Ctx, data string) {
 
 	list, err := ctx.Accounts.List()
 	if err != nil {
-		reply(bot, ctx.ChatID, "Ошибка чтения accounts файла: "+err.Error())
+		replyServiceError(ctx, "аккаунты", "Не удалось прочитать список учётных записей", err)
 		return
 	}
 	if idx >= len(list) {

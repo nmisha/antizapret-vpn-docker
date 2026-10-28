@@ -12,11 +12,11 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		profileName := strings.TrimPrefix(data, "ovpn:u:p:")
 		client, err := newOvpnUIClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 			return
 		}
 		if _, err := validateOvpnUserProfileAccess(ctx, client, profileName); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+			replyServiceError(ctx, "OpenVPN", "Доступ к профилю недоступен", err)
 			return
 		}
 		sendOvpnProfileActionsWithStats(ctx, profileName, "ovpn:u")
@@ -32,11 +32,11 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		act, profileName := parts[0], parts[1]
 		client, err := newOvpnUIClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 			return
 		}
 		if _, err := validateOvpnUserProfileAccess(ctx, client, profileName); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Доступ к профилю недоступен: "+err.Error())
+			replyServiceError(ctx, "OpenVPN", "Доступ к профилю недоступен", err)
 			return
 		}
 		switch act {
@@ -63,7 +63,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 			setOvpnAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeMy})
 			profiles, err := getOvpnProfilesForScope(ctx, wgAdminScope{Mode: wgScopeMy})
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "OpenVPN", "Не удалось получить список профилей", err)
 				return
 			}
 			sendOvpnProfilesList(ctx, profiles, "ovpn:a:p:")
@@ -72,7 +72,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 			setOvpnAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeAll})
 			profiles, err := getOvpnProfilesForScope(ctx, wgAdminScope{Mode: wgScopeAll})
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+				replyServiceError(ctx, "OpenVPN", "Не удалось получить список профилей", err)
 				return
 			}
 			sendOvpnProfilesList(ctx, profiles, "ovpn:a:p:")
@@ -90,7 +90,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		setOvpnAdminScope(ctx.TgID, wgAdminScope{Mode: wgScopeUser, UserName: name})
 		profiles, err := getOvpnProfilesForScope(ctx, wgAdminScope{Mode: wgScopeUser, UserName: name})
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка: "+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "OpenVPN", "Не удалось получить список профилей", err)
 			return
 		}
 		sendOvpnProfilesList(ctx, profiles, "ovpn:a:p:")
@@ -105,11 +105,11 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		profileName := strings.TrimPrefix(data, "ovpn:a:p:")
 		client, err := newOvpnUIClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 			return
 		}
 		if _, err := validateOvpnAdminProfileAccess(ctx, client, profileName); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 			return
 		}
 		sendOvpnProfileActionsWithStats(ctx, profileName, "ovpn:a")
@@ -125,17 +125,17 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 		act, profileName := parts[0], parts[1]
 		client, err := newOvpnUIClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 			return
 		}
 		if act == "add" {
 			if err := validateOvpnAdminAddAccess(ctx); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 				return
 			}
 		} else {
 			if _, err := validateOvpnAdminProfileAccess(ctx, client, profileName); err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+				replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 				return
 			}
 		}
@@ -171,7 +171,7 @@ func handleOvpnCallback(ctx *Ctx, data string) {
 func sendOvpnAdminCertificateAction(ctx *Ctx, client *ovpnUIClient, profileName, action string) {
 	profile, err := validateOvpnAdminProfileAccess(ctx, client, profileName)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+		replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 		return
 	}
 
@@ -196,7 +196,7 @@ func sendOvpnAdminCertificateAction(ctx *Ctx, client *ovpnUIClient, profileName,
 		return
 	}
 	if err := client.executeProfileAction(actionURL); err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось выполнить действие OpenVPN:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "OpenVPN", "Не удалось выполнить действие", err)
 		return
 	}
 
@@ -206,11 +206,11 @@ func sendOvpnAdminCertificateAction(ctx *Ctx, client *ovpnUIClient, profileName,
 
 func sendOvpnAdminRestart(ctx *Ctx, client *ovpnUIClient, profileName string) {
 	if _, err := validateOvpnAdminProfileAccess(ctx, client, profileName); err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+		replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 		return
 	}
 	if err := client.restartServer("SIGUSR1"); err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось перезапустить OpenVPN server:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "OpenVPN", "Не удалось перезапустить server", err)
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, "OpenVPN server restarted (SIGUSR1). Активные клиентские сессии должны быть переинициализированы.")
@@ -220,7 +220,7 @@ func sendOvpnAdminRestart(ctx *Ctx, client *ovpnUIClient, profileName string) {
 func sendOvpnAdminRestartContainer(ctx *Ctx, client *ovpnUIClient, profileName string) {
 	profile, err := validateOvpnAdminProfileAccess(ctx, client, profileName)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+		replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 		return
 	}
 	if strings.TrimSpace(profile.RestartContainerURL) == "" {
@@ -228,7 +228,7 @@ func sendOvpnAdminRestartContainer(ctx *Ctx, client *ovpnUIClient, profileName s
 		return
 	}
 	if err := client.executeProfileAction(profile.RestartContainerURL); err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось перезапустить OpenVPN container:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "OpenVPN", "Не удалось перезапустить container", err)
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, "OpenVPN container restart triggered.")

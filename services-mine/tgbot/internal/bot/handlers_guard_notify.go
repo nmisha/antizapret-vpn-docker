@@ -69,7 +69,7 @@ func handleGuardNotifyStatus(ctx *Ctx, _ string) {
 
 	user, ok, err := ctx.UsersStore.GetByID(ctx.TgID)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось прочитать настройку: "+err.Error())
+		replyServiceError(ctx, "бот", "Не удалось прочитать настройку", err)
 		return
 	}
 	if !ok {
@@ -124,7 +124,7 @@ func setGuardNotify(ctx *Ctx, enabled bool, okMessage string) {
 		return
 	}
 	if _, err := ctx.UsersStore.SetGuardNotifyByID(ctx.TgID, enabled); err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось сохранить настройку: "+err.Error())
+		replyServiceError(ctx, "бот", "Не удалось сохранить настройку", err)
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, okMessage)
@@ -136,7 +136,7 @@ func setGuardNotMeNotify(ctx *Ctx, enabled bool, okMessage string) {
 		return
 	}
 	if _, err := ctx.UsersStore.SetGuardNotMeNotifyByID(ctx.TgID, enabled); err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось сохранить настройку: "+err.Error())
+		replyServiceError(ctx, "бот", "Не удалось сохранить настройку", err)
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, okMessage)

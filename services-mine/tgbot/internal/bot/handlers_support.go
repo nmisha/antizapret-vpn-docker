@@ -29,7 +29,7 @@ func sendSupportMessage(ctx *Ctx, msg string, entities []tgbotapi.MessageEntity)
 
 	users, err := ctx.UsersStore.ListUsers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+		replyServiceError(ctx, "бот", "Не удалось отправить обращение", err)
 		return
 	}
 

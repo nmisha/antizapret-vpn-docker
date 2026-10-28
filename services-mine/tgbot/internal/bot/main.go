@@ -113,7 +113,9 @@ func Run(register func(reg *CommandRegistry)) error {
 
 		user, ok, err := usersStore.GetByID(tgID)
 		if err != nil {
-			reply(bot, chatID, "Ошибка чтения users.json: "+err.Error())
+			// Cannot tell users from strangers: answer like to a stranger and keep details in the log.
+			log.Printf("users.json read failed (tg_id=%d): %v", tgID, err)
+			reply(bot, chatID, randomJoke())
 			continue
 		}
 		if !ok || user.Disabled {

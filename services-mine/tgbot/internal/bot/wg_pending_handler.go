@@ -23,7 +23,7 @@ func handleWgPendingIfAny(ctx *Ctx, text string) bool {
 
 	client, err := makeWgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 		return true
 	}
 
@@ -34,11 +34,11 @@ func handleWgPendingIfAny(ctx *Ctx, text string) bool {
 			return true
 		}
 		if _, err := validateWgAdminPeerAccess(ctx, client, p.PeerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 			return true
 		}
 		if err := client.renameClient(p.PeerID, input); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Не удалось переименовать:\n"+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "WireGuard", "Не удалось переименовать", err)
 			return true
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: renamed")
@@ -46,11 +46,11 @@ func handleWgPendingIfAny(ctx *Ctx, text string) bool {
 
 	case wgPendingAdd:
 		if err := validateWgAdminAddAccess(ctx); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "WireGuard", "Действие недоступно", err)
 			return true
 		}
 		if err := client.createClient(input); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Не удалось добавить профиль:\n"+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "WireGuard", "Не удалось добавить профиль", err)
 			return true
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: created")

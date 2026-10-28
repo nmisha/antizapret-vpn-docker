@@ -15,7 +15,7 @@ func handleMtprotoCallback(ctx *Ctx, data string) {
 	}
 	client, err := newTelemtClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "MTProto", "Действие недоступно", err)
 		return
 	}
 
@@ -26,7 +26,7 @@ func handleMtprotoCallback(ctx *Ctx, data string) {
 	case strings.HasPrefix(data, "mtp:u:p:"):
 		u, err := validateMtpUserAccess(ctx, client, strings.TrimPrefix(data, "mtp:u:p:"))
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Доступ к прокси недоступен: "+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "MTProto", "Доступ к прокси недоступен", err)
 			return
 		}
 		sendMtpUserActions(ctx, u, false)
@@ -39,7 +39,7 @@ func handleMtprotoCallback(ctx *Ctx, data string) {
 		}
 		u, err := validateMtpUserAccess(ctx, client, name)
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Доступ к прокси недоступен: "+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "MTProto", "Доступ к прокси недоступен", err)
 			return
 		}
 		switch act {
@@ -209,7 +209,7 @@ func handleMtpConfirm(ctx *Ctx, kind, name string) {
 	}
 	client, err := newTelemtClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "MTProto", "Действие недоступно", err)
 		return
 	}
 	admin := strings.HasPrefix(kind, "mtp:a:")
@@ -219,7 +219,7 @@ func handleMtpConfirm(ctx *Ctx, kind, name string) {
 		_, err = validateMtpUserAccess(ctx, client, name)
 	}
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "MTProto", "Действие недоступно", err)
 		return
 	}
 
@@ -227,7 +227,7 @@ func handleMtpConfirm(ctx *Ctx, kind, name string) {
 	case strings.HasSuffix(kind, ":rotate"):
 		u, err := client.rotateSecret(name)
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Не удалось сменить секрет:\n"+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "MTProto", "Не удалось сменить секрет", err)
 			return
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: новый секрет выпущен, старая ссылка больше не работает.")

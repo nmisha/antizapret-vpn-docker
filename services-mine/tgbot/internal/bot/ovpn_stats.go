@@ -42,7 +42,7 @@ func handleOvpnStats(ctx *Ctx, arg string) {
 	if strings.TrimSpace(arg) != "" && ctx.User.Has(RoleAdmin) {
 		u, ok, err := ctx.UsersStore.GetByName(arg)
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+			replyServiceError(ctx, "бот", "Не удалось прочитать список пользователей", err)
 			return
 		}
 		if !ok {
@@ -54,12 +54,12 @@ func handleOvpnStats(ctx *Ctx, arg string) {
 
 	client, err := newOvpnUIClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 		return
 	}
 	sessions, err := client.listSessions()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику OpenVPN:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "OpenVPN", "Не удалось получить статистику", err)
 		return
 	}
 
@@ -74,12 +74,12 @@ func handleOvpnStats(ctx *Ctx, arg string) {
 func handleOvpnStatsAdmin(ctx *Ctx, _ string) {
 	client, err := newOvpnUIClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 		return
 	}
 	sessions, err := client.listSessions()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику OpenVPN:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "OpenVPN", "Не удалось получить статистику", err)
 		return
 	}
 	if len(sessions.ClientList) == 0 {
@@ -92,7 +92,7 @@ func handleOvpnStatsAdmin(ctx *Ctx, _ string) {
 func sendOvpnStatsForProfile(ctx *Ctx, client *ovpnUIClient, profileName string) {
 	sessions, err := client.listSessions()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику OpenVPN:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "OpenVPN", "Не удалось получить статистику", err)
 		return
 	}
 	filtered := filterOvpnSessionsByProfileName(sessions.ClientList, profileName)

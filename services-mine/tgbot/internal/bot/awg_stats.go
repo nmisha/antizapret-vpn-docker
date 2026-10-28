@@ -31,7 +31,7 @@ func handleAwgStats(ctx *Ctx, arg string) {
 	if strings.TrimSpace(arg) != "" && ctx.User.Has(RoleAdmin) {
 		u, ok, err := ctx.UsersStore.GetByName(arg)
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка чтения users.json: "+err.Error())
+			replyServiceError(ctx, "бот", "Не удалось прочитать список пользователей", err)
 			return
 		}
 		if !ok {
@@ -42,12 +42,12 @@ func handleAwgStats(ctx *Ctx, arg string) {
 	}
 	client, err := makeAwgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 		return
 	}
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику Amnezia WireGuard:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить статистику", err)
 		return
 	}
 	filtered := filterPeersByUserPrefixes(peers, target.WgProfiles)
@@ -65,12 +65,12 @@ func handleAwgStatsAdmin(ctx *Ctx, _ string) {
 	}
 	client, err := makeAwgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "Amnezia WireGuard", "Действие недоступно", err)
 		return
 	}
 	peers, err := client.listPeers()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить статистику Amnezia WireGuard:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "Amnezia WireGuard", "Не удалось получить статистику", err)
 		return
 	}
 	replyHTML(ctx.Bot, ctx.ChatID, truncate(formatWgPeersStats(peers), 3800))

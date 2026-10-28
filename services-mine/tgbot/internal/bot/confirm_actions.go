@@ -132,7 +132,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 		if ctx.User.Has(RoleDomainManager) || ctx.User.Has(RoleAdmin) {
 			sections, err := ctx.Domains.DelDomainAny(d)
 			if err != nil {
-				reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения: "+err.Error())
+				replyServiceError(ctx, "домены", "Не удалось удалить домен", err)
 				return true
 			}
 			if len(sections) == 0 {
@@ -149,7 +149,7 @@ func handleConfirmCallback(ctx *Ctx, data string) bool {
 
 		removed, err := ctx.Domains.DelDomain(ctx.User.Name, d)
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Ошибка сохранения: "+err.Error())
+			replyServiceError(ctx, "домены", "Не удалось удалить домен", err)
 			return true
 		}
 		if !removed {
@@ -263,30 +263,30 @@ func handleWgToAwgMigration(ctx *Ctx, payload string, admin bool) {
 
 	sourceClient, err := makeWgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "WireGuard → AWG", "Миграция недоступна", err)
 		return
 	}
 	targetClient, err := makeAwgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "WireGuard → AWG", "Миграция недоступна", err)
 		return
 	}
 
 	if admin {
 		if _, err := validateWgAdminPeerAccess(ctx, sourceClient, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "WireGuard → AWG", "Действие недоступно", err)
 			return
 		}
 	} else {
 		if _, err := validateWgUserPeerAccess(ctx, sourceClient, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "WireGuard → AWG", "Действие недоступно", err)
 			return
 		}
 	}
 
 	res, err := migratePeerBetweenClients(sourceClient, targetClient, peerID, "WG", "AWG")
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Миграция в AWG не удалась:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "WireGuard → AWG", "Миграция в AWG не удалась", err)
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, formatMigrationSuccess("WG", "AWG", res))
@@ -301,30 +301,30 @@ func handleAwgToWgMigration(ctx *Ctx, payload string, admin bool) {
 
 	sourceClient, err := makeAwgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "AWG → WireGuard", "Миграция недоступна", err)
 		return
 	}
 	targetClient, err := makeWgClientFromEnv()
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, err.Error())
+		replyServiceError(ctx, "AWG → WireGuard", "Миграция недоступна", err)
 		return
 	}
 
 	if admin {
 		if _, err := validateAwgAdminPeerAccess(ctx, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "AWG → WireGuard", "Действие недоступно", err)
 			return
 		}
 	} else {
 		if _, err := validateAwgUserPeerAccess(ctx, sourceClient, peerID); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "AWG → WireGuard", "Действие недоступно", err)
 			return
 		}
 	}
 
 	res, err := migratePeerBetweenClients(sourceClient, targetClient, peerID, "AWG", "WG")
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Миграция в WG не удалась:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "AWG → WireGuard", "Миграция в WG не удалась", err)
 		return
 	}
 	reply(ctx.Bot, ctx.ChatID, formatMigrationSuccess("AWG", "WG", res))

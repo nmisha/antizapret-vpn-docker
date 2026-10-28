@@ -1,9 +1,6 @@
 package bot
 
-import (
-	"fmt"
-	"strings"
-)
+import "strings"
 
 func findWgPeerByID(peers []wgEasyPeer, peerID string) (wgEasyPeer, bool) {
 	for _, p := range peers {
@@ -30,7 +27,7 @@ func canAccessWgPeerByPrefixes(peer wgEasyPeer, prefixes []string) bool {
 
 func validateWgUserPeerAccess(ctx *Ctx, client *wgEasyClient, peerID string) (wgEasyPeer, error) {
 	if !ctx.User.Has(RoleWgUserControl) && !ctx.User.Has(RoleAdmin) {
-		return wgEasyPeer{}, fmt.Errorf("недостаточно прав")
+		return wgEasyPeer{}, userErrorf("недостаточно прав")
 	}
 
 	peers, err := client.listPeers()
@@ -39,22 +36,22 @@ func validateWgUserPeerAccess(ctx *Ctx, client *wgEasyClient, peerID string) (wg
 	}
 	peer, ok := findWgPeerByID(peers, peerID)
 	if !ok {
-		return wgEasyPeer{}, fmt.Errorf("профиль больше не найден")
+		return wgEasyPeer{}, userErrorf("профиль больше не найден")
 	}
 	if !canAccessWgPeerByPrefixes(peer, ctx.User.WgProfiles) && !ctx.User.Has(RoleAdmin) {
-		return wgEasyPeer{}, fmt.Errorf("доступ к профилю отозван")
+		return wgEasyPeer{}, userErrorf("доступ к профилю отозван")
 	}
 	return peer, nil
 }
 
 func validateWgAdminPeerAccess(ctx *Ctx, _ *wgEasyClient, peerID string) (wgEasyPeer, error) {
 	if !ctx.User.Has(RoleAdmin) {
-		return wgEasyPeer{}, fmt.Errorf("недостаточно прав")
+		return wgEasyPeer{}, userErrorf("недостаточно прав")
 	}
 
 	scope, ok := getAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
-		return wgEasyPeer{}, fmt.Errorf("кнопка устарела, открой список профилей заново")
+		return wgEasyPeer{}, userErrorf("кнопка устарела, открой список профилей заново")
 	}
 
 	peers, err := getPeersForScope(ctx, scope)
@@ -63,25 +60,25 @@ func validateWgAdminPeerAccess(ctx *Ctx, _ *wgEasyClient, peerID string) (wgEasy
 	}
 	peer, ok := findWgPeerByID(peers, peerID)
 	if !ok {
-		return wgEasyPeer{}, fmt.Errorf("профиль больше не доступен в текущем scope")
+		return wgEasyPeer{}, userErrorf("профиль больше не доступен в текущем scope")
 	}
 	return peer, nil
 }
 
 func validateWgAdminAddAccess(ctx *Ctx) error {
 	if !ctx.User.Has(RoleAdmin) {
-		return fmt.Errorf("недостаточно прав")
+		return userErrorf("недостаточно прав")
 	}
 	scope, ok := getAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
-		return fmt.Errorf("кнопка устарела, открой список профилей заново")
+		return userErrorf("кнопка устарела, открой список профилей заново")
 	}
 	return nil
 }
 
 func validateAwgUserPeerAccess(ctx *Ctx, client *wgEasyClient, peerID string) (wgEasyPeer, error) {
 	if !ctx.User.Has(RoleAwgUserControl) && !ctx.User.Has(RoleAdmin) {
-		return wgEasyPeer{}, fmt.Errorf("недостаточно прав")
+		return wgEasyPeer{}, userErrorf("недостаточно прав")
 	}
 	peers, err := client.listPeers()
 	if err != nil {
@@ -89,21 +86,21 @@ func validateAwgUserPeerAccess(ctx *Ctx, client *wgEasyClient, peerID string) (w
 	}
 	peer, ok := findWgPeerByID(peers, peerID)
 	if !ok {
-		return wgEasyPeer{}, fmt.Errorf("профиль больше не найден")
+		return wgEasyPeer{}, userErrorf("профиль больше не найден")
 	}
 	if !canAccessWgPeerByPrefixes(peer, ctx.User.WgProfiles) && !ctx.User.Has(RoleAdmin) {
-		return wgEasyPeer{}, fmt.Errorf("доступ к профилю отозван")
+		return wgEasyPeer{}, userErrorf("доступ к профилю отозван")
 	}
 	return peer, nil
 }
 
 func validateAwgAdminPeerAccess(ctx *Ctx, peerID string) (wgEasyPeer, error) {
 	if !ctx.User.Has(RoleAdmin) {
-		return wgEasyPeer{}, fmt.Errorf("недостаточно прав")
+		return wgEasyPeer{}, userErrorf("недостаточно прав")
 	}
 	scope, ok := getAwgAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
-		return wgEasyPeer{}, fmt.Errorf("кнопка устарела, открой список профилей заново")
+		return wgEasyPeer{}, userErrorf("кнопка устарела, открой список профилей заново")
 	}
 	peers, err := getAwgPeersForScope(ctx, scope)
 	if err != nil {
@@ -111,18 +108,18 @@ func validateAwgAdminPeerAccess(ctx *Ctx, peerID string) (wgEasyPeer, error) {
 	}
 	peer, ok := findWgPeerByID(peers, peerID)
 	if !ok {
-		return wgEasyPeer{}, fmt.Errorf("профиль больше не доступен в текущем scope")
+		return wgEasyPeer{}, userErrorf("профиль больше не доступен в текущем scope")
 	}
 	return peer, nil
 }
 
 func validateAwgAdminAddAccess(ctx *Ctx) error {
 	if !ctx.User.Has(RoleAdmin) {
-		return fmt.Errorf("недостаточно прав")
+		return userErrorf("недостаточно прав")
 	}
 	scope, ok := getAwgAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
-		return fmt.Errorf("кнопка устарела, открой список профилей заново")
+		return userErrorf("кнопка устарела, открой список профилей заново")
 	}
 	return nil
 }
@@ -143,7 +140,7 @@ func canAccessOvpnProfileByPrefixes(profileName string, prefixes []string) bool 
 
 func validateOvpnUserProfileAccess(ctx *Ctx, client *ovpnUIClient, profileName string) (ovpnProfile, error) {
 	if !ctx.User.Has(RoleOvpnUserControl) && !ctx.User.Has(RoleAdmin) {
-		return ovpnProfile{}, fmt.Errorf("недостаточно прав")
+		return ovpnProfile{}, userErrorf("недостаточно прав")
 	}
 
 	profiles, err := client.listProfiles()
@@ -156,21 +153,21 @@ func validateOvpnUserProfileAccess(ctx *Ctx, client *ovpnUIClient, profileName s
 			continue
 		}
 		if !canAccessOvpnProfileByPrefixes(p.Name, ctx.User.OvpnProfiles) && !ctx.User.Has(RoleAdmin) {
-			return ovpnProfile{}, fmt.Errorf("доступ к профилю отозван")
+			return ovpnProfile{}, userErrorf("доступ к профилю отозван")
 		}
 		return p, nil
 	}
-	return ovpnProfile{}, fmt.Errorf("профиль больше не найден")
+	return ovpnProfile{}, userErrorf("профиль больше не найден")
 }
 
 func validateOvpnAdminProfileAccess(ctx *Ctx, _ *ovpnUIClient, profileName string) (ovpnProfile, error) {
 	if !ctx.User.Has(RoleAdmin) {
-		return ovpnProfile{}, fmt.Errorf("недостаточно прав")
+		return ovpnProfile{}, userErrorf("недостаточно прав")
 	}
 
 	scope, ok := getOvpnAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
-		return ovpnProfile{}, fmt.Errorf("кнопка устарела, открой список профилей заново")
+		return ovpnProfile{}, userErrorf("кнопка устарела, открой список профилей заново")
 	}
 
 	profiles, err := getOvpnProfilesForScope(ctx, scope)
@@ -183,16 +180,16 @@ func validateOvpnAdminProfileAccess(ctx *Ctx, _ *ovpnUIClient, profileName strin
 			return p, nil
 		}
 	}
-	return ovpnProfile{}, fmt.Errorf("профиль больше не доступен в текущем scope")
+	return ovpnProfile{}, userErrorf("профиль больше не доступен в текущем scope")
 }
 
 func validateOvpnAdminAddAccess(ctx *Ctx) error {
 	if !ctx.User.Has(RoleAdmin) {
-		return fmt.Errorf("недостаточно прав")
+		return userErrorf("недостаточно прав")
 	}
 	scope, ok := getOvpnAdminScope(ctx.TgID)
 	if !ok || scope.Mode == "" {
-		return fmt.Errorf("кнопка устарела, открой список профилей заново")
+		return userErrorf("кнопка устарела, открой список профилей заново")
 	}
 	return nil
 }

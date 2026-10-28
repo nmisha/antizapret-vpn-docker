@@ -37,7 +37,8 @@ func handleDomainPendingCallback(bot *tgbotapi.BotAPI, ctx *Ctx, q *tgbotapi.Cal
 			return
 		}
 		if err := ctx.Domains.ReplaceDomain(p.ParentSection, p.ParentDomain, p.TargetSection, p.Candidate); err != nil {
-			editMessage(bot, chatID, p.MessageID, "Ошибка сохранения: "+err.Error(), nil)
+			editMessage(bot, chatID, p.MessageID, "Не удалось сохранить.", nil)
+			replyServiceError(ctx, "домены", "Не удалось сохранить домен", err)
 			return
 		}
 		clearPending(tgID)
@@ -54,7 +55,8 @@ func handleDomainPendingCallback(bot *tgbotapi.BotAPI, ctx *Ctx, q *tgbotapi.Cal
 		}
 		added, err := ctx.Domains.AddDomain(p.TargetSection, p.Candidate)
 		if err != nil {
-			editMessage(bot, chatID, p.MessageID, "Ошибка сохранения: "+err.Error(), nil)
+			editMessage(bot, chatID, p.MessageID, "Не удалось сохранить.", nil)
+			replyServiceError(ctx, "домены", "Не удалось сохранить домен", err)
 			return
 		}
 		clearPending(tgID)

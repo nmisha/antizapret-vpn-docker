@@ -9,7 +9,7 @@ import (
 func sendDNSGuardRiskScore(ctx *Ctx, kind, profileName string, adminView bool) {
 	risk, err := fetchDNSGuardProfileRisk(kind, profileName)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось получить risk score:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "DNS Guard", "Не удалось получить risk score", err)
 		return
 	}
 	replyHTML(ctx.Bot, ctx.ChatID, formatDNSGuardRiskScoreMessage(risk, adminView))
@@ -18,7 +18,7 @@ func sendDNSGuardRiskScore(ctx *Ctx, kind, profileName string, adminView bool) {
 func resetDNSGuardRiskScore(ctx *Ctx, kind, profileName string) {
 	result, err := resetDNSGuardProfileRisk(kind, profileName)
 	if err != nil {
-		reply(ctx.Bot, ctx.ChatID, "Не удалось сбросить risk score:\n"+truncate(err.Error(), 3500))
+		replyServiceError(ctx, "DNS Guard", "Не удалось сбросить risk score", err)
 		return
 	}
 	replyHTML(ctx.Bot, ctx.ChatID, formatDNSGuardRiskResetMessage(result))

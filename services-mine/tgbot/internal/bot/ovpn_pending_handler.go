@@ -28,16 +28,16 @@ func handleOvpnPendingIfAny(ctx *Ctx, text string) bool {
 	switch p.Kind {
 	case ovpnPendingAdd:
 		if err := validateOvpnAdminAddAccess(ctx); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+err.Error())
+			replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 			return true
 		}
 		client, err := newOvpnUIClientFromEnv()
 		if err != nil {
-			reply(ctx.Bot, ctx.ChatID, err.Error())
+			replyServiceError(ctx, "OpenVPN", "Действие недоступно", err)
 			return true
 		}
 		if err := client.createProfile(input); err != nil {
-			reply(ctx.Bot, ctx.ChatID, "Не удалось создать OpenVPN сертификат:\n"+truncate(err.Error(), 3500))
+			replyServiceError(ctx, "OpenVPN", "Не удалось создать сертификат", err)
 			return true
 		}
 		reply(ctx.Bot, ctx.ChatID, "OK: OpenVPN certificate created")
