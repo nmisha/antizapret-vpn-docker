@@ -26,7 +26,7 @@ OpenVPN), MTProto-прокси (telemt), списки доменов, DNS Guard,
 | `/help`, `/start` при ≤ 20 доступных команд | весь список одним сообщением, по разделам |
 | `/help`, `/start` при > 20 команд (админ) | оглавление: группы кнопками с числом команд |
 | кнопка группы | список группы в том же сообщении, кнопка «← Разделы» |
-| `/help <группа>` | список группы без кнопок оглавления (`/help vpn`) |
+| `/help <группа>` | список группы без кнопок оглавления (`/help wg`) |
 | `/help all` | весь список, частями по 3500 символов |
 
 `/start` игнорирует параметр deep link и показывает то же, что `/help`. На экране группы внутри каждого
@@ -41,7 +41,9 @@ OpenVPN), MTProto-прокси (telemt), списки доменов, DNS Guard,
 | Ключ | Группа | Разделы | Команд у админа |
 |---|---|---|---|
 | `start` | Основное | Быстрый старт | 4 |
-| `vpn` | VPN | WireGuard, Админ: WireGuard, Amnezia WireGuard, Админ: Amnezia WireGuard, OpenVPN, Админ: OpenVPN | 37 |
+| `wg` | WireGuard | WireGuard, Админ: WireGuard | 12 |
+| `awg` | Amnezia WireGuard | Amnezia WireGuard, Админ: Amnezia WireGuard | 12 |
+| `ovpn` | OpenVPN | OpenVPN, Админ: OpenVPN | 13 |
 | `mtproto` | MTProto | MTProto, Админ: MTProto | 2 |
 | `dns` | Домены и DNS | Домены, DNS Guard, Сервисы, Админ: сервисы, Сеть | 13 |
 | `accounts` | Аккаунты | Аккаунты, Админ: аккаунты | 7 |
@@ -63,7 +65,7 @@ OpenVPN), MTProto-прокси (telemt), списки доменов, DNS Guard,
 | `/roles [name]` | все | показать роли (свои; Admin может смотреть чужие) |
 | `/support [сообщение]` | все | написать в поддержку (без аргумента откроет UI) |
 
-#### VPN (`/help vpn`)
+#### WireGuard (`/help wg`)
 
 *WireGuard*
 
@@ -89,6 +91,8 @@ OpenVPN), MTProto-прокси (telemt), списки доменов, DNS Guard,
 | `/wg_reset_score <profile_name_or_prefix>` | Admin | сбросить risk score DNS Guard |
 | `/wg_score <profile_name_or_prefix>` | Admin | получить risk score профиля |
 
+#### Amnezia WireGuard (`/help awg`)
+
 *Amnezia WireGuard*
 
 | Команда | Роли | Описание |
@@ -112,6 +116,8 @@ OpenVPN), MTProto-прокси (telemt), списки доменов, DNS Guard,
 | `/awg_rename <old_name_or_prefix> <new_name>` | Admin | переименовать профиль |
 | `/awg_reset_score <profile_name_or_prefix>` | Admin | сбросить risk score DNS Guard |
 | `/awg_score <profile_name_or_prefix>` | Admin | получить risk score профиля |
+
+#### OpenVPN (`/help ovpn`)
 
 *OpenVPN*
 

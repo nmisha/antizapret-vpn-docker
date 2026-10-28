@@ -72,7 +72,7 @@ func TestHelpAdminGroups(t *testing.T) {
 		keys = append(keys, g.Key)
 		total += g.Count
 	}
-	if strings.Join(keys, ",") != "start,vpn,mtproto,dns,accounts,users,bot" {
+	if strings.Join(keys, ",") != "start,wg,awg,ovpn,mtproto,dns,accounts,users,bot" {
 		t.Fatalf("groups %v", keys)
 	}
 	if want := len(reg.VisibleSpecsForUser(admin)); total != want {
@@ -107,15 +107,15 @@ func TestHelpAdminScreens(t *testing.T) {
 		t.Fatalf("admin index: %q", got)
 	}
 
-	handleHelp(ctx, "VPN")
+	handleHelp(ctx, "WG")
 	got := ft.lastText()
-	for _, cmd := range []string{"/wg_profiles", "/wg_conf", "/awg_profiles_admin", "/ovpn_revoke", "Админ: WireGuard"} {
+	for _, cmd := range []string{"/wg_profiles", "/wg_conf", "/wg_profiles_admin", "Админ: WireGuard"} {
 		if !strings.Contains(got, cmd) {
-			t.Fatalf("vpn group misses %s: %q", cmd, got)
+			t.Fatalf("wg group misses %s: %q", cmd, got)
 		}
 	}
-	if strings.Contains(got, "/mtproto") {
-		t.Fatal("vpn group shows MTProto")
+	if strings.Contains(got, "/awg_") || strings.Contains(got, "/ovpn_") {
+		t.Fatal("wg group shows AWG or OpenVPN")
 	}
 
 	// a button press edits the menu in place

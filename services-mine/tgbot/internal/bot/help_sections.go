@@ -40,7 +40,9 @@ type helpGroup struct {
 
 var helpGroups = []helpGroup{
 	{Key: "start", Title: "Основное", Sections: []string{secQuickStart}},
-	{Key: "vpn", Title: "VPN", Sections: []string{secWg, secAdminWg, secAwg, secAdminAwg, secOvpn, secAdminOvpn}},
+	{Key: "wg", Title: "WireGuard", Sections: []string{secWg, secAdminWg}},
+	{Key: "awg", Title: "Amnezia WireGuard", Sections: []string{secAwg, secAdminAwg}},
+	{Key: "ovpn", Title: "OpenVPN", Sections: []string{secOvpn, secAdminOvpn}},
 	{Key: "mtproto", Title: "MTProto", Sections: []string{secMtproto, secAdminMtproto}},
 	{Key: "dns", Title: "Домены и DNS", Sections: []string{secDomains, secDNSGuard, secServices, secAdminServices, secNet}},
 	{Key: "accounts", Title: "Аккаунты", Sections: []string{secAccounts, secAdminAccounts}},
