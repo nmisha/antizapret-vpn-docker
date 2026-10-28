@@ -26,9 +26,9 @@ services:
     healthcheck:
       # Plain Compose does not restart unhealthy containers: stop PID 1 so that
       # `restart: unless-stopped` recovers a hung AdGuard. tee keeps the output in docker logs.
-      test: (timeout 90s /root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
+      test: (timeout 120s /root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
       interval: 10s
-      timeout: 2m
+      timeout: 150s
       start_period: 90s
       retries: 3
     logging:

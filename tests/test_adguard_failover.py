@@ -29,7 +29,7 @@ esac''')
 case "$*" in
 *az-local.antizapret*) [ "${LOCAL_DOWN:-0}" != 1 ] || exit 28; echo "${LOCAL_HASH:-new-local}";;
 *az-world.antizapret*) [ "${WORLD_DOWN:-0}" != 1 ] || exit 28; echo "${WORLD_HASH:-new-world}";;
-*/control/clients/update*) :;;
+*/control/clients/update*) [ "${CLIENT_UPDATE_FAIL:-0}" != 1 ] || exit 22;;
 */control/clients*) [ "${API_DOWN:-0}" != 1 ] || exit 7
  if [ "${API_CODE:-200}" = 200 ]; then
    echo '{"clients":[{"name":"az-local","ids":["az-local","10.0.0.2"]},{"name":"az-world","ids":["az-world"]},{"name":"coredns","ids":["10.0.0.3"]}]}'
@@ -38,7 +38,7 @@ case "$*" in
  fi
  case "$*" in *http_code*) printf '\\n%s' "${API_CODE:-200}";; esac ;;
 */filtering/refresh*) [ "${REFRESH_FAIL:-0}" != 1 ] || exit 22;;
-*/cache_clear*) :;;
+*/cache_clear*) [ "${CACHE_CLEAR_FAIL:-0}" != 1 ] || exit 22;;
 *) exit 99;;
 esac''')
 
@@ -48,6 +48,7 @@ esac''')
         path.chmod(0o755)
 
     def run_script(self, text, **environment):
+        text = text.replace('/dev/shm/.client_cache_pending', str(self.root / '.client_cache_pending'))
         text = text.replace('/dev/shm/.inited', str(self.root / '.inited')).replace(
             '/dev/shm/.config_md5', str(self.root / '.config_md5'))
         return subprocess.run(['bash', '-c', text], env=dict(self.env, **environment),
@@ -133,3 +134,21 @@ esac''')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertNotIn('az-world.antizapret', (self.root / 'requests').read_text())
         self.assertEqual((self.root / '.config_md5.local').read_text(), 'new-local\n')
+
+    def test_client_update_failure_keeps_dns_healthy_and_retries(self):
+        failed = self.healthcheck(CLIENT_UPDATE_FAIL='1')
+        self.assertEqual(failed.returncode, 0, failed.stderr)
+        self.assertIn('World client update deferred', failed.stderr)
+        (self.root / 'requests').write_text('')
+        self.assertEqual(self.healthcheck().returncode, 0)
+        self.assertIn('/control/clients/update', (self.root / 'requests').read_text())
+
+    def test_cache_clear_failure_is_retried_even_without_client_changes(self):
+        result = self.healthcheck(CACHE_CLEAR_FAIL='1')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.root / '.client_cache_pending').exists())
+        # On the next check the API already reports the new client IP.
+        curl = self.root / 'curl'
+        curl.write_text(curl.read_text().replace('"ids":["az-world"]', '"ids":["az-world","10.0.0.4"]'))
+        self.assertEqual(self.healthcheck().returncode, 0)
+        self.assertFalse((self.root / '.client_cache_pending').exists())

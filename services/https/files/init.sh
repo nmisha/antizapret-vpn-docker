@@ -813,6 +813,7 @@ main() {
     add_vhost_redirects
 
 
+    echo "[INFO] All PROXY_SERVICE_N and PROXY_VHOST_N applications require Authelia at authelia:9091; access stays closed while Authelia is unavailable."
     generate_authelia_proxy   # add authelia proxy
     add_services_to_config
     add_services_to_config domain

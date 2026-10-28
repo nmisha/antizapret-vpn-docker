@@ -35,6 +35,26 @@ If a domain is also listed in `SNI_CERT_N`, its exported certificate is reused
 with the existing fallback/synchronization mechanism; no duplicate `respond 204`
 site is emitted. Explicit HTTP redirects preserve the URI and use public port 443.
 
+## Обязательная зависимость: Authelia
+
+Все приложения, опубликованные через `PROXY_SERVICE_N` и `PROXY_VHOST_N`,
+защищены `forward_auth` через `authelia:9091`, включая приложения на отдельных
+портах. Authelia обязательна для доступа к этим приложениям. Если она недоступна,
+доступ закрывается; автоматического обхода авторизации нет. Сам портал Authelia,
+отдельные сертификатные сайты и TCP-маршруты `SNI_ROUTE_N` эту проверку не проходят.
+
+Подключите [сервис Authelia](../../services-mine/authelia/README.md) в конфигурации
+развёртывания и присоедините его к общей с `https` Docker-сети. Из контейнера
+`https` имя `authelia` должно разрешаться, а HTTP-порт 9091 — быть доступен.
+Настройте в Authelia пользователей, session cookies, адрес публичного портала
+(`PROXY_AUTHELIA_DOMAIN` или `PROXY_DOMAIN:9091`) и правила доступа для защищаемых
+доменов. Базовый `docker-compose.yml` сам сервис Authelia не подключает.
+
+Генератор сообщает об этой зависимости, но не ждёт готовности Authelia и не
+проверяет её доступность при запуске: в Swarm порядок старта не гарантирован.
+После готовности Authelia запросы авторизации смогут выполняться без повторной
+генерации Caddyfile. `depends_on` не заменяет готовность сервиса в Swarm.
+
 ## Как связаны SNI-маршруты, HTTPS-сайты и сертификаты
 
 В контейнере `https` Caddy выполняет две задачи: маршрутизирует TCP/TLS по SNI

@@ -21,3 +21,10 @@
 
     reload 2s
 }
+
+# A local-only probe also works when every external resolver is unavailable.
+healthcheck.invalid:53 {
+    hosts {
+        127.0.0.1 healthcheck.invalid
+    }
+}

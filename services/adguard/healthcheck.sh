@@ -105,31 +105,40 @@ update_client() {
 
     [ -z "$new_ip" ] && return 0
 
-    FULL_CLIENT=$(echo "$CLIENTS" | jq --arg name "$client_name" '.clients[] | select(.name==$name)' || echo "error response: $CLIENTS")
+    FULL_CLIENT=$(echo "$CLIENTS" | jq --arg name "$client_name" '.clients[] | select(.name==$name)') || return 1
     if [ -n "$FULL_CLIENT" ] && [ "$FULL_CLIENT" != "null" ]; then
-        CURRENT_IDS=$(echo "$FULL_CLIENT" | jq -c '.ids // []')
-        DESIRED_IDS=$(jq -nc --arg id "$client_id" --arg ip "$new_ip" '[$id, $ip] | map(select(. != ""))')
-        CURRENT_IDS_NORMALIZED=$(echo "$CURRENT_IDS" | jq -c 'sort | unique')
-        DESIRED_IDS_NORMALIZED=$(echo "$DESIRED_IDS" | jq -c 'sort | unique')
+        CURRENT_IDS=$(echo "$FULL_CLIENT" | jq -c '.ids // []') || return 1
+        DESIRED_IDS=$(jq -nc --arg id "$client_id" --arg ip "$new_ip" '[$id, $ip] | map(select(. != ""))') || return 1
+        CURRENT_IDS_NORMALIZED=$(echo "$CURRENT_IDS" | jq -c 'sort | unique') || return 1
+        DESIRED_IDS_NORMALIZED=$(echo "$DESIRED_IDS" | jq -c 'sort | unique') || return 1
 
         if [ "$CURRENT_IDS_NORMALIZED" != "$DESIRED_IDS_NORMALIZED" ]; then
-            UPDATED_CLIENT=$(echo "$FULL_CLIENT" | jq --argjson ids "$DESIRED_IDS" '.ids = $ids')
+            UPDATED_CLIENT=$(echo "$FULL_CLIENT" | jq --argjson ids "$DESIRED_IDS" '.ids = $ids') || return 1
             UPDATE_BODY=$(printf '{"name":"%s","data":%s}' "$client_name" "$(echo "$UPDATED_CLIENT" | jq -c .)")
             echo "Updating $client_name ids to $DESIRED_IDS"
-            curl --connect-timeout 2 --max-time 5 -fsS -X POST "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients/update" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" --data "$UPDATE_BODY"
+            curl --connect-timeout 2 --max-time 5 -fsS -X POST "http://127.0.0.1:$ADGUARDHOME_PORT/control/clients/update" -H 'Content-Type: application/json' "${AUTH_ARGS[@]}" --data "$UPDATE_BODY" || return 1
             client_updated=1
         fi
     fi
 
     if [ "$client_updated" = "1" ]; then
+        touch /dev/shm/.client_cache_pending
+    fi
+    return 0
+}
+
+clear_client_cache() {
+    if [ -f /dev/shm/.client_cache_pending ]; then
         echo "Reset adguard DNS cache"
-        curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:$ADGUARDHOME_PORT/control/cache_clear" -X 'POST' "${AUTH_ARGS[@]}"
+        curl --connect-timeout 2 --max-time 5 -fsS "http://127.0.0.1:$ADGUARDHOME_PORT/control/cache_clear" -X 'POST' "${AUTH_ARGS[@]}" || return 1
+        rm -f /dev/shm/.client_cache_pending
     fi
 }
 
 NEW_LOCAL=$(resolve 'az-local' '')
 NEW_COREDNS=$(resolve 'coredns' '')
 
-update_client "az-local" "$NEW_LOCAL" "az-local"
-update_client "az-world" "$NEW_WORLD" "az-world"
-update_client "coredns" "$NEW_COREDNS"
+update_client "az-local" "$NEW_LOCAL" "az-local" || echo "Local client update deferred" >&2
+update_client "az-world" "$NEW_WORLD" "az-world" || echo "World client update deferred" >&2
+update_client "coredns" "$NEW_COREDNS" || echo "CoreDNS client update deferred" >&2
+clear_client_cache || echo "Client cache reset deferred" >&2
