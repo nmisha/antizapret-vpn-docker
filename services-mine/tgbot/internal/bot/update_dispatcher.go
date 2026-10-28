@@ -30,8 +30,8 @@ type updateDispatcher struct {
 
 const (
 	updateMaxParallel = 16
-	updateMaxSenders  = 256 // excess new senders are dropped until an idle queue exits
-	updateQueueLen    = 32  // per sender; more is a flood and is dropped
+	updateMaxSenders  = 2048 // ~4 KB queue + goroutine each; excess new senders are dropped until an idle queue exits
+	updateQueueLen    = 32   // per sender; more is a flood and is dropped
 	updateIdleTimeout = time.Minute
 )
 

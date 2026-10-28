@@ -124,6 +124,7 @@ func TestRiskNotificationSkipsDisabled(t *testing.T) {
 
 func TestJoinRequestSkipsDisabledAdmins(t *testing.T) {
 	useTestSettings(t)
+	useFreshJoinLimits(t)
 	bot, ft := newFakeTelegram(t)
 	us := newTestUsersStore(t, disabledFixture)
 	notifyAdminsAboutStranger(bot, us, &tgbotapi.Message{

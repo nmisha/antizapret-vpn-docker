@@ -70,6 +70,24 @@ func (f *fakeTelegram) sent() []string {
 	return append([]string(nil), f.sends...)
 }
 
+// useFreshJoinLimits gives the test its own join-request limiters: they are process-wide,
+// so without this a repeated run (go test -count=N) sees the previous run's notifications.
+func useFreshJoinLimits(t *testing.T) {
+	t.Helper()
+	prevPerUser := joinPerUser
+	joinPerUser = newCooldownLimiter(joinPerUserCooldown)
+	joinGlobalMu.Lock()
+	prevGlobal := joinGlobalSent
+	joinGlobalSent = nil
+	joinGlobalMu.Unlock()
+	t.Cleanup(func() {
+		joinPerUser = prevPerUser
+		joinGlobalMu.Lock()
+		joinGlobalSent = prevGlobal
+		joinGlobalMu.Unlock()
+	})
+}
+
 func useTestSettings(t *testing.T) {
 	t.Helper()
 	prev, prevCache := gSettings, getSettingsCached()
@@ -144,6 +162,7 @@ func TestUsersAdminCallbackDataFits(t *testing.T) {
 
 func TestJoinRequestNotifiesAdminsOnly(t *testing.T) {
 	useTestSettings(t)
+	useFreshJoinLimits(t)
 	bot, ft := newFakeTelegram(t)
 	us := newTestUsersStore(t, `[
 		{"telegram_id":100,"name":"boss","roles":["Admin"]},
