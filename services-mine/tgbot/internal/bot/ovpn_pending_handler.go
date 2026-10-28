@@ -3,6 +3,10 @@ package bot
 import "strings"
 
 func handleOvpnPendingIfAny(ctx *Ctx, text string) bool {
+	// Pending actions originate in the private chat; ignore input from other chats.
+	if !ctx.IsPrivate {
+		return false
+	}
 	p, ok := popOvpnPending(ctx.TgID)
 	if !ok {
 		return false

@@ -5,6 +5,10 @@ import "strings"
 // handleAccAdminPendingIfAny processes admin input for the accounts UI.
 // Returns true if message consumed.
 func handleAccAdminPendingIfAny(ctx *Ctx, text string) bool {
+	// Pending actions originate in the private chat; ignore input from other chats.
+	if !ctx.IsPrivate {
+		return false
+	}
 	p, ok := popAccAdminPending(ctx.TgID)
 	if !ok {
 		return false

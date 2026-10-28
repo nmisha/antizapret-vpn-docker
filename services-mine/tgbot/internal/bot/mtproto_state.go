@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 	"strings"
 	"sync"
@@ -141,8 +142,10 @@ func parseSizeWithSuffix(s string, base float64) (uint64, error) {
 		}
 	}
 	v, err := strconv.ParseFloat(strings.TrimSpace(u), 64)
-	if err != nil || v <= 0 {
-		return 0, fmt.Errorf("нужно положительное число с суффиксом K/M/G/T или none")
+	scaled := v * mult
+	// 2^64 is the exclusive upper bound; float64 rounds MaxUint64 up to it.
+	if err != nil || math.IsNaN(scaled) || math.IsInf(scaled, 0) || scaled < 1 || scaled >= math.Exp2(64) {
+		return 0, fmt.Errorf("нужно число с суффиксом K/M/G/T или none; результат должен быть от 1 до 18446744073709551615")
 	}
-	return uint64(v * mult), nil
+	return uint64(scaled), nil
 }

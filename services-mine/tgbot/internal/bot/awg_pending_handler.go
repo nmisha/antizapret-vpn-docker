@@ -3,6 +3,10 @@ package bot
 import "strings"
 
 func handleAwgPendingIfAny(ctx *Ctx, text string) bool {
+	// Pending actions originate in the private chat; ignore input from other chats.
+	if !ctx.IsPrivate {
+		return false
+	}
 	p, ok := popAwgPending(ctx.TgID)
 	if !ok {
 		return false

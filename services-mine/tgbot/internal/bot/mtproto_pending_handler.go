@@ -6,6 +6,11 @@ import (
 )
 
 func handleMtpPendingIfAny(ctx *Ctx, text string) bool {
+	// Pending actions originate in the private chat. Other chats must neither
+	// consume the input nor receive proxy secrets.
+	if !ctx.IsPrivate {
+		return false
+	}
 	p, ok := popMtpPending(ctx.TgID)
 	if !ok {
 		return false

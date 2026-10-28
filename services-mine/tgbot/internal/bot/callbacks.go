@@ -68,6 +68,9 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 	if data == "ui:cancel" {
 		// cancel any active wizard state for this chat/user
 		clearConv(chatID, tgID)
+		if q.Message.Chat != nil && q.Message.Chat.IsPrivate() {
+			clearPrivatePendings(tgID)
+		}
 		reply(bot, chatID, "Ок, отменил.")
 		return
 	}
@@ -173,4 +176,13 @@ func handleCallback(bot *tgbotapi.BotAPI, usersStore *UsersStore, store *Store, 
 
 	// domains pending callbacks (add:...)
 	handleDomainPendingCallback(bot, ctx, q)
+}
+
+// clearPrivatePendings drops admin text-input waits (rename/add/limits); they exist only in the private chat.
+func clearPrivatePendings(tgID int64) {
+	popWgPending(tgID)
+	popAwgPending(tgID)
+	popOvpnPending(tgID)
+	popMtpPending(tgID)
+	popAccAdminPending(tgID)
 }
