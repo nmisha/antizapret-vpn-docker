@@ -10,8 +10,8 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1
     devices:
       - /dev/net/tun:/dev/net/tun
-    image: nmisha/antizapret-vpn-openvpn:6.9.0-2
-    # image: xtrime/antizapret-vpn-openvpn:6.9.0
+    image: nmisha/antizapret-vpn-openvpn:6.9.3-1
+    # image: xtrime/antizapret-vpn-openvpn:6.9.3
     build:
       context: .
       x-bake:

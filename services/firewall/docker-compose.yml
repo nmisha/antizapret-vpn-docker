@@ -1,8 +1,8 @@
 services:
   firewall:
     restart: unless-stopped
-    # image: xtrime/antizapret-vpn-firewall:6.4.0
-    image: nmisha/antizapret-vpn-firewall:6.4.0-3
+    image: nmisha/antizapret-vpn-firewall:6.9.0-1
+    # image: xtrime/antizapret-vpn-firewall:6.9.0
     init: true
     build:
       context: .

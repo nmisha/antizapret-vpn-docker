@@ -361,6 +361,11 @@ func adaptList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Format != "" && !strings.EqualFold(req.Format, "list") && !strings.EqualFold(req.Format, "json") {
+		http.Error(w, "Unsupported format (use 'json' or 'list')", http.StatusBadRequest)
+		return
+	}
+
 	// Create a flusher to stream output
 	flusher, ok := w.(http.Flusher)
 	if !ok {

@@ -1,13 +1,13 @@
 # routes is built in services/antizapret; take it from the fork's image, not upstream.
 # Build and push that image first: COPY --from pulls it from the registry.
-ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-1
+ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-2
 FROM ${ROUTES_IMAGE} AS routes
 
 FROM d3vilh/openvpn-server:0.5.5
 
 RUN apk add -U --no-cache ipcalc grep moreutils && apk del openvpn
 
-ARG OPENVPN_VER=2.7.7
+ARG OPENVPN_VER=2.7.8
 ADD files/socket.patch /socket.patch
 # OpenVPN
 RUN <<-"EOT" bash -ex

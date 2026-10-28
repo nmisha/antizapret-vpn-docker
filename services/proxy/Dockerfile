@@ -1,6 +1,6 @@
 # routes is built in services/antizapret; take it from the fork's image, not upstream.
 # Build and push that image first: COPY --from pulls it from the registry.
-ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-1
+ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-2
 ARG IMAGE=ghcr.io/tarampampam/3proxy:2
 
 FROM ${ROUTES_IMAGE} AS routes

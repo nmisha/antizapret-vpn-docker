@@ -14,6 +14,15 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
   - [Single Server (Easy)](#single-server-easy)
   - [Docker Swarm, multiple exit nodes (Advanced)](#docker-swarm-multiple-exit-nodes-advanced)
   - [VPN / Hosting block](#vpn--hosting-block)
+  - [Memory usage](#memory-usage)
+    - [Memory by component](#memory-by-component)
+    - [Stress test with limited RAM](#stress-test-with-limited-ram)
+    - [Installing and configuring zram](#installing-and-configuring-zram)
+      - [Check swap](#check-swap)
+      - [Installation on Ubuntu 24.04](#installation-on-ubuntu-2404)
+      - [Installation on Ubuntu 26.04](#installation-on-ubuntu-2604)
+      - [Zram size and priority](#zram-size-and-priority)
+      - [Verify zram](#verify-zram)
   - [After installation](#after-installation)
   - [Access admin panels](#access-admin-panels)
     - [HTTPS](#https)
@@ -25,6 +34,8 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
   - [Reset](#reset)
 - [Documentation](#documentation)
   - [FAQ (Frequently Asked Questions)](#faq-frequently-asked-questions)
+    - [DNS timeouts in AdGuard: checking Swarm connectivity](#dns-timeouts-in-adguard-checking-swarm-connectivity)
+    - [Yandex Cloud: no connectivity between az-local and az-world](#yandex-cloud-no-connectivity-between-az-local-and-az-world)
   - [DNS resolving algorithm](#dns-resolving-algorithm)
     - [Docker Swarm](#docker-swarm)
     - [Single node (Docker Compose)](#single-node-docker-compose)
@@ -164,6 +175,8 @@ Version 5 and 6 comes with ability to forward traffic to different exit nodes fo
 For example, YouTube works best if exit node is close to client and other services require foreign IP to work. 
 Docker swarm is used to build unified network between containers.
 
+> **Yandex Cloud and 1:1 NAT:** the encrypted Swarm overlay network may fail to carry traffic between `az-local` and `az-world` when one server is behind NAT. To work around this, disable encryption through `docker-compose.override.yml` and recreate the network and stack. See the [FAQ](#yandex-cloud-no-connectivity-between-az-local-and-az-world) for details and commands.
+
 Its recommended to use local server as manager/primary node for VPN's, DNS and az-local containers.
 Foreign server – as secondary/worker node for az-world container.
 
@@ -227,6 +240,145 @@ echo iptables-persistent iptables-persistent/autosave_v6 boolean false | sudo de
 apt install -y iptables-persistent
 
 ```
+
+## Memory usage
+
+We recommend **1 GB RAM with configured zram, or 2 GB without zram**.
+Zram is compressed swap in RAM: it compresses infrequently used pages without
+disk access, allocating memory as it fills. Compression uses CPU; severe
+memory pressure can still cause stalls. Allow headroom for VPN traffic and
+AdGuard list updates — its memory usage can rise to 500 MiB.
+
+### Memory by component
+
+AdGuard stores filters, indexes, and a DNS cache; VPN services store connections
+and network buffers. Docker, the Linux kernel, and file caches also use RAM.
+Linux can reclaim file caches when needed.
+
+Approximate production usage (13 containers, a VPS with 1.8 GiB RAM):
+
+| Component | Memory, MiB |
+| --- | ---: |
+| AdGuard | ≈270 |
+| AdGuard during list updates | up to 500 |
+| `az-local` | ≈140 |
+| CoreDNS | ≈40 |
+| WireGuard | ≈45 |
+| AmneziaWG | ≈45 |
+| OpenVPN | ≈15 |
+| OpenVPN UI | ≈20 |
+| HTTPS | ≈35 |
+| Firewall | ≈2 |
+| Proxy | ≈10 |
+| ocserv | ≈25 |
+| Dashboard | ≈4 |
+| IPsec | ≈10 |
+| Docker and helper processes | ≈275 |
+| Linux kernel (partial estimate) | ≈400 |
+
+The project and system occupied **about 1041 MiB (1.02 GiB)** excluding caches,
+counting zram data before compression. Table figures are approximate;
+rows cannot be added together because some kernel memory is counted twice.
+
+### Stress test with limited RAM
+
+Normal operation uses one AdGuard instance. The test ran **two instances**
+with identical filters to simulate elevated memory usage during list updates.
+They ran alongside `az-local`, `coredns`, `firewall`, `https`, `wireguard`,
+`wireguard-amnezia`, `openvpn`, and `openvpn-ui` — ten containers in total.
+
+One CPU, about 1 GB of zram with `lzo-rle` compression. RAM available to the
+system was artificially limited by allocating test data locked in memory
+that could not be swapped out. The test lasted about four minutes with light
+DNS traffic and no active VPN clients.
+
+| Approximate RAM | Logical memory occupied, MiB | AdGuard response time, ms: median / p95 | Result |
+| --- | ---: | ---: | --- |
+| 1 GB | 828 | 1.06 / 4.84 | Mean CPU: 17.7% |
+| 650 MB | 826 | 1.25 / 7.51 | No DNS errors, OOM kills, or AdGuard restarts; mean CPU: 24% |
+| 500 MB | ≈872 | — | Severe stalls; observed 100% CPU |
+
+Response times combine both AdGuard instances, using repeated DNS queries to
+one domain, mostly cached responses, without VPN. p95 means 95% of responses
+were faster than this value. No reliable response times are available for 500 MB.
+
+Logical memory occupied is RAM excluding caches and zram itself, plus zram
+pages before compression, minus test data. The total includes the project,
+Docker, and the kernel.
+
+At 650 MB RAM, zram stored **616 MiB of data in 144 MiB of RAM**, saving
+about **472 MiB**.
+
+### Installing and configuring zram
+
+#### Check swap
+
+```bash
+swapon --show
+zramctl
+```
+
+If `/dev/zram0` is already active, it does not need to be created again.
+Still check that the kernel metapackage listed for your Ubuntu release is
+installed: working zram does not guarantee the module will remain available
+after a kernel update. Run the following commands as root on a VPS with a
+standard Ubuntu kernel.
+
+#### Installation on Ubuntu 24.04
+
+```bash
+apt update
+apt install --no-install-recommends \
+    systemd-zram-generator linux-modules-extra-$(uname -r) \
+    linux-image-generic linux-firmware-minimal
+```
+
+`linux-image-generic` pulls in modules for future kernels;
+`linux-firmware-minimal` avoids the large firmware collection.
+
+#### Installation on Ubuntu 26.04
+
+```bash
+apt update
+apt install --no-install-recommends systemd-zram-generator linux-image-virtual
+```
+
+Zram is included in the regular kernel modules. `linux-image-virtual` keeps them
+updated with the kernel; extra modules and firmware are not needed for zram.
+If `linux-image-generic` is already installed, you can keep it.
+
+#### Zram size and priority
+
+For both releases, set the capacity equal to RAM and the priority to 100.
+Capacity is the limit before compression:
+
+```bash
+modprobe zram
+mkdir -p /etc/systemd/zram-generator.conf.d
+cat > /etc/systemd/zram-generator.conf.d/90-antizapret.conf <<'EOF'
+[zram0]
+zram-size = ram
+swap-priority = 100
+compression-algorithm = zstd
+EOF
+systemctl daemon-reload
+systemctl reset-failed systemd-zram-setup@zram0.service dev-zram0.swap
+systemctl start dev-zram0.swap
+```
+
+If zram is already active, reboot the VPS to apply the new size and algorithm.
+We use `zstd` at its default compression level of 3 to save RAM.
+In the comparative stress test, about 850 MiB of data occupied 142 MiB of RAM
+with `zstd`, versus 202 MiB with `lzo-rle`, with comparable CPU load.
+Zram will start automatically at boot.
+
+#### Verify zram
+
+Check `free -h`, `swapon --show`, and `zramctl`: zram capacity should equal RAM,
+swap priority should be 100, and the algorithm should be `zstd`.
+In `free`, `available` shows available RAM;
+in `zramctl`, `DATA` shows the size before compression and `TOTAL` shows RAM
+allocated to zram including overhead.
 
 ## After installation
 1. Make sure Secure DNS is disabled in your browser settings. 
@@ -445,6 +597,170 @@ git restore config
    4. Check DNS resolution steps: http://adguard.antizapret:3000/#logs?response_status=all&search=youtube.com
       The number of requests depends on domain rules, ASN fallback, CNAME chains and caching.
       See: [DNS resolving algorithm](#dns-resolving-algorithm)
+   5. For DNS timeouts, see [Swarm connectivity diagnostics](#dns-timeouts-in-adguard-checking-swarm-connectivity).
+
+### DNS timeouts in AdGuard: checking Swarm connectivity
+
+Run `docker node` and `docker service` commands on a manager.
+
+#### 1. Identify the DNS server that is timing out
+
+```shell
+docker service logs --since 10m --tail 200 --timestamps antizapret_adguard
+```
+
+Check `upstream=` / `addr=` and the error text. A request to CoreDNS timing out:
+
+```text
+[error] dnsproxy: response received upstream_type=main addr=coredns:53 proto=udp status="exchanging with coredns:53 over udp: read udp 10.200.0.33:53380->10.200.0.18:53: i/o timeout"
+```
+
+If only `coredns:53` times out while external upstreams such as Google and Cloudflare respond, investigate `AdGuard → CoreDNS → az-world/az-local`. This does not yet prove packet loss: processing further down the chain may be slow, or a response may be lost on its return path.
+
+Do not confuse the upstream server with the AdGuard client. An external upstream timing out:
+
+```text
+[error] dnsproxy: response received upstream_type=custom client_name=coredns addr=https://dns.google:443/dns-query proto=tcp status="… Client.Timeout exceeded while awaiting headers"
+```
+
+Here `client_name=coredns` identifies the client; **Google DNS** timed out. Also check external DNS connectivity, outbound HTTPS and upstream errors in this case. Compare errors within the same time window, preferably for the same domain. Requests and responses are also available in the [AdGuard query log](http://adguard.antizapret:3000/#logs).
+
+#### 2. Check node availability
+
+```shell
+docker node ls
+```
+
+```text
+ID                         HOSTNAME   STATUS   AVAILABILITY   MANAGER STATUS   ENGINE VERSION
+ce9ydb2mezb20hvdgtyksdec4 *  az-local   Ready    Active         Leader           29.9.0
+x0ft0wbjotegkj0o6z51h47r8    az-world   Ready    Active                          29.9.0
+```
+
+Expect `Ready` and `Active`, with `Leader` or `Reachable` for managers. For `Down` / `Unknown`, check host connectivity and the Docker daemon; `Drain` / `Pause` affect task placement. `Ready` confirms Swarm management connectivity, but does not prove that the overlay data path works.
+
+#### 3. Check services and task history
+
+```shell
+docker service ls
+docker service ps --no-trunc antizapret_adguard antizapret_coredns antizapret_az-local antizapret_az-world
+```
+
+```text
+NAME                  MODE         REPLICAS   IMAGE
+antizapret_adguard     replicated   1/1        xtrime/antizapret-vpn-adguard:6.9.2
+antizapret_az-local    replicated   1/1        xtrime/antizapret-vpn:6.9.4
+antizapret_az-world    replicated   1/1        xtrime/antizapret-vpn:6.9.4
+antizapret_coredns     replicated   1/1        xtrime/antizapret-vpn-coredns:6.6.4
+```
+
+```text
+NAME                       NODE       CURRENT STATE       ERROR
+antizapret_coredns.1        az-local   Running 2 days ago
+ \_ antizapret_coredns.1   az-local   Failed 2 days ago   "task: non-zero exit (255)"
+```
+
+Expect `1/1` for these DNS services. Investigate `0/1`, `Pending`, `Rejected` or repeated recent `Failed` tasks using `ERROR` and service logs. `docker service ls` does not show restart history; [docker service ps](https://docs.docker.com/reference/cli/docker/service/ps/) does. Repeat after 30–60 seconds: current task IDs should remain the same and their running time should increase. An old failure after an update or reboot does not by itself indicate a current problem.
+
+#### 4. Correlate logs with test queries
+
+```shell
+docker service logs --since 10m --tail 200 --timestamps antizapret_coredns
+docker service logs --since 10m --tail 200 --timestamps antizapret_az-local
+docker service logs --since 10m --tail 200 --timestamps antizapret_az-world
+```
+
+```text
+antizapret_coredns.1.…@az-local | [INFO] 10.200.0.33:51045 - 47063 "A IN example.com. udp 52 false 1232" NOERROR qr,rd,ra,ad 94 0.071461249s
+antizapret_az-local.1.…@az-local | Request: [10.200.0.33:38244] (udp) / 'example.com.' (A)
+antizapret_az-local.1.…@az-local | Reply: [10.200.0.33:38244] (udp) / 'example.com.' (A) / SERVFAIL
+antizapret_az-world.1.…@az-world | Request: [10.200.0.33:43260] (udp) / 'example.com.' (A)
+antizapret_az-world.1.…@az-world | Reply: [10.200.0.33:43260] (udp) / 'example.com.' (A) / RRs: A,A
+```
+
+Look for DNS `Request:` / `Reply:` lines and CoreDNS query logs, rather than just HTTP `/config-md5/` requests. DNS logging is enabled by default in this project. An exit node may intentionally return `SERVFAIL` when a domain does not match its rules, causing CoreDNS to try the next upstream. When `az-world` answers successfully, the same query need not appear at `az-local`.
+
+To test each DNS server separately, run these commands on the **host running the AdGuard container** (usually `az-local`):
+
+```shell
+ADGUARD_ID=$(docker ps -q --filter label=com.docker.swarm.service.name=antizapret_adguard --filter status=running | head -n 1)
+docker exec "$ADGUARD_ID" dig @coredns.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
+docker exec "$ADGUARD_ID" dig @az-world.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
+docker exec "$ADGUARD_ID" dig @az-local.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
+```
+
+```text
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 47063
+example.com.  300  IN  A  14.18.138.112
+example.com.  300  IN  A  14.18.138.111
+```
+
+If `ADGUARD_ID` is empty, find the correct host using `docker service ps antizapret_adguard`; `docker ps` only lists local containers. `NOERROR` and `SERVFAIL` both mean a DNS response arrived. `communications error … timed out` / `no servers could be reached` mean no response arrived within the configured timeout.
+
+These probes bypass AdGuard's cache. To test the full chain, run `nslookup youtube.com 14.16.0.1` on a VPN client; a cached answer or domain-specific upstream may bypass CoreDNS. Direct exit-node probes test the path from AdGuard; check the path from CoreDNS using logs for the same query. CoreDNS may log a query only after processing completes, so wait for a response or timeout.
+
+If `docker service logs` reports `incomplete log stream`, missing lines do not prove that queries are missing. Find the current task with `docker service ps` and read local logs on its host, for example for `az-world`:
+
+```shell
+docker ps --filter label=com.docker.swarm.service.name=antizapret_az-world
+AZ_WORLD_ID=$(docker ps -q --filter label=com.docker.swarm.service.name=antizapret_az-world --filter status=running | head -n 1)
+docker logs --since 10m --tail 200 --timestamps "$AZ_WORLD_ID"
+```
+
+#### 5. Check the firewall and network between servers
+
+If the Docker Swarm overlay network is down, the DNS probes from step 4 to unreachable containers will time out: `communications error … timed out` / `no servers could be reached`. Nodes may still be `Ready` and services may have all replicas running.
+
+Also check whether `az-world` is reachable from the AdGuard container on `az-local`:
+
+```shell
+docker exec "$ADGUARD_ID" ping -c 4 -W 2 az-world.antizapret
+```
+
+If the overlay network is down, ping will receive no replies either (`100% packet loss`). If DNS queries time out and ping fails, check the firewall and network between servers. A failed ping alone may also be caused by ICMP filtering.
+
+1. Check the firewall on **both servers**: UFW, iptables rules or whichever firewall is in use. It must allow traffic between Swarm nodes, including forwarded container traffic.
+2. For cloud servers, also check the provider's network rules (security groups).
+3. Make sure the following [Docker Swarm ports and protocols](https://docs.docker.com/engine/swarm/swarm-tutorial/#open-protocols-and-ports-between-the-hosts) are allowed between nodes:
+   - TCP `2377` — access to managers;
+   - TCP and UDP `7946` — communication between nodes;
+   - UDP `4789` — overlay network traffic (unless the data path port was changed);
+   - IP protocol `50` (ESP) — encrypted overlay traffic. This is a protocol, not port `50`.
+4. For Yandex Cloud / 1:1 NAT, check the [encrypted overlay network issue](#yandex-cloud-no-connectivity-between-az-local-and-az-world).
+
+Allow these connections only between Swarm nodes. After correcting the rules, repeat the DNS probes from step 4 and check the logs.
+
+### Yandex Cloud: no connectivity between az-local and az-world
+
+If `az-local` runs in Yandex Cloud (yandex.cloud), missing connectivity to `az-world` may be caused by Docker Swarm overlay encryption with 1:1 NAT. According to the [Yandex Cloud documentation](https://yandex.cloud/en/docs/compute/concepts/network), a VM's public IP is mapped through NAT to its internal address, such as `10.128.0.22`. Docker/Moby has an [open issue #37115](https://github.com/moby/moby/issues/37115) describing similar symptoms on AWS/GCE: encrypted overlay traffic fails to transit 1:1 NAT. The workaround is to disable overlay network encryption.
+
+An additional symptom is nonzero rule counters for `az-local` but zero counters for `az-world` in [AdGuard filters](http://adguard.antizapret:3000/#filters). This is a reason to check connectivity between nodes and filter loading; zero counters alone do not prove a NAT issue.
+
+To apply the workaround:
+
+1. Add this override to `docker-compose.override.yml`:
+   ```yaml
+   networks:
+     default:
+       driver_opts:
+         encrypted: !reset null
+   ```
+   `!reset null` removes the inherited `encrypted` option while preserving the other network settings. Do not use `encrypted: "false"`: the presence of this option enables encryption.
+2. On the primary/manager node, remove the stack:
+   ```shell
+   docker stack rm antizapret
+   ```
+3. Wait for the services and the `antizapret_default` overlay network to be removed. Check `docker stack ls` and `docker network ls`. If the network remains after the services are removed, delete it manually:
+   ```shell
+   docker network rm antizapret_default
+   ```
+4. Redeploy the entire stack with the updated configuration:
+   ```shell
+   docker compose --env-file compose.swarm.env config | docker run --pull always --rm -i xtrime/antizapret-vpn:6 compose2swarm | docker stack deploy --prune -c - antizapret
+   ```
+5. Check connectivity to `az-world` and whether its AdGuard filters update.
+
+Restarting containers or updating the stack alone is insufficient: the existing network must be recreated. VPN service will be unavailable while the stack is removed and redeployed. Removing `encrypted` disables Docker encryption of overlay traffic between servers; the client VPN connection remains encrypted.
 
 ## DNS resolving algorithm
 
@@ -1216,16 +1532,7 @@ https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#
 
 The WireGuard image is based on stable `wg-easy` 15.4.0 and replaces its AmneziaWG 3.0 tools with AmneziaWG 3.1 tools. Install only the matching DKMS kernel module on the host; `awg` and `awg-quick` are already included in the container image.
 
-#### Ubuntu 26.04
-
-```bash
-sudo add-apt-repository ppa:amnezia/ppa
-sudo sed -i 's/\bresolute\b/noble/g' /etc/apt/sources.list.d/amnezia-ubuntu-ppa-resolute.sources
-sudo apt update
-sudo apt install -y linux-headers-$(uname -r) amneziawg-dkms
-```
-
-#### Ubuntu 24.04
+#### Ubuntu 26.04/24.04
 
 ```bash
 sudo add-apt-repository ppa:amnezia/ppa
@@ -1233,7 +1540,7 @@ sudo apt update
 sudo apt install -y linux-headers-$(uname -r) amneziawg-dkms
 ```
 
-#### Ubuntu 20.04, 22.04
+#### Ubuntu 22.04/20.04
 
 1. Edit `/etc/apt/sources.list` and uncomment `deb-src http://archive.ubuntu.com/ubuntu ... main restricted`.
 2. Run:

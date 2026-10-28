@@ -2,39 +2,40 @@
 set -ex
 
 first_run=true
-running=true
-trap 'trap - EXIT; running=false; ( [ -n "$sleep_pid" ] && kill "$sleep_pid" ); ./block.sh clear' \
-    EXIT HUP INT QUIT PIPE TERM
+sleep_pid=
 
-while [ "$running" = true ]; do
-    FAILED=true
-    if ./download.sh "$V4_URL" "$V4_FILE" && ./download.sh "$V6_URL" "$V6_FILE"; then
-      echo 'download ok'
-      FAILED=false
-    else
-        if [ "$first_run" = true ] && [ ! -f "$V4_FILE" ]; then
-          echo 'Error: Download failed on start. Exiting.'
-          exit 2
-        fi
+cleanup() {
+    trap - HUP INT QUIT PIPE TERM
+    if [ -n "$sleep_pid" ]; then
+        kill "$sleep_pid" 2>/dev/null || true
     fi
+    ./block.sh clear
+    exit 0
+}
 
+trap cleanup HUP INT QUIT PIPE TERM
 
-    if [ "$FAILED" = false ] || [ "$first_run" = true ]; then
-      # A failed update keeps the rules already in place; retry soon instead of
-      # exiting, which would run the EXIT trap and remove the protection.
-      if ! ./block.sh; then
-        echo 'Firewall update failed; keeping current rules'
-        FAILED=true
-      fi
+while true; do
+    delay=30
+    if ./download.sh "$V4_URL" "$V4_FILE" && ./download.sh "$V6_URL" "$V6_FILE"; then
+        echo 'download ok'
+        # A failed update keeps the rules already in place; retry soon instead of
+        # exiting, which would restart the container in a loop.
+        if ./block.sh; then
+            delay="$INTERVAL"
+        else
+            echo 'Firewall update failed; keeping current rules'
+        fi
+    elif [ "$first_run" = true ]; then
+        if [ ! -f "$V4_FILE" ]; then
+            echo 'Error: Download failed on start. Exiting.'
+            exit 2
+        fi
+        ./block.sh || echo 'Firewall update failed; keeping current rules'
     fi
 
     first_run=false
-
-    if [ "$FAILED" = true ]; then
-      sleep 30 &
-    else
-      sleep "$INTERVAL" &
-    fi
+    sleep "$delay" &
     sleep_pid=$!
     wait "$sleep_pid" || true
     sleep_pid=
