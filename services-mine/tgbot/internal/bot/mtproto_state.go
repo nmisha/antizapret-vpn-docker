@@ -51,6 +51,7 @@ func setMtpPending(tgID int64, p mtpPending) {
 	privatePendingMu.Lock()
 	defer privatePendingMu.Unlock()
 	clearPrivatePendings(tgID)
+	clearConv(tgID, tgID)
 	mtpPendMu.Lock()
 	defer mtpPendMu.Unlock()
 	mtpPendings[tgID] = p

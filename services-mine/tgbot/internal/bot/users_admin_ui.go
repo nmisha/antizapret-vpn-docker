@@ -92,12 +92,7 @@ func setUserDisabled(ctx *Ctx, u User, disabled bool) (string, error) {
 
 	id := u.TelegramID
 	if disabled {
-		clearPrivatePendings(id)
-		clearConv(id, id)
-		clearAdminScope(id)
-		clearAwgAdminScope(id)
-		clearOvpnAdminScope(id)
-		clearMtpAdminScope(id)
+		clearUserUIState(id)
 		return fmt.Sprintf("⛔ Пользователь %s (tg_id=%d) отключён: бот отвечает ему как незнакомцу, уведомления не отправляются. VPN-профили и прокси продолжают работать.", u.Name, id), nil
 	}
 

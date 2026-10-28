@@ -25,6 +25,7 @@ func setAccAdminPending(tgID int64, p accAdminPending) {
 	privatePendingMu.Lock()
 	defer privatePendingMu.Unlock()
 	clearPrivatePendings(tgID)
+	clearConv(tgID, tgID)
 	accAdminPendingsMu.Lock()
 	defer accAdminPendingsMu.Unlock()
 	accAdminPendings[tgID] = p

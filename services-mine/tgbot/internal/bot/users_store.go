@@ -463,5 +463,6 @@ func (us *UsersStore) DeleteByName(name string) (string, error) {
 	if err := us.saveUnlocked(out); err != nil {
 		return "", err
 	}
+	clearUserUIState(tgID)
 	return fmt.Sprintf("Удалён пользователь %q (tg_id=%d)", key, tgID), nil
 }

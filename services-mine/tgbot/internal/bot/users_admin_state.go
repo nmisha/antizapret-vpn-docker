@@ -26,6 +26,7 @@ func setUsrPending(tgID int64, p usrPending) {
 	privatePendingMu.Lock()
 	defer privatePendingMu.Unlock()
 	clearPrivatePendings(tgID)
+	clearConv(tgID, tgID)
 	usrPendMu.Lock()
 	defer usrPendMu.Unlock()
 	usrPendings[tgID] = p

@@ -104,7 +104,11 @@ func notifyAdminsAboutStranger(bot *tgbotapi.BotAPI, usersStore *UsersStore, msg
 	if isJoinIgnored(id) {
 		return
 	}
-	if ok, _ := joinPerUser.allow(id); !ok {
+	// Serialize admission and delivery so concurrent messages cannot duplicate a request.
+	// Only a successful delivery starts the per-user cooldown.
+	joinPerUser.mu.Lock()
+	defer joinPerUser.mu.Unlock()
+	if last, ok := joinPerUser.last[id]; ok && time.Since(last) < joinPerUser.cooldown {
 		return
 	}
 	if !joinGlobalAllow(time.Now()) {
@@ -130,13 +134,20 @@ func notifyAdminsAboutStranger(bot *tgbotapi.BotAPI, usersStore *UsersStore, msg
 	kb := tgbotapi.NewInlineKeyboardMarkup(rows...)
 	text := formatJoinRequest(msg.From, msg.Text)
 
+	delivered := false
 	for _, a := range admins {
 		m := tgbotapi.NewMessage(a.TelegramID, text)
 		m.ParseMode = "HTML"
 		m.DisableWebPagePreview = true
 		m.ReplyMarkup = kb
 		_, err := bot.Send(m)
+		if err == nil {
+			delivered = true
+		}
 		logSendErrorIfEnabled(a.TelegramID, err, "send message", "join request")
+	}
+	if delivered {
+		joinPerUser.last[id] = time.Now()
 	}
 }
 

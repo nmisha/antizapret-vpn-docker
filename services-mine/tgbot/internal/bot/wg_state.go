@@ -57,6 +57,7 @@ func setWgPending(tgID int64, p wgPending) {
 	privatePendingMu.Lock()
 	defer privatePendingMu.Unlock()
 	clearPrivatePendings(tgID)
+	clearConv(tgID, tgID)
 	wgPendMu.Lock()
 	defer wgPendMu.Unlock()
 	wgPendings[tgID] = p

@@ -19,6 +19,7 @@ func setOvpnPending(tgID int64, p ovpnPending) {
 	privatePendingMu.Lock()
 	defer privatePendingMu.Unlock()
 	clearPrivatePendings(tgID)
+	clearConv(tgID, tgID)
 	ovpnPendMu.Lock()
 	defer ovpnPendMu.Unlock()
 	ovpnPendings[tgID] = p

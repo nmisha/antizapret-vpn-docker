@@ -42,6 +42,12 @@ func getConv(chatID, tgID int64) (ConvState, bool) {
 }
 
 func setConv(chatID, tgID int64, st ConvState) {
+	// Private Telegram chat IDs equal the user's ID. Group dialogs stay independent.
+	if chatID == tgID && st.Mode != ConvNone {
+		privatePendingMu.Lock()
+		defer privatePendingMu.Unlock()
+		clearPrivatePendings(tgID)
+	}
 	convMu.Lock()
 	defer convMu.Unlock()
 	if st.Mode == ConvNone {
@@ -53,4 +59,22 @@ func setConv(chatID, tgID int64, st ConvState) {
 
 func clearConv(chatID, tgID int64) {
 	setConv(chatID, tgID, ConvState{Mode: ConvNone})
+}
+
+// clearUserUIState discards all flows belonging to a removed or disabled user.
+func clearUserUIState(tgID int64) {
+	privatePendingMu.Lock()
+	defer privatePendingMu.Unlock()
+	clearPrivatePendings(tgID)
+	convMu.Lock()
+	for key := range conv {
+		if key.tgID == tgID {
+			delete(conv, key)
+		}
+	}
+	convMu.Unlock()
+	clearAdminScope(tgID)
+	clearAwgAdminScope(tgID)
+	clearOvpnAdminScope(tgID)
+	clearMtpAdminScope(tgID)
 }
