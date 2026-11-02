@@ -11,6 +11,7 @@ services-mine/tgbot_old/
 stack.rendered.yml
 *.log
 /docs-local/
+/tmp/
 
 # Python test artifacts
 __pycache__/
