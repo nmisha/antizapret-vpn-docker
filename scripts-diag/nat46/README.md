@@ -39,7 +39,7 @@ Run sequentially:
 # Bridge baseline, live Jool backend and IPv4 DNAT coexistence.
 limactl shell nat46 sudo python3 /tmp/nat46-tests/packet-test.py
 # Real Swarm task, encrypted IPv4 overlay, separate macvlan, host NAT66,
-# repository DNS resolver + startup/export controller, actual QUIC/443.
+# repository DNS resolver + checkpoint/startup controller, actual QUIC/443.
 limactl shell nat46 sudo env N46_SWARM=1 N46_DNS=1 N46_QUIC=1 \
   python3 /tmp/nat46-tests/packet-test.py
 # Optional routed-source mode, without NAT66. Uses an isolated ULA fixture.
@@ -100,3 +100,8 @@ stage), a controlled UDP upstream and the real AdGuard binary/configuration
 script. It checks internal AAAA, ordinary-client AAAA suppression, existing A,
 exit routing/exclusion and configuration enable/disable/idempotence. No ports
 are published. Set DOCKER if the CLI is not at Docker Desktop's standard path.
+
+The DNS integration additionally supplies a CNAME-only reply, checks that the
+next AAAA lookup succeeds, kills the resolver with SIGKILL after its A answer,
+and recreates Jool using only the checkpoint written before that answer.
+The test must recover the same synthetic address and establish a new TCP flow.

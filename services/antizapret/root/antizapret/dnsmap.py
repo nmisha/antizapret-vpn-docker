@@ -62,9 +62,10 @@ class ProxyResolver(BaseResolver):
                  resolver_client_id,asn_file,asn_database,tablename='dnsmap',
                  asn_database_reader=None, iptables_runner=None,
                  connection_factory=None, load_existing_mappings=True,
-                 mapping_batch_delay=MAPPING_BATCH_DELAY, nat46_backend=None, ipv6_policy=None):
+                 mapping_batch_delay=MAPPING_BATCH_DELAY, nat46_backend=None, ipv6_policy=None, nat46_checkpoint=None):
         self.nat46_backend = nat46_backend
         self.ipv6_policy = ipv6_policy
+        self.nat46_checkpoint = nat46_checkpoint
         self.address = address
         self.port = port
         self.timeout = timeout
@@ -450,6 +451,8 @@ class ProxyResolver(BaseResolver):
                             raise RuntimeError('IPv6 backend is disabled')
                         installed_v6.append(request)
                         self.nat46_backend.add(request.fake_addr, request.real_addr)
+                if installed_v6 and self.nat46_checkpoint is not None:
+                    self.nat46_backend.save(self.nat46_checkpoint, self.iprange)
                 result = self.iptables_runner(
                     command,
                     input='\n'.join(rules),
@@ -488,6 +491,41 @@ class ProxyResolver(BaseResolver):
                     self.mapping_condition.notify_all()
                     return
 
+    IPV6_CNAME_MAX_HOPS = 10
+
+    def resolve_ipv6_addresses(self, name, client_id):
+        """Follow partial CNAME replies without changing exit or client policy.
+
+        Consume a complete chain from one response when possible; never accept
+        AAAA records owned by an unrelated name. A denied alias stays denied.
+        """
+        current = str(name).rstrip('.').lower()
+        visited = set()
+        upstream = None
+        for _ in range(self.IPV6_CNAME_MAX_HOPS + 1):
+            if current in visited:
+                raise ValueError('IPv6 CNAME loop')
+            visited.add(current)
+            if upstream is None:
+                upstream = self.query_doh(DNSRecord.question(current, 'AAAA'), client_id)
+            if upstream.header.rcode != RCODE.NOERROR:
+                return []
+            records = [record for record in upstream.rr
+                       if str(record.rname).rstrip('.').lower() == current]
+            aliases = {str(record.rdata).rstrip('.').lower()
+                       for record in records if record.rtype == QTYPE.CNAME}
+            addresses = [str(IPv6Address(str(record.rdata)))
+                         for record in records if record.rtype == QTYPE.AAAA]
+            if len(aliases) > 1 or (aliases and addresses):
+                raise ValueError('Ambiguous IPv6 CNAME response')
+            if not aliases:
+                return list(dict.fromkeys(addresses))
+            current = next(iter(aliases))
+            if not any(str(record.rname).rstrip('.').lower() == current
+                       for record in upstream.rr):
+                upstream = None
+        raise ValueError('IPv6 CNAME chain exceeds {} hops'.format(self.IPV6_CNAME_MAX_HOPS))
+
     def resolve_ipv6(self, request, filtered_reply, client_id):
         if filtered_reply.header.rcode != RCODE.NOERROR:
             return filtered_reply
@@ -496,17 +534,13 @@ class ProxyResolver(BaseResolver):
         if any(record.rtype == QTYPE.A and str(record.rdata) in ('0.0.0.0', '127.0.0.1')
                for record in filtered_reply.rr):
             return filtered_reply
-        upstream = self.query_doh(DNSRecord.question(str(request.q.qname), 'AAAA'), client_id)
-        addresses = list(dict.fromkeys(
-            str(IPv6Address(str(record.rdata)))
-            for record in upstream.rr if record.rtype == QTYPE.AAAA
-        ))
+        addresses = self.resolve_ipv6_addresses(request.q.qname, client_id)
         addresses = [address for address in addresses
                      if not (IPv6Address(address).is_unspecified or IPv6Address(address).is_loopback
                              or IPv6Address(address).is_multicast or IPv6Address(address).is_link_local)]
         reply = request.reply(aa=0, ra=1)
         reply.header.ad = 0
-        if upstream.header.rcode != RCODE.NOERROR or not addresses:
+        if not addresses:
             reply.header.rcode = RCODE.SERVFAIL
             return reply
         mappings = self.add_mappings(addresses)
@@ -711,7 +745,11 @@ if __name__ == '__main__':
                              nat46_backend=(JoolBackend(os.getenv('NAT46_INSTANCE', 'antizapret'))
                                  if os.getenv('NAT46_ENABLED', '0') == '1' else None),
                              ipv6_policy=(HostPolicy('/root/antizapret/config/custom')
-                                 if os.getenv('NAT46_ENABLED', '0') == '1' else None))
+                                 if os.getenv('NAT46_ENABLED', '0') == '1' else None),
+                             nat46_checkpoint=(Path('/root/antizapret/iptables') /
+                                 (socket.gethostname().split('.')[0] + '.nat46.rules')
+                                 if os.getenv('NAT46_ENABLED', '0') == '1'
+                                 and os.getenv('IPTABLES_SAVE_DISABLED') != '1' else None))
     atexit.register(resolver.close)
     signal.signal(signal.SIGHUP, resolver.request_asn_reload)
     handler = PassthroughDNSHandler if args.passthrough else DNSHandler

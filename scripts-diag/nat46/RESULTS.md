@@ -21,15 +21,17 @@
 6. Encrypted IPv4-only Swarm overlay + additional macvlan + host-side NAT66.
 7. Swarm packet test without NAT66, with an explicit routed-source ULA fixture.
 8. Repository resolver: controlled DoH -> synthetic A -> actual IPv6 TCP.
-9. Production nat46-control.py export, kernel instance deletion/recreation,
-   restoration before DNS; old synthetic A still reaches its original target.
+9. CNAME-only reply followed to terminal AAAA; NAT46 checkpoint exists before
+   the A answer. Resolver killed with SIGKILL, kernel instance recreated by
+   nat46-control.py from that checkpoint; old synthetic A still reaches its
+   original target. No shutdown export is used for this crash test.
 10. Two actual QUIC/443 clients echo 73728 bytes each with reduced egress MTU.
 11. Host preparation script: repeated apply and smoke Swarm task receive the
     reserved IPv6 ::2 address. Tested using a simulated guest uplink/default route.
 12. Real AdGuard: exit-internal AAAA permitted; ordinary AAAA suppressed; A,
     exit selection and resolver exclusion rules preserved. Configuration script
     enables/disables idempotently.
-13. Full antizapret and AdGuard images build. Antizapret build passes 81 Python
+13. Full antizapret and AdGuard images build. Antizapret build passes 88 Python
     tests and its Go checks. Existing IPv4 resolver tests remain passing.
 14. Compose merge -> project compose2swarm -> docker stack config validation;
     networks, NET_ADMIN, explicit image tags, stop-first and 1-minute stop grace
@@ -47,3 +49,12 @@ Only linux/amd64 builds were tested.
 
 Detailed transient build and packet logs are under ignored tmp/nat46-vm/.
 Reproduction: README.md in this directory. Deployment: docs/guide_Jool_RU.md.
+
+## Follow-up from PR #255
+
+Bounded explicit CNAME chasing and immediate NAT46 checkpointing were added
+as independent implementations for the Jool backend. Unit tests additionally
+cover cycles/depth, denied aliases, unrelated AAAA records, waiting for disk
+commit, checkpoint errors, disabled persistence and failed atomic replacement.
+Detailed follow-up logs: tmp/nat46-vm/checkpoint-build.log and
+checkpoint-integration.log. The TAYGA/Python relay architecture was not adopted.

@@ -25,6 +25,8 @@ class IPv6ResolverTests(ResolverTestCase):
         resolver = self.resolver()
         request = DNSRecord.question('example.com', 'A')
         upstream = self.answer6(request, ('2001:db8::1', '2001:db8::2'))
+        for record in upstream.rr:
+            record.rname = 'target.example.net'
         upstream.add_answer(RR('example.com', QTYPE.CNAME, rdata=CNAME('target.example.net')))
         resolver.query_doh = Mock(side_effect=[dns_reply(request), upstream])
         reply = resolver.resolve(request, None)
@@ -103,6 +105,91 @@ class IPv6ResolverTests(ResolverTestCase):
         self.assertEqual(set(resolver.ipmap), {ipaddress.IPv6Address('2001:db8::1'),
                                              ipaddress.IPv4Address('192.0.2.1')})
         self.assertEqual(self.backend.add.call_count, 1)
+
+    def test_partial_cname_reply_is_followed_with_same_client(self):
+        resolver = self.resolver()
+        request = DNSRecord.question('example.com')
+        alias = self.answer6(request, ())
+        alias.add_answer(RR('example.com', QTYPE.CNAME, rdata=CNAME('cdn.example.net')))
+        target = self.answer6(DNSRecord.question('cdn.example.net'))
+        resolver.query_doh = Mock(side_effect=[dns_reply(request), alias, target])
+        reply = resolver.resolve(request, None)
+        self.assertEqual(reply.header.rcode, RCODE.NOERROR)
+        self.assertEqual(str(reply.rr[0].rname), 'example.com.')
+        query, client = resolver.query_doh.call_args.args
+        self.assertEqual(str(query.q.qname), 'cdn.example.net.')
+        self.assertEqual(client, 'az-local')
+
+    def test_cname_loop_and_depth_limit_fail_without_installation(self):
+        for loop in (True, False):
+            with self.subTest(loop=loop):
+                resolver = self.resolver()
+                count = 0
+                def upstream(q, client):
+                    nonlocal count
+                    count += 1
+                    reply = q.reply()
+                    target = 'example.com' if loop else 'alias{}.example.net'.format(count)
+                    reply.add_answer(RR(q.q.qname, QTYPE.CNAME, rdata=CNAME(target)))
+                    return reply
+                resolver.query_doh = Mock(side_effect=upstream)
+                # Call helper directly to avoid the unrelated initial A query.
+                with self.assertRaises(ValueError):
+                    resolver.resolve_ipv6_addresses('example.com', 'az-local')
+                self.assertLessEqual(count, resolver.IPV6_CNAME_MAX_HOPS + 1)
+                self.backend.add.assert_not_called()
+
+    def test_denied_alias_and_unrelated_aaaa_are_not_used(self):
+        resolver = self.resolver()
+        request = DNSRecord.question('example.com')
+        alias = self.answer6(request, ())
+        alias.add_answer(RR('example.com', QTYPE.CNAME, rdata=CNAME('cdn.example.net')))
+        unrelated = self.answer6(DNSRecord.question('unrelated.example.net'))
+        for replies in ([alias, dns_reply(request, rcode=RCODE.SERVFAIL)], [unrelated]):
+            resolver.query_doh = Mock(side_effect=replies)
+            self.assertEqual(resolver.resolve_ipv6_addresses('example.com', 'az-local'), [])
+        self.backend.add.assert_not_called()
+
+    def test_checkpoint_completes_before_dns_allocation_is_published(self):
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        checkpoint = Path(self.temp_directory.name) / 'nat46.rules'
+        resolver = self.resolver(nat46_checkpoint=checkpoint)
+        entered, release = threading.Event(), threading.Event()
+        def save(*args):
+            entered.set()
+            if not release.wait(5):
+                raise RuntimeError('test checkpoint timed out')
+        self.backend.save.side_effect = save
+        with ThreadPoolExecutor() as pool:
+            future = pool.submit(resolver.add_mapping, '2001:db8::1')
+            try:
+                self.assertTrue(entered.wait(2))
+                self.assertFalse(future.done())
+                self.assertIsNone(resolver.get_mapping('2001:db8::1'))
+            finally:
+                release.set()
+            self.assertEqual(future.result(timeout=2), '14.16.0.2')
+        self.backend.save.assert_called_once_with(checkpoint, resolver.iprange)
+        # Reusing an advertised mapping does not write another checkpoint.
+        resolver.add_mapping('2001:db8::1')
+        self.assertEqual(self.backend.save.call_count, 1)
+
+    def test_failed_checkpoint_returns_servfail_and_rolls_back(self):
+        resolver = self.resolver(nat46_checkpoint=Path(self.temp_directory.name) / 'nat46.rules')
+        self.backend.save.side_effect = OSError('disk full')
+        request = DNSRecord.question('example.com')
+        resolver.query_doh = Mock(side_effect=[dns_reply(request), self.answer6(request)])
+        self.assertEqual(resolver.resolve(request, None).header.rcode, RCODE.SERVFAIL)
+        self.backend.remove.assert_called_once_with('14.16.0.2', '2001:db8::1')
+        self.assertIsNone(resolver.get_mapping('2001:db8::1'))
+        self.assertNotIn('14.16.0.2', resolver.unassigned_addresses)
+        self.iptables_runner.assert_not_called()
+
+    def test_disabled_checkpoint_does_not_change_mapping_installation(self):
+        resolver = self.resolver(nat46_checkpoint=None)
+        self.assertTrue(resolver.add_mapping('2001:db8::1'))
+        self.backend.save.assert_not_called()
 
     def test_policy_reload_and_invalid_edits(self):
         resolver = self.resolver(include='/^api[0-9]+\\.example\\.com$/\n')

@@ -16,12 +16,13 @@ def check_dns(d, ex, j, exit_name, exit_ip):
     upstream = '''from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlparse,parse_qs
 import base64
-from dnslib import DNSRecord,RR,A,AAAA,QTYPE
+from dnslib import DNSRecord,RR,A,AAAA,CNAME,QTYPE
 class Handler(BaseHTTPRequestHandler):
  def do_GET(self):
   data=parse_qs(urlparse(self.path).query)['dns'][0]
   q=DNSRecord.parse(base64.urlsafe_b64decode(data+'='*(-len(data)%4))); r=q.reply()
-  if q.q.qtype == QTYPE.AAAA:r.add_answer(RR(q.q.qname,QTYPE.AAAA,rdata=AAAA('fd46:48::20')))
+  if q.q.qtype == QTYPE.AAAA and str(q.q.qname)=='example.com.':r.add_answer(RR(q.q.qname,QTYPE.CNAME,rdata=CNAME('cdn.example.net')))
+  elif q.q.qtype == QTYPE.AAAA:r.add_answer(RR(q.q.qname,QTYPE.AAAA,rdata=AAAA('fd46:48::20')))
   else:r.add_answer(RR(q.q.qname,QTYPE.A,rdata=A('192.0.2.20')))
   data=r.pack();self.send_response(200);self.send_header('Content-Type','application/dns-message');self.send_header('Content-Length',str(len(data)));self.end_headers();self.wfile.write(data)
 HTTPServer(('0.0.0.0',3000),Handler).serve_forever()
@@ -38,7 +39,7 @@ Path('/tmp/asn').write_text('')
 Path('/tmp/include-hosts-ipv6-custom.txt').write_text('example.com\\n')
 Path('/tmp/exclude-hosts-ipv6-custom.txt').write_text('')
 b=JoolBackend('n46')
-r=ProxyResolver('UPSTREAM',53,3000,2,'14.18.0.0/29','az-world','az-resolver','/tmp/asn','/unused',asn_database_reader=Database(),nat46_backend=b,ipv6_policy=HostPolicy('/tmp'))
+r=ProxyResolver('UPSTREAM',53,3000,2,'14.18.0.0/29','az-world','az-resolver','/tmp/asn','/unused',asn_database_reader=Database(),nat46_backend=b,ipv6_policy=HostPolicy('/tmp'),nat46_checkpoint=Path('/root/antizapret/iptables/n46-test.nat46.rules'))
 s=DNSServer(r,address='0.0.0.0',port=5353);s.start_thread()
 stop=threading.Event();signal.signal(signal.SIGTERM,lambda *a:stop.set());stop.wait()
 r.close();s.stop();b.save('/tmp/n46.rules','14.18.0.0/29')
@@ -63,16 +64,16 @@ r.close();s.stop();b.save('/tmp/n46.rules','14.18.0.0/29')
     # A real IPv4 client TCP socket connects using the synthesized DNS result.
     tcp="import socket;s=socket.create_connection(('%s',443),5);s.sendall(b'dns-e2e');assert s.recv(7)==b'dns-e2e'"%fake
     d('exec','n46-c1','python3','-c',tcp)
-    ex(exit_name,"kill -TERM $(cat /tmp/dns.pid); for i in $(seq 1 50); do test -f /tmp/n46.rules && exit 0; sleep .1; done; exit 1")
+    ex(exit_name,"test -s /root/antizapret/iptables/n46-test.nat46.rules; kill -KILL $(cat /tmp/dns.pid); for i in $(seq 1 50); do ss -lun | grep -q ':5353' || exit 0; sleep .1; done; exit 1")
+    ex(exit_name,'test ! -e /tmp/n46.rules')
     # Exercise the production startup/export controller, not a fixture-only restore.
     gateway=ex(exit_name,'ip -4 route show default').split()[2]
     settings=('NAT46_ENABLED=1 NAT46_INSTANCE=n46 AZ_SUBNET=14.18.0.0/29 '
               'HOSTNAME=n46-test IPTABLES_SAVE_DISABLED=0 '
               'NAT46_SOURCE_PREFIX=fd46:64::/96 NAT46_CLIENT_SUBNETS=172.30.46.0/24 '
               'NAT46_IPV4_GATEWAY='+gateway+' ')
-    ex(exit_name,settings+'python3 /tmp/nat46-control.py save')
     j('instance','remove','n46')
     ex(exit_name,settings+'python3 /tmp/nat46-control.py start')
     start();assert query()==fake
     d('exec','n46-c1','python3','-c',tcp)
-    print('DNS -> synthetic A -> real IPv6 TCP; graceful export and kernel-table restoration OK',flush=True)
+    print('Partial CNAME -> synthetic A -> IPv6 TCP; SIGKILL/checkpoint/kernel restoration OK',flush=True)
