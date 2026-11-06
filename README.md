@@ -2,6 +2,8 @@
 
 # AntiZapret VPN in Docker
 
+[Host preparation for IPv6 egress: Jool SIIT (Russian guide; experimental integration)](docs/guide_Jool_RU.md)
+
 Antizapret created to redirect only blocked domains to VPN tunnel. Its called split tunneling.
 This repo is based on idea from original [AntiZapret LXD image](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/)
 

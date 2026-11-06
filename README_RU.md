@@ -2,6 +2,8 @@
 
 # AntiZapret VPN в Docker
 
+[Подготовка хоста для IPv6-выхода: Jool SIIT (экспериментальная функция)](docs/guide_Jool_RU.md)
+
 Antizapret создан для того, чтобы перенаправлять только заблокированные домены через VPN-туннель. Это называется раздельное туннелирование (split tunneling).
 Этот репозиторий основан на идее оригинального [AntiZapret LXD image](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/).
 

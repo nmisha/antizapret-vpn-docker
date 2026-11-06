@@ -1,0 +1,12 @@
+# Start with: limactl start --name nat46 --tty=false scripts-diag/nat46/lima.yaml
+vmType: vz
+arch: x86_64
+cpus: 2
+memory: 2GiB
+disk: 20GiB
+base:
+- template:_images/ubuntu-24.04
+mounts: []
+containerd:
+  system: false
+  user: false

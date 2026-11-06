@@ -137,5 +137,7 @@ fi
 
 sed -i 's/antizapret-vpn-docker\/v5/antizapret-vpn-docker\/v6/g' /opt/adguardhome/conf/AdGuardHome.yaml
 
+bash /root/configure-nat46-dns.sh /opt/adguardhome/conf/AdGuardHome.yaml || exit 1
+
 touch "$INIT_FILE"
 exec /opt/adguardhome/AdGuardHome "$@"

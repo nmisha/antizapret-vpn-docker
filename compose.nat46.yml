@@ -1,0 +1,49 @@
+# Optional override. Apply AFTER compose.swarm.yml; prerequisites: docs/guide_Jool_RU.md.
+# This does not install host modules or configure host forwarding/NAT66.
+networks:
+  nat46-egress:
+    external: true
+    name: antizapret-nat46-egress
+services:
+  az-local:
+    image: ${NAT46_IMAGE:?Set NAT46_IMAGE to your rebuilt image tag}
+    stop_grace_period: 1m
+    deploy:
+      replicas: 1
+      update_config:
+        order: stop-first
+      rollback_config:
+        order: stop-first
+    networks:
+      nat46-egress: {}
+    environment:
+      NAT46_ENABLED: "1"
+      NAT46_NAT66_ENABLED: ${NAT46_NAT66_ENABLED:-1}
+      NAT46_SOURCE_PREFIX: ${NAT46_LOCAL_SOURCE_PREFIX:-fd46:64::/96}
+      NAT46_IPV4_GATEWAY: ${NAT46_LOCAL_IPV4_GATEWAY:-172.18.0.1}
+      NAT46_CLIENT_SUBNETS: ${NAT46_CLIENT_SUBNETS:-10.1.164.0/22;10.200.0.0/24}
+      DOCKER_SUBNET: ${NAT46_OVERLAY_SUBNET:-10.200.0.0/24}
+      IPTABLES_SAVE_DISABLED: "0"
+  az-world:
+    image: ${NAT46_IMAGE:?Set NAT46_IMAGE to your rebuilt image tag}
+    stop_grace_period: 1m
+    deploy:
+      replicas: 1
+      update_config:
+        order: stop-first
+      rollback_config:
+        order: stop-first
+    networks:
+      nat46-egress: {}
+    environment:
+      NAT46_ENABLED: "1"
+      NAT46_NAT66_ENABLED: ${NAT46_NAT66_ENABLED:-1}
+      NAT46_SOURCE_PREFIX: ${NAT46_WORLD_SOURCE_PREFIX:-fd46:65::/96}
+      NAT46_IPV4_GATEWAY: ${NAT46_WORLD_IPV4_GATEWAY:-172.20.0.1}
+      NAT46_CLIENT_SUBNETS: ${NAT46_CLIENT_SUBNETS:-10.1.164.0/22;10.200.0.0/24}
+      DOCKER_SUBNET: ${NAT46_OVERLAY_SUBNET:-10.200.0.0/24}
+      IPTABLES_SAVE_DISABLED: "0"
+  adguard:
+    image: ${NAT46_ADGUARD_IMAGE:?Set NAT46_ADGUARD_IMAGE to your rebuilt AdGuard image tag}
+    environment:
+      NAT46_ENABLED: "1"
