@@ -1,0 +1,9 @@
+# Copy to /etc/default/antizapret-nat46 on EACH exit node.
+# Replace this with the interface carrying the host IPv6 default route.
+NAT46_WAN_INTERFACE=REPLACE_ME
+NAT46_HOST_NAT66=1
+NAT46_NETWORK=antizapret-nat46-egress
+NAT46_EGRESS_SUBNET=fd46:ee::/64
+NAT46_EGRESS_GATEWAY=fd46:ee::1
+# Only with a public container /64 routed by your provider to this host:
+NAT46_ROUTED_PREFIX_CONFIRMED=0

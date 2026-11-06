@@ -8,7 +8,7 @@ function postrun () {
     nohup bash -c "$@" &
 }
 
-DOCKER_SUBNET="$(ipcalc "$(ip -4 addr show dev eth0 | awk '$1=="inet" {print $2; exit}')" | awk '/Network:/ {print $2}')"
+DOCKER_SUBNET="${DOCKER_SUBNET:-$(ipcalc "$(ip -4 addr show dev eth0 | awk '$1=="inet" {print $2; exit}')" | awk '/Network:/ {print $2}')}"
 
 # save DNS variables to /etc/default/antizapret
 # in order to systemd services can access them
@@ -19,6 +19,9 @@ DNS=${DNS:-"127.0.0.1"}
 CLIENT=${CLIENT:-"az-local"}
 DOALL_DISABLED=${DOALL_DISABLED:-""}
 IPTABLES_SAVE_DISABLED=${IPTABLES_SAVE_DISABLED:-""}
+NAT46_ENABLED=${NAT46_ENABLED:-"0"}
+NAT46_PREFIX=${NAT46_PREFIX:-"fd46:64::/96"}
+NAT46_IPV4_GATEWAY=${NAT46_IPV4_GATEWAY:-""}
 WARP_ENABLED=${WARP_ENABLED:-"0"}
 ZAPRET_ENABLED=${ZAPRET_ENABLED:-"0"}
 export ZAPRET_CONFIG='${ZAPRET_CONFIG:-"/opt/zapret2/config/zapret.conf"}'
@@ -30,15 +33,32 @@ ASN_FILES='${ASN_FILES:-""}'
 AZ_SUBNET=${AZ_SUBNET:-"14.16.0.0/15"}
 LC_ALL=C.UTF-8
 EOF
+set -a
 source /etc/default/antizapret
+set +a
 # autoload vars when logging in into shell with 'bash -l'
 ln -sf /etc/default/antizapret /etc/profile.d/antizapret.sh
 
+
+if [ "$NAT46_ENABLED" != "0" ] && [ "$NAT46_ENABLED" != "1" ]; then
+    echo 'NAT46_ENABLED must be 0 or 1' >&2
+    exit 1
+fi
+if [ "$NAT46_ENABLED" = "1" ] && [ -z "${NAT46_IPV4_GATEWAY}" ]; then
+    echo 'NAT46_IPV4_GATEWAY must preserve the original docker_gwbridge IPv4 gateway' >&2
+    exit 1
+fi
+
+mkdir -p /root/antizapret/config/custom /root/antizapret/iptables
 
 # creating custom hosts files if they have not yet been initialized
 for file in $(echo {exclude,include}-{hosts,ips,ips-world,asn,asn-world}-custom.txt); do
     path=/root/antizapret/config/custom/$file
     [ ! -f $path ] && touch $path
+done
+
+for kind in include exclude; do
+    touch "/root/antizapret/config/custom/$kind-hosts-ipv6-custom.txt"
 done
 
 mkdir -p /root/antizapret/result
@@ -92,14 +112,19 @@ for eth in $(ip link | grep -oE "eth[0-9]"); do
     iptables -t nat -A POSTROUTING -o "$eth" -j MASQUERADE
 done
 
-HOSTNAME=$(hostname -s)
+export HOSTNAME=$(hostname -s)
 IPTABLES_SAVE="/root/antizapret/iptables/$HOSTNAME.rules"
 
 set +x
-if [ "$IPTABLES_SAVE_DISABLED" != "1" ] && [ -f "$IPTABLES_SAVE" ]; then
+if [ "$IPTABLES_SAVE_DISABLED" != "1" ] && [ -f "$IPTABLES_SAVE" ] &&
+   { [ "$NAT46_ENABLED" != "1" ] || [ ! -f "/root/antizapret/iptables/$HOSTNAME.nat46.rules" ]; }; then
   LINES=$(wc -l < "$IPTABLES_SAVE")
   echo "restoring iptables rules: $LINES"
   if [ "$LINES" -gt 130000 ]; then
+    if [ "$NAT46_ENABLED" = "1" ]; then
+        echo 'DNAT persistence exceeds restore limit; refusing to discard NAT46 allocator state' >&2
+        exit 1
+    fi
     echo "iptables-save too big. removing old file."
     rm -rf "$IPTABLES_SAVE"
   else
@@ -114,6 +139,7 @@ if [ "$IPTABLES_SAVE_DISABLED" != "1" ] && [ -f "$IPTABLES_SAVE" ]; then
       echo "iptables rules restored"
     else
       echo "cant restore iptables rules"
+      [ "$NAT46_ENABLED" != "1" ] || exit 1
     fi
     rm -f "$IPTABLES_RESTORE_FILE"
   fi
@@ -123,20 +149,41 @@ set -x
 function save_iptables () {
     [ "$IPTABLES_SAVE_DISABLED" = "1" ] && return 0
     echo "saving iptables..."
-    iptables-save -t "nat" | grep -E "^-A $CHAIN " > /tmp/iptables.rules && mv -f /tmp/iptables.rules "$IPTABLES_SAVE" && echo "iptables saved"
+    iptables-save -t nat > /tmp/iptables-full.rules || return 1
+    grep -E "^-A $CHAIN " /tmp/iptables-full.rules > /tmp/iptables.rules || [ "$?" = 1 ] || return 1
+    mv -f /tmp/iptables.rules "$IPTABLES_SAVE" && echo "iptables saved"
 }
 
+python3 /root/antizapret/nat46-control.py start
+
+DNSMAP_PID=
+TAYGA_PID=
 ZAPRET_STARTED=0
 function stop_services () {
     trap - EXIT HUP INT QUIT PIPE TERM
     cleanup_doall_owner
+    if [ -n "$DNSMAP_PID" ] && kill -0 "$DNSMAP_PID" 2>/dev/null; then
+        kill -TERM "$DNSMAP_PID" 2>/dev/null || true
+        wait "$DNSMAP_PID" || true
+    fi
+    python3 /root/antizapret/nat46-control.py save || true
     if [ "$ZAPRET_STARTED" = "1" ]; then
         /opt/zapret2/init.d/sysv/zapret2 stop || true
     fi
     save_iptables || true
+    if [ -n "$TAYGA_PID" ]; then
+        kill -TERM "$TAYGA_PID" 2>/dev/null || true
+        wait "$TAYGA_PID" || true
+    fi
 }
 
-trap stop_services EXIT HUP INT QUIT PIPE TERM
+trap stop_services EXIT
+trap 'exit 0' HUP INT QUIT PIPE TERM
+if [ "$NAT46_ENABLED" = "1" ]; then
+    tayga --nodetach -c /dev/shm/nat46/tayga.conf &
+    TAYGA_PID=$!
+    echo "$TAYGA_PID" > /dev/shm/.nat46.pid
+fi
 
 if [ "$ZAPRET_ENABLED" = "1" ]; then
     if [ ! -s "$ZAPRET_CONFIG" ]; then
@@ -184,4 +231,12 @@ postrun 'while true; do /opt/api/app; done'
 postrun 'while true; do sleep 6h; timeout --kill-after=5s 10m /usr/bin/doall; done'
 postrun 'while true; do /usr/bin/iperf3 -s -1; done'
 
-/usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET" --asn-file "$ASN_FILES"
+/usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET" --asn-file "$ASN_FILES" &
+DNSMAP_PID=$!
+if [ "$NAT46_ENABLED" = "1" ]; then
+    kill -0 "$TAYGA_PID"
+    wait -n "$DNSMAP_PID" "$TAYGA_PID"
+    exit 1
+else
+    wait "$DNSMAP_PID"
+fi

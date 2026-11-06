@@ -459,7 +459,7 @@ class MappingTests(ResolverTestCase):
 
         self.assertFalse(resolver.add_mapping('192.0.2.1'))
 
-        self.assertEqual(resolver.ipmap, {})
+        self.assertEqual({str(k): v for k, v in resolver.ipmap.items()}, {})
         self.assertEqual(resolver.unassigned_addresses[0], '14.16.0.2')
 
     def test_iptables_success_commits_mapping(self):
@@ -526,7 +526,7 @@ class MappingTests(ResolverTestCase):
         self.assertEqual(resolver.add_mapping('192.0.2.1'), '14.16.0.2')
         self.assertEqual(resolver.add_mapping('192.0.2.2'), '14.16.0.2')
 
-        self.assertEqual(resolver.ipmap, {'192.0.2.2': '14.16.0.2'})
+        self.assertEqual({str(k): v for k, v in resolver.ipmap.items()}, {'192.0.2.2': '14.16.0.2'})
         commands = [call.args[0] for call in self.iptables_runner.call_args_list]
         self.assertEqual(commands[1], ['iptables', '-w', '-t', 'nat', '-F', 'dnsmap'])
         self.assertIn(
@@ -545,7 +545,7 @@ class MappingTests(ResolverTestCase):
             '192.0.2.10': '14.16.0.2',
             '192.0.2.11': '14.16.0.3',
         })
-        self.assertEqual(resolver.ipmap, mappings)
+        self.assertEqual({str(k): v for k, v in resolver.ipmap.items()}, mappings)
         commands = [call.args[0] for call in self.iptables_runner.call_args_list]
         self.assertEqual(commands[-2], ['iptables', '-w', '-t', 'nat', '-F', 'dnsmap'])
         rules = self.iptables_runner.call_args_list[-1].kwargs['input']
@@ -627,7 +627,7 @@ class MappingTests(ResolverTestCase):
         self.assertEqual(resolver.add_mapping('192.0.2.1'), '14.16.0.2')
         self.assertFalse(resolver.add_mapping('192.0.2.2'))
 
-        self.assertEqual(resolver.ipmap, {'192.0.2.1': '14.16.0.2'})
+        self.assertEqual({str(k): v for k, v in resolver.ipmap.items()}, {'192.0.2.1': '14.16.0.2'})
         self.assertEqual(list(resolver.unassigned_addresses), [])
 
 

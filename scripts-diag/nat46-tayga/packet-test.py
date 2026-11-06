@@ -67,16 +67,17 @@ try:
   host('ip6tables','-t','nat','-A','POSTROUTING','-s',exit_v6+'/128','-o',bridge,'-j','MASQUERADE')
  elif swarm:
   ex('n46-server','ip -6 route add fd46:ee::/64 via fd46:47::1')
+ if not swarm: ex(exit_name,'ip -6 route replace default via fd46:47::1')
  print('TAYGA static prefix + kernel DNAT6',flush=True)
- config='tun-device nat46\nipv4-addr 192.0.2.1\nipv6-addr fd46:65::1\nprefix fd46:64::/96\n'
- ex(exit_name,"mkdir -p /dev/net; test -c /dev/net/tun || mknod /dev/net/tun c 10 200")
- ex(exit_name,"printf '%s' '"+config+"' >/tmp/tayga.conf; tayga -c /tmp/tayga.conf --mktun; ip link set nat46 up; ip -4 addr add 192.0.2.2/32 dev nat46; ip -6 addr add fd46:65::2/128 dev nat46; ip route add 14.18.0.0/15 dev nat46; ip -6 route add fd46:64::/96 dev nat46")
- ex(exit_name,'ip6tables -t nat -N nat46; ip6tables -t nat -A PREROUTING -i nat46 -j nat46; ip6tables -t nat -A POSTROUTING -s fd46:64::/96 ! -o nat46 -j MASQUERADE; ip6tables -N nat46_unmapped; ip6tables -A FORWARD -i nat46 -d fd46:64::e12:0/111 -j nat46_unmapped; ip6tables -A nat46_unmapped -j DROP')
- d('exec','-d',exit_name,'sh','-c','echo $$ >/tmp/tayga.pid; exec tayga -c /tmp/tayga.conf --nodetach >/tmp/tayga.log 2>&1')
+ # Exercise the repository startup controller and destination backend.
+ here = pathlib.Path(__file__).resolve().parent
+ for filename in ('nat46.py', 'nat46-control.py', 'dnsmap.py'):
+  d('cp',str(here/filename),exit_name+':/tmp/'+filename)
+ gateway=ex(exit_name,'ip -4 route show default').split()[2]
+ ex(exit_name,'NAT46_ENABLED=1 AZ_SUBNET=14.18.0.0/15 IPTABLES_SAVE_DISABLED=1 NAT46_IPV4_GATEWAY='+gateway+' python3 /tmp/nat46-control.py start')
+ d('exec','-d',exit_name,'sh','-c','echo $$ >/tmp/tayga.pid; echo $$ >/dev/shm/.nat46.pid; exec tayga -c /dev/shm/nat46/tayga.conf --nodetach >/tmp/tayga.log 2>&1')
  def mapping(fake,target):
-  import ipaddress
-  encoded=ipaddress.IPv6Address(int(ipaddress.IPv6Address('fd46:64::'))|int(ipaddress.IPv4Address(fake)))
-  ex(exit_name,'ip6tables -t nat -A nat46 -d '+str(encoded)+'/128 -j DNAT --to-destination '+target)
+  d('exec',exit_name,'python3','-c',"import sys;sys.path.insert(0,'/tmp');from nat46 import DNAT6Backend;DNAT6Backend().add("+repr(fake)+","+repr(target)+")")
  mapping('14.18.0.2','fd46:48::20')
  if not swarm: ex(exit_name,'ip -6 route add fd46:48::/64 via fd46:47::1')
  for n in names[2:]: ex(n,'ip route add 14.18.0.0/15 via '+exit_ip)
@@ -143,6 +144,10 @@ print('TCP and UDP/443 OK')
  v4dev=json.loads(ex(exit_name,'ip -j -4 route get '+v4target))[0]['dev']
  ex(exit_name,'iptables -t nat -A PREROUTING -d 14.18.0.4 -j DNAT --to-destination '+v4target+'; iptables -t nat -A POSTROUTING -o '+v4dev+' -j MASQUERADE')
  print('IPv4 DNAT:',ex('n46-c1','ping -c 2 -W 2 14.18.0.4'),flush=True)
+ ex(exit_name,'iptables -t nat -D PREROUTING -d 14.18.0.4 -j DNAT --to-destination '+v4target)
+ if os.getenv('N46_DNS') == '1':
+  from dns_integration import check_dns
+  check_dns(d,ex,exit_name,exit_ip)
  if os.getenv('N46_QUIC') == '1':
   for n in ('n46-server','n46-c1','n46-c2'):
    d('cp',str(pathlib.Path(__file__).resolve().parent/'quic-test.py'),n+':/tmp/quic-test.py')
@@ -154,6 +159,7 @@ print('TCP and UDP/443 OK')
    for job in jobs: print(job.result(),flush=True)
  print('DNAT6:',ex(exit_name,'ip6tables -t nat -S nat46'),flush=True)
  print('TAYGA PID:',ex(exit_name,'cat /tmp/tayga.pid'),flush=True)
+
 finally:
  for n in names[:2]:
   print(subprocess.run([D,'exec',n,'sh','-c','cat /tmp/tayga.log /tmp/server.log 2>/dev/null; ip -6 route; ip6tables -t nat -nvL; ip -s link'],capture_output=True,text=True).stdout,flush=True)

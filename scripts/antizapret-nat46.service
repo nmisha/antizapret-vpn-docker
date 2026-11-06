@@ -1,0 +1,15 @@
+[Unit]
+Description=Antizapret container IPv6 egress
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+PartOf=docker.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/antizapret-nat46-egress apply
+ExecReload=/usr/local/sbin/antizapret-nat46-egress apply
+
+[Install]
+WantedBy=multi-user.target docker.service

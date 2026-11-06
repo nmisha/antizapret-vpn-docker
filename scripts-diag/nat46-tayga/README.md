@@ -2,7 +2,8 @@
 
 Ветка `experiment/nat46-tayga` создана от
 `57c12e4ccb6c2b2e2b7b1a88e3796c4a35c0067e`.
-Здесь проверяется сетевая схема; production DNS/Compose пока не изменены.
+TAYGA/DNAT6 подключены к dnsmap, init, сохранению состояния и Swarm override.
+Настройка проекта: [guide_Tayga_RU.md](../../docs/guide_Tayga_RU.md).
 Jool-реализация сохранена отдельно в `feature/nat46-jool`.
 
 ## Схема
@@ -50,7 +51,7 @@ IPv4 docker_gwbridge; это обеспечивает IPv4-выход, а не I
 NAT66 и IPv4 default route через docker_gwbridge. TUN — штатный драйвер Linux;
 его доступность всё равно является предпосылкой.
 
-Прототип использует NAT66 внутри контейнера. Переключатель N46_NAT66=0
+Схема использует NAT66 внутри контейнера. Переключатель N46_NAT66=0
 отключает только внешний host NAT66 для теста маршрутизируемой ULA-сети;
 это не режим сохранения индивидуальных публичных IPv6 всех VPN-клиентов.
 
@@ -69,16 +70,18 @@ limactl shell nat46-tayga bash /tmp/provision-vm.sh --disposable-vm
 limactl shell nat46-tayga mkdir -p /tmp/nat46-tayga
 limactl copy scripts-diag/nat46-tayga/Dockerfile \
   scripts-diag/nat46-tayga/packet-test.py scripts-diag/nat46-tayga/quic-test.py \
+  scripts-diag/nat46-tayga/dns_integration.py \
+  services/antizapret/root/antizapret/{dnsmap.py,nat46.py,nat46-control.py} \
   nat46-tayga:/tmp/nat46-tayga/
 limactl shell nat46-tayga sudo docker build -t nat46-tayga-test:local /tmp/nat46-tayga
-limactl shell nat46-tayga sudo env N46_QUIC=1 python3 /tmp/nat46-tayga/packet-test.py
+limactl shell nat46-tayga sudo env N46_QUIC=1 N46_DNS=1 python3 /tmp/nat46-tayga/packet-test.py
 ```
 
 Для Swarm: один раз выполнить `docker swarm init --advertise-addr VM_IPV4`
 внутри VM, указав реальный адрес её интерфейса. Затем:
 
 ```sh
-limactl shell nat46-tayga sudo env N46_SWARM=1 N46_QUIC=1 \
+limactl shell nat46-tayga sudo env N46_SWARM=1 N46_QUIC=1 N46_DNS=1 \
   python3 /tmp/nat46-tayga/packet-test.py
 ```
 
@@ -96,7 +99,36 @@ TUN в проверенном Swarm создаётся с NET_ADMIN/MKNOD без
 
 Проверены отдельные Docker-контейнеры и одноузловой Swarm, контролируемый
 IPv6-сервер. Производительность, реальные VPN-туннели, два узла Swarm,
-внешний IPv6 провайдера и DNS-интеграция не проверены этим стендом.
+и внешний IPv6 провайдера не проверены этим стендом. DNS проверяется с
+контролируемым DoH upstream, настоящий AdGuard — отдельным тестом.
 NAT66 в два этапа создаёт дополнительное состояние conntrack; производительность
-с Jool не сравнивалась. Следующий этап — интеграция backend DNAT6 с dnsmap,
-сохранение/восстановление и повтор DNS-тестов перед выбором production-варианта.
+с Jool не сравнивалась. Проверены backend DNAT6 с dnsmap, CNAME, общий IPv4/IPv6 checkpoint до ответа, SIGKILL и
+восстановление таблицы через production startup controller.
+
+
+## Дополнительные проверки
+
+После локальной сборки образов из инструкции:
+
+```sh
+python3 scripts-diag/nat46-tayga/adguard-test.py
+python3 scripts-diag/nat46-tayga/lifecycle-test.py
+```
+
+Для Linux указать `DOCKER=docker`; для нестандартных тегов — `NAT46_IMAGE`
+и `NAT46_ADGUARD_IMAGE`. AdGuard-тест использует Python-образ
+`nat46-dns-tests:local`. Сборка:
+
+```sh
+docker build --target test-dnsmap -t nat46-dns-tests:local services/antizapret
+```
+
+Lifecycle-тест запускает полный `/init.sh` с выключенной загрузкой списков,
+проверяет обычный режим, NAT46, SIGTERM и смерть TAYGA.
+
+Host-helper тестировать **только в отмеченной disposable VM**, когда пакетный
+тест уже завершён. Не должно быть старого `/etc/default/antizapret-nat46`,
+интерфейсов `az46-*` или IPv6 default route. Скопировать рядом `host-test.py`
+и `scripts/nat46-egress-host.sh`, запустить `sudo python3 host-test.py`.
+Он создаёт временный uplink, проверяет повторный apply, NAT66 и отказ при
+несовместимой конфигурации; удаляет собственные ресурсы в finally.

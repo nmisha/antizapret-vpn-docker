@@ -5,6 +5,8 @@
 Antizapret created to redirect only blocked domains to VPN tunnel. Its called split tunneling.
 This repo is based on idea from original [AntiZapret LXD image](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/)
 
+Optional IPv6 destination access via TAYGA (Swarm): [setup and limitations (Russian)](docs/guide_Tayga_RU.md).
+
 ## Table of contents
 
 - [Support and discussions group](#support-and-discussions-group)

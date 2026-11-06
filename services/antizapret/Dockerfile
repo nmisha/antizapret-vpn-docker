@@ -50,6 +50,7 @@ RUN <<-"EOT" bash -ex
         procps \
         python3-dnslib \
         python3-maxminddb \
+        tayga \
         sipcalc \
         vim-tiny \
         /tmp/warp.deb
@@ -63,7 +64,7 @@ RUN mkdir -p /usr/share/GeoIP && \
 
 FROM runtime-base AS test-dnsmap
 WORKDIR /root/antizapret
-COPY ./root/antizapret/dnsmap.py ./root/antizapret/test_dnsmap.py ./
+COPY ./root/antizapret/dnsmap.py ./root/antizapret/nat46.py ./root/antizapret/test_dnsmap.py ./root/antizapret/test_dnsmap_nat46.py ./root/antizapret/test_nat46.py ./
 COPY ./root/antizapret/test_list_cache.py ./root/antizapret/list-cache.sh ./root/antizapret/download.sh ./root/antizapret/doall.sh ./
 COPY ./root/antizapret/parse.sh ./
 COPY ./root/antizapret/scripts ./scripts

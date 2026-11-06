@@ -7,11 +7,13 @@ import atexit, base64, http.client, os, queue, re, signal, socket, struct, subpr
 from urllib.parse import quote
 
 from collections import deque, namedtuple
-from ipaddress import IPv4Network
+from ipaddress import IPv4Network, IPv6Address, ip_address
 
 import maxminddb
 
-from dnslib import DNSRecord, RCODE, QTYPE, A
+from dnslib import DNSRecord, RCODE, QTYPE, A, RR
+
+from nat46 import DNAT6Backend, HostPolicy
 from dnslib.server import DNSServer, DNSHandler, BaseResolver, DNSLogger
 
 
@@ -60,7 +62,10 @@ class ProxyResolver(BaseResolver):
                  resolver_client_id,asn_file,asn_database,tablename='dnsmap',
                  asn_database_reader=None, iptables_runner=None,
                  connection_factory=None, load_existing_mappings=True,
-                 mapping_batch_delay=MAPPING_BATCH_DELAY):
+                 mapping_batch_delay=MAPPING_BATCH_DELAY, nat46_backend=None, ipv6_policy=None, nat46_checkpoint=None):
+        self.nat46_backend = nat46_backend
+        self.ipv6_policy = ipv6_policy
+        self.nat46_checkpoint = nat46_checkpoint
         self.address = address
         self.port = port
         self.timeout = timeout
@@ -95,6 +100,7 @@ class ProxyResolver(BaseResolver):
         self.mapping_batch_delay = mapping_batch_delay
         self.mapping_batch_running = False
         self.mapping_stopping = False
+        self.closed = False
 
         # Load existing mappings
         if load_existing_mappings:
@@ -103,9 +109,19 @@ class ProxyResolver(BaseResolver):
             for mapped in output.split("\n"):
                 if mapped:
                     fake_addr, real_addr = mapped.split(' ')
+                    if self.nat46_backend is not None and (
+                            fake_addr not in self.unassigned_addresses or ip_address(real_addr) in self.ipmap):
+                        raise ValueError('Conflicting restored IPv4 mapping')
                     if not self.add_mapping(real_addr, fake_addr):
                         print("ERROR: Failed to load mapping {} to {}, ignoring".format(fake_addr, real_addr))
-        #self.unassigned_addresses.remove()
+        if self.nat46_backend is not None:
+            for fake, real in self.nat46_backend.mappings().items():
+                fake, real = str(fake), str(real)
+                if fake not in self.unassigned_addresses or ip_address(real) in self.ipmap:
+                    raise ValueError('Conflicting restored NAT46 mapping')
+                self.unassigned_addresses.remove(fake)
+                self.ipmap[ip_address(real)] = fake
+
 
     @staticmethod
     def organization_substring_rule(line):
@@ -221,6 +237,9 @@ class ProxyResolver(BaseResolver):
 
     def close(self):
         with self.mapping_condition:
+            if self.closed:
+                return
+            self.closed = True
             self.mapping_stopping = True
             self.mapping_condition.notify_all()
             while self.mapping_batch_running:
@@ -281,7 +300,7 @@ class ProxyResolver(BaseResolver):
 
     def get_mapping(self, real_addr):
         with self.mapping_lock:
-            return self.ipmap.get(real_addr)
+            return self.ipmap.get(ip_address(real_addr))
 
     def new_unassigned_addresses(self):
         addresses = deque([str(address) for address in self.iprange.hosts()])
@@ -295,6 +314,9 @@ class ProxyResolver(BaseResolver):
         return addresses
 
     def reset_mappings(self):
+        if self.nat46_backend is not None:
+            print('ERROR: Mapping pool exhausted; retaining existing mappings')
+            return False
         command = ['iptables', '-w', '-t', 'nat', '-F', self.tablename]
         try:
             result = self.iptables_runner(command, capture_output=True, text=True)
@@ -321,17 +343,17 @@ class ProxyResolver(BaseResolver):
                     return True
                 try:
                     self.unassigned_addresses.remove(fake_addr)
-                    self.ipmap[real_addr] = fake_addr
+                    self.ipmap[ip_address(real_addr)] = fake_addr
                     print('Mapping {} to {}'.format(fake_addr, real_addr))
                 except ValueError:
                     print("ERROR: Fake addr {} not in unassigned addresses list".format(fake_addr))
                     return False
                 return True
 
-        return self.add_mappings([real_addr]).get(real_addr, False)
+        return self.add_mappings([real_addr]).get(str(ip_address(real_addr)), False)
 
     def add_mappings(self, real_addresses):
-        unique_addresses = list(dict.fromkeys(real_addresses))
+        unique_addresses = list(dict.fromkeys(str(ip_address(address)) for address in real_addresses))
         if len(unique_addresses) > self.mapping_capacity:
             print('ERROR: Not enough fake IP addresses for {} mappings'.format(
                 len(unique_addresses)
@@ -394,7 +416,8 @@ class ProxyResolver(BaseResolver):
             # Never leave DNS callers waiting if the worker exits unexpectedly.
             with self.mapping_condition:
                 for request in self.pending_mappings.values():
-                    self.unassigned_addresses.appendleft(request.fake_addr)
+                    if self.nat46_backend is None:
+                        self.unassigned_addresses.appendleft(request.fake_addr)
                     request.event.set()
                 self.pending_mappings.clear()
                 self.mapping_batch = []
@@ -419,11 +442,18 @@ class ProxyResolver(BaseResolver):
                 '-A {} -d {} -j DNAT --to-destination {}'.format(
                     self.tablename, request.fake_addr, request.real_addr
                 )
-                for request in batch
+                for request in batch if ':' not in request.real_addr
             )
             rules.extend(('COMMIT', ''))
             command = ['iptables-restore', '--wait', '--noflush']
+            installed_v6 = []
             try:
+                for request in batch:
+                    if ':' in request.real_addr:
+                        if self.nat46_backend is None:
+                            raise RuntimeError('IPv6 backend is disabled')
+                        installed_v6.append(request)
+                        self.nat46_backend.add(request.fake_addr, request.real_addr)
                 result = self.iptables_runner(
                     command,
                     input='\n'.join(rules),
@@ -431,7 +461,9 @@ class ProxyResolver(BaseResolver):
                     capture_output=True,
                     text=True,
                 )
-            except (OSError, subprocess.TimeoutExpired) as error:
+                if result.returncode == 0 and self.nat46_checkpoint is not None:
+                    self.nat46_backend.save(self.nat46_checkpoint, self.iprange)
+            except Exception as error:
                 result = None
                 print('ERROR: Failed to execute iptables-restore: {}'.format(error))
 
@@ -441,13 +473,19 @@ class ProxyResolver(BaseResolver):
                     len(batch), result.stderr.strip()
                 ))
 
+            if not success:
+                for request in reversed(installed_v6):
+                    try:
+                        self.nat46_backend.remove(request.fake_addr, request.real_addr)
+                    except Exception as error:
+                        print('ERROR: NAT46 rollback uncertain: {}'.format(error))
             with self.mapping_condition:
                 for request in batch:
                     self.pending_mappings.pop(request.real_addr, None)
                     if success:
-                        self.ipmap[request.real_addr] = request.fake_addr
+                        self.ipmap[ip_address(request.real_addr)] = request.fake_addr
                         print('Mapping {} to {}'.format(request.fake_addr, request.real_addr))
-                    else:
+                    elif self.nat46_backend is None:
                         self.unassigned_addresses.appendleft(request.fake_addr)
                     request.event.set()
                 if not self.mapping_batch:
@@ -456,9 +494,73 @@ class ProxyResolver(BaseResolver):
                     self.mapping_condition.notify_all()
                     return
 
+    IPV6_CNAME_MAX_HOPS = 10
+
+    def resolve_ipv6_addresses(self, name, client_id):
+        """Follow partial CNAME replies without changing exit or client policy.
+
+        Consume a complete chain from one response when possible; never accept
+        AAAA records owned by an unrelated name. A denied alias stays denied.
+        """
+        current = str(name).rstrip('.').lower()
+        visited = set()
+        upstream = None
+        for _ in range(self.IPV6_CNAME_MAX_HOPS + 1):
+            if current in visited:
+                raise ValueError('IPv6 CNAME loop')
+            visited.add(current)
+            if upstream is None:
+                upstream = self.query_doh(DNSRecord.question(current, 'AAAA'), client_id)
+            if upstream.header.rcode != RCODE.NOERROR:
+                return []
+            records = [record for record in upstream.rr
+                       if str(record.rname).rstrip('.').lower() == current]
+            aliases = {str(record.rdata).rstrip('.').lower()
+                       for record in records if record.rtype == QTYPE.CNAME}
+            addresses = [str(IPv6Address(str(record.rdata)))
+                         for record in records if record.rtype == QTYPE.AAAA]
+            if len(aliases) > 1 or (aliases and addresses):
+                raise ValueError('Ambiguous IPv6 CNAME response')
+            if not aliases:
+                return list(dict.fromkeys(addresses))
+            current = next(iter(aliases))
+            if not any(str(record.rname).rstrip('.').lower() == current
+                       for record in upstream.rr):
+                upstream = None
+        raise ValueError('IPv6 CNAME chain exceeds {} hops'.format(self.IPV6_CNAME_MAX_HOPS))
+
+    def resolve_ipv6(self, request, filtered_reply, client_id):
+        if filtered_reply.header.rcode != RCODE.NOERROR:
+            return filtered_reply
+        # Preserve AdGuard sinkhole/block responses; IPv6 inclusion cannot
+        # turn an explicitly blocked A into an external connection.
+        if any(record.rtype == QTYPE.A and str(record.rdata) in ('0.0.0.0', '127.0.0.1')
+               for record in filtered_reply.rr):
+            return filtered_reply
+        addresses = self.resolve_ipv6_addresses(request.q.qname, client_id)
+        addresses = [address for address in addresses
+                     if not (IPv6Address(address).is_unspecified or IPv6Address(address).is_loopback
+                             or IPv6Address(address).is_multicast or IPv6Address(address).is_link_local)]
+        reply = request.reply(aa=0, ra=1)
+        reply.header.ad = 0
+        if not addresses:
+            reply.header.rcode = RCODE.SERVFAIL
+            return reply
+        mappings = self.add_mappings(addresses)
+        if any(not mappings.get(address) for address in addresses):
+            reply.header.rcode = RCODE.SERVFAIL
+            return reply
+        # Match the existing resolver's CNAME flattening: all synthetic A
+        # answers are owned by the original QNAME. DNSSEC signatures are omitted.
+        for address in addresses:
+            reply.add_answer(RR(request.q.qname, QTYPE.A, ttl=300,
+                                rdata=A(mappings[address])))
+        return reply
+
     def resolve(self,request,handler):
         try:
             reply = self.query_doh(request, self.client_id)
+            ipv6_client_id = self.client_id
 
             if request.q.qtype == QTYPE.AAAA or request.q.qtype == QTYPE.HTTPS:
                 print('GOT AAAA or HTTPS')
@@ -481,6 +583,10 @@ class ProxyResolver(BaseResolver):
                     if not any(self.is_blocked_asn(address) for address in real_addresses):
                         return filtered_reply
                     reply = resolved_reply
+                    ipv6_client_id = self.resolver_client_id
+
+                if self.ipv6_policy is not None and self.ipv6_policy.selected(str(request.q.qname)):
+                    return self.resolve_ipv6(request, reply, ipv6_client_id)
 
                 if not any(record.rtype == QTYPE.A for record in reply.rr):
                     return reply
@@ -638,7 +744,15 @@ if __name__ == '__main__':
 
     resolver = ProxyResolver(args.dns,args.dns_port,args.doh_port,args.timeout,args.iprange,
                              args.client_id,args.resolver_client_id,
-                             args.asn_file,args.asn_database)
+                             args.asn_file,args.asn_database,
+                             nat46_backend=(DNAT6Backend(os.getenv('NAT46_PREFIX', 'fd46:64::/96'))
+                                 if os.getenv('NAT46_ENABLED', '0') == '1' else None),
+                             ipv6_policy=(HostPolicy('/root/antizapret/config/custom')
+                                 if os.getenv('NAT46_ENABLED', '0') == '1' else None),
+                             nat46_checkpoint=(Path('/root/antizapret/iptables') /
+                                 (socket.gethostname().split('.')[0] + '.nat46.rules')
+                                 if os.getenv('NAT46_ENABLED', '0') == '1'
+                                 and os.getenv('IPTABLES_SAVE_DISABLED') != '1' else None))
     atexit.register(resolver.close)
     signal.signal(signal.SIGHUP, resolver.request_asn_reload)
     handler = PassthroughDNSHandler if args.passthrough else DNSHandler
@@ -660,5 +774,18 @@ if __name__ == '__main__':
         tcp_server.start_thread()
 
     Path(flag_file_path).touch()
-    while udp_server.isAlive():
-        time.sleep(1)
+    stopping = threading.Event()
+    def stop_dns(signum, frame):
+        stopping.set()
+    signal.signal(signal.SIGTERM, stop_dns)
+    signal.signal(signal.SIGINT, stop_dns)
+    try:
+        while udp_server.isAlive() and not stopping.wait(1):
+            pass
+    finally:
+        # Prevent new allocations; close drains the in-flight mapping worker.
+        resolver.close()
+        udp_server.stop()
+        if args.tcp:
+            tcp_server.stop()
+        Path(flag_file_path).unlink(missing_ok=True)

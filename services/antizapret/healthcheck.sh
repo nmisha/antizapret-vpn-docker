@@ -40,6 +40,8 @@ if [ "$RUNNING_COUNT" -eq 0 ]; then
   exit 1
 fi
 
+[ "${NAT46_ENABLED:-0}" != "1" ] || python3 /root/antizapret/nat46-control.py check
+
 # List refresh failures must not trigger the liveness cleanup above.
 trap - EXIT HUP INT QUIT PIPE TERM
 
