@@ -42,6 +42,9 @@ sudo modprobe tun
 IPv6 default route. Проверить отсутствие пересечений с техническими подсетями:
 `fd46:64::/96` (трансляция), `fd46:65::/64` (TUN), `fd46:ee::/64` и
 `172.31.46.0/24` (канал контейнер—хост), `192.0.2.0/24` (внутренние адреса TAYGA).
+В последней используются только служебные `192.0.2.1` и `192.0.2.2`, а не пул
+назначений. Количество mappings ограничено общим synthetic-пулом `AZ_SUBNET`
+для IPv4/IPv6: при /15 доступно 131 069 адресов на выход.
 IPv6 egress /64 и его gateway можно изменить в host-конфиге. Translation /96
 можно изменить в Compose; он должен совпадать у контроллера и dnsmap.
 
@@ -52,6 +55,33 @@ IPv6 egress /64 и его gateway можно изменить в host-конфи
 sudo apt-get update
 sudo apt-get install -y iproute2 iptables python3
 ```
+
+### nftables и backend правил
+
+Проект вызывает `iptables`/`ip6tables`: firewall на хосте, VPN и antizapret в
+своих контейнерах. Пакет `iptables` нужен и при использовании `iptables-nft`.
+Проверить на хосте и в запущенном firewall-контейнере:
+
+```sh
+sudo iptables --version
+sudo ip6tables --version
+docker exec FIREWALL_CONTAINER iptables --version
+docker exec FIREWALL_CONTAINER ip6tables --version
+```
+
+`(nf_tables)` означает iptables поверх nftables; `(legacy)` — другой backend.
+Для правил хоста и host-network firewall backend должен совпадать; контейнеры
+с отдельным namespace обслуживают свои таблицы. Не переключать alternatives
+на работающем сервере без миграции существующих правил.
+
+`iptables-nft` отличается от нативного Docker `firewall-backend=nftables`.
+Текущая схема проекта использует Docker backend `iptables` и `DOCKER-USER`.
+По [документации Docker](https://docs.docker.com/engine/network/firewall-nftables/)
+нативный nftables backend экспериментален и не поддерживает Swarm; для этого
+деплоя его не включать. Отдельные nft base chains с DROP могут блокировать
+трафик после ACCEPT в iptables-nft. Их нужно согласовать с IPv6 egress.
+`nft flush ruleset` удаляет и правила iptables-nft/Docker; восстановление одного
+host-helper не восстанавливает весь Docker firewall.
 
 Включить постоянный `net.ipv6.conf.all.forwarding=1`. Если default route приходит
 через Router Advertisement, **до включения forwarding** настроить
@@ -77,8 +107,10 @@ sudo systemctl enable --now antizapret-nat46.service
 Изначально оставить `NAT46_HOST_NAT66=1`. Скрипт создаёт `az46-parent` (dummy),
 `az46-shim` (macvlan с адресом gateway), локальную config-only Docker-сеть,
 цепочки `AZ_NAT46` и `AZ_NAT46_FWD`. Существующие цепочки Docker не очищаются.
-Unit повторяет настройку при старте Docker. После ручного перезагрузки firewall
-повторить `systemctl reload antizapret-nat46`.
+Unit повторяет настройку при старте Docker. После ручной перезагрузки host
+firewall повторить `systemctl reload antizapret-nat46`, затем проверить порядок
+цепочек по разделу ниже. Перезапуск контейнера firewall проекта сам по себе
+не очищает цепочки NAT46.
 
 После настройки всех нод **один раз на manager**:
 
@@ -104,6 +136,65 @@ Jool-вариант с теми же именами host-ресурсов: пе�
 Просто наличие публичного IPv6 у сервера этого не гарантирует. Внутренний
 MASQUERADE контейнера остаётся частью схемы; индивидуальные адреса VPN-клиентов
 снаружи не сохраняются.
+
+### Порядок host firewall и NAT46
+
+Firewall проекта работает в host network: `services/firewall/block.sh`
+подключает `AZ-FIREWALL` к `DOCKER-USER`, проверяет blacklist источника и
+возвращает разрешённые пакеты через RETURN. Host-helper подключает
+`AZ_NAT46_FWD`, где ACCEPT разрешает исходящий IPv6 с `az46-shim` и ответы
+ESTABLISHED,RELATED. Нужен порядок:
+
+```text
+FORWARD → DOCKER-USER → AZ-FIREWALL → AZ_NAT46_FWD → остальные правила
+```
+
+Для принятого в `AZ_NAT46_FWD` пакета последующие правила этой iptables-цепочки
+уже не выполняются. Поэтому проверка firewall должна быть раньше разрешения
+NAT46. Проверяется именно порядок переходов в вызывающей цепочке, а не
+положение самих определений цепочек в выводе `iptables-save`.
+
+**Текущие скрипты не обеспечивают этот порядок автоматически.** Оба вставляют
+свой переход на позицию 1 при его отсутствии. Если host-helper добавит NAT46
+после уже работающего firewall, NAT46 окажется выше. Обычный периодический
+refresh firewall проверяет наличие своего перехода, но не перемещает его.
+Systemd unit NAT46 зависит от Docker, а не от готовности Swarm-сервиса firewall.
+Порядок запуска сам по себе не заменяет проверку правил.
+
+После запуска firewall и применения host-helper, а также после пересоздания
+цепочек/перезапуска Docker проверить на каждой ноде:
+
+```sh
+sudo ip6tables -S FORWARD
+sudo ip6tables -S DOCKER-USER
+sudo ip6tables -S AZ-FIREWALL
+sudo ip6tables -S AZ_NAT46_FWD
+```
+
+Если оба перехода находятся в `DOCKER-USER`, вернуть **существующий** переход
+firewall на первое место можно одной транзакцией (сначала проверить его наличие):
+
+```sh
+sudo ip6tables -w -C DOCKER-USER -m comment --comment antizapret-firewall -j AZ-FIREWALL &&
+sudo ip6tables-restore --wait 10 --noflush <<'RULES'
+*filter
+-D DOCKER-USER -m comment --comment antizapret-firewall -j AZ-FIREWALL
+-I DOCKER-USER 1 -m comment --comment antizapret-firewall -j AZ-FIREWALL
+COMMIT
+RULES
+```
+
+Команду выполнять без параллельного обновления firewall/host-helper; затем
+повторно проверить порядок. Если переход отсутствует, исправить запуск firewall,
+а не создавать пустую цепочку ради успешного выполнения команды.
+
+Отдельный случай: IPv6 `DOCKER-USER` может отсутствовать. NAT46 тогда ставит
+переход прямо в FORWARD, а firewall проекта по-прежнему ожидает DOCKER-USER.
+Наличие macvlan не гарантирует появления Docker IPv6 filter chains. Проверить
+журнал firewall и фактический путь FORWARD: само наличие `AZ-FIREWALL` не
+доказывает, что она вызывается. Если NAT46 уже стоит в FORWARD, а DOCKER-USER
+появилась позже, нужно отдельно согласовать оба перехода в FORWARD; приведённая
+выше команда меняет только DOCKER-USER и этого случая не исправляет.
 
 ## 3. Сборка и Swarm
 
@@ -205,6 +296,38 @@ Healthcheck проверяет процесс TAYGA и таблицу; PID1 за
 существующие не сбрасываются. Mapping не удаляется по DNS TTL. Сброс состояния
 требует остановки выхода и истечения DNS-кешей клиентов (synthetic TTL 300 с),
 иначе старый synthetic IP может начать означать другой сайт.
+
+## Совместимость с остальными сервисами проекта
+
+- **WireGuard/AmneziaWG, OpenVPN, ocserv:** правила находятся в namespace
+  соответствующего VPN-контейнера. Путь клиента до выхода остаётся IPv4.
+  Не добавлять IPv6 egress-сеть VPN-контейнерам и не менять их на host network
+  ради NAT46: это меняет предпосылки изоляции правил.
+- **Пулы и клиентские маршруты:** оба выхода входят в `14.16.0.0/14`.
+  WireGuard по умолчанию включает его в AllowedIPs и серверный `az_clients`,
+  OpenVPN использует /14 в firewall и push route, ocserv формирует разрешения
+  из своих route-конфигов. При персональных AllowedIPs/route overrides проверить
+  наличие обоих /15 и в профиле клиента, и в серверной цепочке `az_clients`.
+  Смена только IPv6 include-списка новые клиентские маршруты не добавляет.
+- **Ping:** все три VPN-реализации намеренно блокируют клиентские ICMP
+  echo-request. Поэтому неудачный ping с VPN-клиента не доказывает неисправность
+  NAT46. Проверять DNS, HTTPS и UDP/QUIC. ICMP ошибки для PMTU — отдельный трафик;
+  их прохождение всё равно нужно проверить на реальном VPN-пути.
+- **MTU:** WireGuard задаёт MTU 1280 и TCPMSS clamp; OpenVPN и ocserv также
+  добавляют TCPMSS clamp. Это не заменяет PMTU для UDP/QUIC. Успешный короткий
+  HTTPS-запрос не подтверждает прохождение крупных UDP-пакетов. Проверить
+  длительную передачу и ICMPv6 Packet Too Big на выходе.
+- **zapret2:** поставляемый `config.default` содержит `DISABLE_IPV6=1`.
+  Это настройка обработки IPv6 в zapret2, а не запрет IPv6 ядром. Комбинация
+  zapret2 с NAT46 не проверена отдельным стендом; для первого запуска оставить
+  `ZAPRET_ENABLED=0`. Не считать существующие IPv4 desync-правила автоматически
+  применимыми к переведённому IPv6-трафику.
+- **Swarm и файлы:** `depends_on` не обеспечивает готовность сервисов при
+  stack deploy. До запуска задач подготовить egress на всех нодах выхода.
+  `custom`, `result` и state — bind mounts, они не синхронизируются Swarm.
+  Обеспечить одинаковую IPv6-политику в custom на local/world, сохранить
+  hostname/state каждого выхода и проверить права каталогов. Обновление
+  policy-файла только на manager не обновляет копию на world.
 
 ## Ограничения и откат
 
