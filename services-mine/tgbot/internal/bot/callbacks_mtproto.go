@@ -29,7 +29,7 @@ func handleMtprotoCallback(ctx *Ctx, data string) {
 			replyServiceError(ctx, "MTProto", "Доступ к прокси недоступен", err)
 			return
 		}
-		sendMtpUserActions(ctx, u, false)
+		sendMtpUserActions(ctx, client, u, false)
 
 	case strings.HasPrefix(data, "mtp:u:x:"):
 		act, name, ok := strings.Cut(strings.TrimPrefix(data, "mtp:u:x:"), ":")
@@ -108,7 +108,7 @@ func handleMtprotoAdminCallback(ctx *Ctx, client *telemtClient, data string) {
 			reply(ctx.Bot, ctx.ChatID, "Действие недоступно: "+truncate(err.Error(), 3500))
 			return
 		}
-		sendMtpUserActions(ctx, u, true)
+		sendMtpUserActions(ctx, client, u, true)
 
 	case strings.HasPrefix(data, "l:"):
 		key, name, ok := strings.Cut(strings.TrimPrefix(data, "l:"), ":")
@@ -122,8 +122,14 @@ func handleMtprotoAdminCallback(ctx *Ctx, client *telemtClient, data string) {
 			return
 		}
 		setMtpPending(ctx.TgID, mtpPending{Kind: mtpPendingLimit, Name: name, Field: f.Key})
+		noneHint := "none — убрать индивидуальный лимит (будет значение по умолчанию из config.toml)."
+		if f.Key == "quota" {
+			noneHint = "none — убрать квоту и её период автосброса."
+		} else if f.Key == "period" {
+			noneHint = "none — выключить автосброс, сохранив размер квоты и текущий расход."
+		}
 		reply(ctx.Bot, ctx.ChatID, f.Label+" для "+name+": отправь значение одним сообщением.\nФормат: "+f.Hint+
-			"\nnone — убрать индивидуальный лимит (будет значение по умолчанию из config.toml).\n/cancel — отмена.")
+			"\n"+noneHint+"\n/cancel — отмена.")
 
 	case strings.HasPrefix(data, "x:"):
 		act, name, ok := strings.Cut(strings.TrimPrefix(data, "x:"), ":")
@@ -140,20 +146,23 @@ func handleMtprotoAdminCallback(ctx *Ctx, client *telemtClient, data string) {
 		case "link":
 			sendMtpLink(ctx, u)
 		case "lim":
-			sendMtpLimitsMenu(ctx, u)
+			sendMtpLimitsMenu(ctx, client, u)
 		case "on", "off":
 			nu, err := client.setEnabled(name, act == "on")
 			if err != nil {
 				reply(ctx.Bot, ctx.ChatID, "Не удалось изменить состояние:\n"+truncate(err.Error(), 3500))
 				return
 			}
-			sendMtpUserActions(ctx, nu, true)
+			sendMtpUserActions(ctx, client, nu, true)
 		case "rq":
 			if err := client.resetQuota(name); err != nil {
 				reply(ctx.Bot, ctx.ChatID, "Не удалось сбросить квоту:\n"+truncate(err.Error(), 3500))
 				return
 			}
-			reply(ctx.Bot, ctx.ChatID, "OK: счётчик квоты сброшен для "+name)
+			reply(ctx.Bot, ctx.ChatID, "OK: расход квоты сброшен только для "+name+". Размер квоты и период автосброса сохранены; общий трафик не обнуляется.")
+			if fresh, err := client.getUser(name); err == nil {
+				sendMtpLimitsMenu(ctx, client, fresh)
+			}
 		case "rot":
 			sendConfirm(ctx, "Выпустить новый секрет для "+name+"? Старая ссылка перестанет работать на всех устройствах.", "mtp:a:rotate", name)
 		case "del":

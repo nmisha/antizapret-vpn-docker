@@ -57,7 +57,7 @@ Telegram-клиент ──443, SNI=<ваш домен>──▶ https (local, 
 
    ```sh
    docker compose build telemt          # локально на world-ноде
-   # или собрать где угодно и docker push nmisha/antizapret-vpn-telemt:3.5.7
+   # или собрать где угодно и docker push nmisha/antizapret-vpn-telemt:3.5.16-1
    ```
 
 3. В `docker-compose.override.yml`:
@@ -198,8 +198,11 @@ tgbot:
 
 ## Не проверено на реальных нодах
 
-Локально проверены сборка образа 3.5.7, генерация конфига, запуск с read-only и ограниченными capabilities,
-healthcheck и преобразование полного Compose в Swarm. PROXY protocol между `https` и telemt,
+Для 3.5.16 локально проверены сборка образа `3.5.16-1`, генерация конфига,
+запуск с read-only и ограниченными capabilities, liveness healthcheck и API `/v1/users`.
+С панелью `1.0.0-rc.3` проверены создание и валидация конфига, HTTP-ответ,
+инициализация SQLite и повторный запуск с сохранёнными config/data. Оба Compose-файла валидны.
+PROXY protocol между `https` и telemt,
 получение сертификата для домена в caddy и подключение клиента требуют проверки на сервере: `docker logs`
 сервиса telemt (строки про TLS-fetch и mask), `telemt-users.sh list`, подключение по ссылке.
 

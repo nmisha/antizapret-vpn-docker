@@ -1,6 +1,8 @@
 services:
   telemt-panel:
-    image: ghcr.io/amirotin/telemt_panel:1.0.0-rc.2
+    image: ghcr.io/amirotin/telemt_panel:1.0.0-rc.3
+    # RC3 defaults to uid 65532. Preserve RC2 access to existing root-owned 0700/0600 mounts.
+    user: "0:0"
     hostname: telemt-panel
     restart: unless-stopped
     read_only: true

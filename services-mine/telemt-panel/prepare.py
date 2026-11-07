@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import tomllib
 
-IMAGE = "ghcr.io/amirotin/telemt_panel:1.0.0-rc.2"
+IMAGE = "ghcr.io/amirotin/telemt_panel:1.0.0-rc.3"
 
 
 def main():
@@ -61,7 +61,7 @@ mode = "manual"
     with target.open("x") as stream:
         stream.write(config)
     subprocess.run([
-        "docker", "run", "--rm", "--mount",
+        "docker", "run", "--rm", "--user", "0:0", "--mount",
         f"type=bind,source={base / 'config'},target=/etc/telemt-panel,readonly",
         IMAGE, "config", "check", "--config", "/etc/telemt-panel/config.toml",
     ], check=True)

@@ -71,7 +71,7 @@ func handleMtpPendingIfAny(ctx *Ctx, text string) bool {
 		u = refreshMtpUserLinks(client, u)
 		sendMtpLink(ctx, u)
 		if _, err := validateMtpAdminAccess(ctx, client, name); err == nil {
-			sendMtpUserActions(ctx, u, true)
+			sendMtpUserActions(ctx, client, u, true)
 		}
 		return true
 
@@ -90,12 +90,12 @@ func handleMtpPendingIfAny(ctx *Ctx, text string) bool {
 			reply(ctx.Bot, ctx.ChatID, "Ошибка: "+err.Error()+". Отменено, нажми кнопку лимита ещё раз.")
 			return true
 		}
-		u, err := client.patchUser(p.Name, map[string]any{f.JSON: v})
+		u, err := client.patchUser(p.Name, mtpLimitPatch(f, v))
 		if err != nil {
 			reply(ctx.Bot, ctx.ChatID, "Не удалось изменить лимит:\n"+truncate(err.Error(), 3500))
 			return true
 		}
-		sendMtpLimitsMenu(ctx, u)
+		sendMtpLimitsMenu(ctx, client, u)
 		return true
 
 	default:

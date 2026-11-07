@@ -1,4 +1,4 @@
-ARG TELEMT_VERSION=3.5.7
+ARG TELEMT_VERSION=3.5.16
 
 # telemt release image is distroless (no shell, runs as nonroot). Wrap its static musl binary so the
 # entrypoint can fix ownership of the bind-mounted config dir and drop privileges afterwards.

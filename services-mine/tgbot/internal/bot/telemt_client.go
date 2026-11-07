@@ -27,20 +27,30 @@ type telemtLinks struct {
 	} `json:"tls_domains"`
 }
 
+type telemtQuota struct {
+	Username       string `json:"username"`
+	DataQuotaBytes uint64 `json:"data_quota_bytes"`
+	UsedBytes      uint64 `json:"used_bytes"`
+	NextReset      *int64 `json:"quota_next_reset_epoch_secs"`
+	ScheduleState  string `json:"quota_schedule_state"`
+}
+
 type telemtUser struct {
-	Username            string      `json:"username"`
-	Enabled             bool        `json:"enabled"`
-	MaxTCPConns         *uint64     `json:"max_tcp_conns"`
-	MaxUniqueIPs        *uint64     `json:"max_unique_ips"`
-	ExpirationRFC3339   *string     `json:"expiration_rfc3339"`
-	DataQuotaBytes      *uint64     `json:"data_quota_bytes"`
-	RateLimitUpBps      *uint64     `json:"rate_limit_up_bps"`
-	RateLimitDownBps    *uint64     `json:"rate_limit_down_bps"`
-	CurrentConnections  uint64      `json:"current_connections"`
-	ActiveUniqueIPs     uint64      `json:"active_unique_ips"`
-	ActiveUniqueIPsList []string    `json:"active_unique_ips_list"`
-	TotalOctets         uint64      `json:"total_octets"`
-	Links               telemtLinks `json:"links"`
+	Quota               *telemtQuota `json:"-"`
+	Username            string       `json:"username"`
+	Enabled             bool         `json:"enabled"`
+	MaxTCPConns         *uint64      `json:"max_tcp_conns"`
+	MaxUniqueIPs        *uint64      `json:"max_unique_ips"`
+	ExpirationRFC3339   *string      `json:"expiration_rfc3339"`
+	DataQuotaBytes      *uint64      `json:"data_quota_bytes"`
+	QuotaPeriod         *string      `json:"quota_period"`
+	RateLimitUpBps      *uint64      `json:"rate_limit_up_bps"`
+	RateLimitDownBps    *uint64      `json:"rate_limit_down_bps"`
+	CurrentConnections  uint64       `json:"current_connections"`
+	ActiveUniqueIPs     uint64       `json:"active_unique_ips"`
+	ActiveUniqueIPsList []string     `json:"active_unique_ips_list"`
+	TotalOctets         uint64       `json:"total_octets"`
+	Links               telemtLinks  `json:"links"`
 }
 
 // TLSLink returns the native tg://proxy fake-TLS link, or "".
@@ -218,4 +228,26 @@ func telemtWebLink(link string) string {
 		return "https://t.me/proxy?" + rest
 	}
 	return link
+}
+
+// withQuota loads only the selected user's quota into the view. Failure leaves
+// the basic card usable and never substitutes total_octets for quota usage.
+func (c *telemtClient) withQuota(u telemtUser) telemtUser {
+	u.Quota = nil
+	if u.DataQuotaBytes == nil {
+		return u
+	}
+	var out struct {
+		Users []telemtQuota `json:"users"`
+	}
+	if err := c.do(http.MethodGet, "/stats/users/quota", nil, &out); err != nil {
+		return u
+	}
+	for _, quota := range out.Users {
+		if quota.Username == u.Username {
+			u.Quota = &quota
+			break
+		}
+	}
+	return u
 }

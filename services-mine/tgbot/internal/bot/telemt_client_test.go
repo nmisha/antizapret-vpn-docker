@@ -132,3 +132,141 @@ func TestFilterMtpUsersByPrefixes(t *testing.T) {
 		t.Error("no prefixes must match nothing")
 	}
 }
+
+func TestTelemtQuotaPeriodAndRemoval(t *testing.T) {
+	var requests []map[string]any
+	c := newTestTelemtClient(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPatch || r.URL.Path != "/v1/users/alice" {
+			t.Fatalf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		requests = append(requests, body)
+		io.WriteString(w, `{"ok":true,"data":{"username":"alice","data_quota_bytes":1048576,"quota_period":"monthly"}}`)
+	})
+	quota, _ := mtpLimitFieldByKey("quota")
+	period, _ := mtpLimitFieldByKey("period")
+	u, err := c.patchUser("alice", mtpLimitPatch(period, "monthly"))
+	if err != nil || u.QuotaPeriod == nil || *u.QuotaPeriod != "monthly" {
+		t.Fatalf("decode: %+v, %v", u, err)
+	}
+	if _, err := c.patchUser("alice", mtpLimitPatch(quota, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := c.patchUser("alice", mtpLimitPatch(period, nil)); err != nil {
+		t.Fatal(err)
+	}
+	if len(requests[0]) != 1 || requests[0]["quota_period"] != "monthly" {
+		t.Fatalf("period: %v", requests[0])
+	}
+	for _, key := range []string{"data_quota_bytes", "quota_period"} {
+		if value, ok := requests[1][key]; !ok || value != nil {
+			t.Fatalf("quota removal: %v", requests[1])
+		}
+	}
+	if len(requests[2]) != 1 {
+		t.Fatalf("disabling schedule must preserve quota: %v", requests[2])
+	}
+	if value, ok := requests[2]["quota_period"]; !ok || value != nil {
+		t.Fatalf("schedule removal: %v", requests[2])
+	}
+}
+
+func TestTelemtResetQuotaTargetsOneUser(t *testing.T) {
+	calls := 0
+	c := newTestTelemtClient(t, func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if r.Method != http.MethodPost || r.URL.Path != "/v1/users/alice/reset-quota" {
+			t.Errorf("unexpected %s %s", r.Method, r.URL.Path)
+		}
+		body, _ := io.ReadAll(r.Body)
+		if len(body) != 0 {
+			t.Errorf("reset must not patch quota settings: %s", body)
+		}
+		io.WriteString(w, `{"ok":true,"data":{"username":"alice","used_bytes":0}}`)
+	})
+	if err := c.resetQuota("alice"); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 {
+		t.Fatalf("requests = %d", calls)
+	}
+}
+
+func TestParseMtpQuotaPeriod(t *testing.T) {
+	field, _ := mtpLimitFieldByKey("period")
+	for _, input := range []string{"daily", "weekly", "monthly", " MONTHLY ", "none", "-", "yearly", ""} {
+		got, err := parseMtpLimitValue(field, input, time.Now())
+		switch input {
+		case "yearly", "":
+			if err == nil {
+				t.Errorf("accepted %q", input)
+			}
+		case "none", "-":
+			if err != nil || got != nil {
+				t.Errorf("%q: %v %v", input, got, err)
+			}
+		default:
+			if err != nil || got != strings.ToLower(strings.TrimSpace(input)) {
+				t.Errorf("%q: %v %v", input, got, err)
+			}
+		}
+	}
+}
+
+func TestTelemtQuotaView(t *testing.T) {
+	limit := uint64(1024)
+	for _, tc := range []struct {
+		name, response string
+		status         int
+		wantQuota      bool
+	}{
+		{"selected", `{"ok":true,"data":{"users":[{"username":"other","data_quota_bytes":9999,"used_bytes":9999},{"username":"alice","data_quota_bytes":1024,"used_bytes":256,"quota_next_reset_epoch_secs":1793491200,"quota_schedule_state":"active"}]}}`, 200, true},
+		{"missing", `{"ok":true,"data":{"users":[{"username":"other","used_bytes":9999}]}}`, 200, false},
+		{"unavailable", `{"ok":false,"error":{"code":"not_found"}}`, 404, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			c := newTestTelemtClient(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.Method != http.MethodGet || r.URL.Path != "/v1/stats/users/quota" || r.Header.Get("Authorization") != "tok" {
+					t.Errorf("unexpected quota request: %s %s", r.Method, r.URL.Path)
+				}
+				w.WriteHeader(tc.status)
+				io.WriteString(w, tc.response)
+			})
+			u := c.withQuota(telemtUser{Username: "alice", Enabled: true, DataQuotaBytes: &limit, TotalOctets: 99999})
+			if (u.Quota != nil) != tc.wantQuota {
+				t.Fatalf("quota = %+v", u.Quota)
+			}
+			text := formatMtpUserInfo(u, false, time.Now())
+			if tc.wantQuota {
+				if u.Quota.UsedBytes != 256 || u.Quota.NextReset == nil {
+					t.Fatalf("decode: %+v", u.Quota)
+				}
+				for _, want := range []string{"Расход квоты:", "Осталось:", "Следующий сброс:", "UTC"} {
+					if !strings.Contains(text, want) {
+						t.Errorf("missing %q: %s", want, text)
+					}
+				}
+			} else if !strings.Contains(text, "Расход квоты: недоступен") {
+				t.Errorf("fallback: %s", text)
+			}
+		})
+	}
+}
+
+func TestTelemtQuotaViewWithoutLimitAndOverage(t *testing.T) {
+	c := newTestTelemtClient(t, func(w http.ResponseWriter, r *http.Request) { t.Error("must not fetch quotas without a quota limit") })
+	u := c.withQuota(telemtUser{Username: "alice"})
+	if strings.Contains(formatMtpUserInfo(u, false, time.Now()), "Расход квоты") {
+		t.Error("quota displayed without limit")
+	}
+	limit := uint64(100)
+	u.DataQuotaBytes = &limit
+	u.Quota = &telemtQuota{DataQuotaBytes: 100, UsedBytes: 200, ScheduleState: "overdue"}
+	text := formatMtpUserInfo(u, false, time.Now())
+	if !strings.Contains(text, "Осталось: "+humanBytesIEC(0)) || !strings.Contains(text, "задерживается") {
+		t.Fatalf("overage: %s", text)
+	}
+}

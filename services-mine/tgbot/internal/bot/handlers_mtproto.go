@@ -285,9 +285,30 @@ func formatMtpUserInfo(u telemtUser, admin bool, now time.Time) string {
 	fmt.Fprintf(&b, "<b>%s</b> — %s\n", htmlEscape(u.Username), state)
 	fmt.Fprintf(&b, "Соединения: %d / %s\n", u.CurrentConnections, formatMtpLimit(u.MaxTCPConns, num))
 	fmt.Fprintf(&b, "Устройства (IP): %d / %s\n", u.ActiveUniqueIPs, formatMtpLimit(u.MaxUniqueIPs, num))
-	fmt.Fprintf(&b, "Трафик: %s", bytes(u.TotalOctets))
+	fmt.Fprintf(&b, "Общий трафик: %s", bytes(u.TotalOctets))
 	if u.DataQuotaBytes != nil {
-		fmt.Fprintf(&b, " / квота %s", bytes(*u.DataQuotaBytes))
+		fmt.Fprintf(&b, "\nКвота: %s; %s", bytes(*u.DataQuotaBytes), htmlEscape(formatMtpQuotaPeriod(u.QuotaPeriod)))
+		if q := u.Quota; q != nil {
+			remaining := uint64(0)
+			if q.UsedBytes < q.DataQuotaBytes {
+				remaining = q.DataQuotaBytes - q.UsedBytes
+			}
+			fmt.Fprintf(&b, "\nРасход квоты: %s / %s\nОсталось: %s", bytes(q.UsedBytes), bytes(q.DataQuotaBytes), bytes(remaining))
+			if q.NextReset != nil {
+				fmt.Fprintf(&b, "\nСледующий сброс: %s", time.Unix(*q.NextReset, 0).UTC().Format("2006-01-02 15:04 UTC"))
+			}
+			switch q.ScheduleState {
+			case "pending":
+				b.WriteString("\nАвтосброс: применение расписания ожидается")
+			case "overdue":
+				b.WriteString("\nАвтосброс: запланированный сброс задерживается")
+			case "error":
+				b.WriteString("\nАвтосброс: ошибка расписания")
+			}
+		} else {
+			b.WriteString("\nРасход квоты: недоступен")
+		}
+
 	}
 	b.WriteString("\n")
 	fmt.Fprintf(&b, "Срок: %s\n", htmlEscape(formatMtpExpiration(u.ExpirationRFC3339, now)))
@@ -301,7 +322,8 @@ func formatMtpUserInfo(u telemtUser, admin bool, now time.Time) string {
 	return b.String()
 }
 
-func sendMtpUserActions(ctx *Ctx, u telemtUser, admin bool) {
+func sendMtpUserActions(ctx *Ctx, client *telemtClient, u telemtUser, admin bool) {
+	u = client.withQuota(u)
 	text := formatMtpUserInfo(u, admin, time.Now())
 	name := u.Username
 
@@ -318,7 +340,7 @@ func sendMtpUserActions(ctx *Ctx, u telemtUser, admin bool) {
 			),
 			tgbotapi.NewInlineKeyboardRow(
 				toggle,
-				tgbotapi.NewInlineKeyboardButtonData("Reset quota", "mtp:a:x:rq:"+name),
+				tgbotapi.NewInlineKeyboardButtonData("Сбросить расход квоты", "mtp:a:x:rq:"+name),
 			),
 			// No Delete: telemt-panel keeps per-user state (quota auto-reset, history, WEB profiles)
 			// that only its own delete cleans up. Disable covers the bot's needs.
@@ -350,7 +372,8 @@ func sendMtpUserActions(ctx *Ctx, u telemtUser, admin bool) {
 	logSendErrorIfEnabled(ctx.ChatID, err, "send message", "inline send")
 }
 
-func sendMtpLimitsMenu(ctx *Ctx, u telemtUser) {
+func sendMtpLimitsMenu(ctx *Ctx, client *telemtClient, u telemtUser) {
+	u = client.withQuota(u)
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0, len(mtpLimitFields)/2+2)
 	for i := 0; i < len(mtpLimitFields); i += 2 {
 		row := []tgbotapi.InlineKeyboardButton{
@@ -361,6 +384,9 @@ func sendMtpLimitsMenu(ctx *Ctx, u telemtUser) {
 		}
 		rows = append(rows, row)
 	}
+	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Сбросить расход квоты", "mtp:a:x:rq:"+u.Username),
+	))
 	rows = append(rows, tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Back", "mtp:a:p:"+u.Username),
 		tgbotapi.NewInlineKeyboardButtonData("Cancel", "ui:cancel"),

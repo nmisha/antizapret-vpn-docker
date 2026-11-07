@@ -80,6 +80,7 @@ var mtpLimitFields = []mtpLimitField{
 	{Key: "conns", Label: "TCP-соединения", JSON: "max_tcp_conns", Hint: "целое число, например 30 (один клиент держит ~8 соединений)"},
 	{Key: "exp", Label: "Срок", JSON: "expiration_rfc3339", Hint: "дата 2026-12-31, RFC3339 2026-12-31T23:59:59Z или срок от сейчас: 30d"},
 	{Key: "quota", Label: "Квота трафика", JSON: "data_quota_bytes", Hint: "размер: 500M, 10G, 1T (или байты)"},
+	{Key: "period", Label: "Период квоты", JSON: "quota_period", Hint: "daily, weekly, monthly или none; сначала задайте квоту трафика. Границы периода — по UTC"},
 	{Key: "up", Label: "Скорость ↑", JSON: "rate_limit_up_bps", Hint: "бит/с: 10M = 10 Мбит/с, 512K"},
 	{Key: "down", Label: "Скорость ↓", JSON: "rate_limit_down_bps", Hint: "бит/с: 10M = 10 Мбит/с, 512K"},
 }
@@ -109,6 +110,12 @@ func parseMtpLimitValue(f mtpLimitField, input string, now time.Time) (any, erro
 		return n, nil
 	case "exp":
 		return parseMtpExpiration(s, now)
+	case "period":
+		switch strings.ToLower(s) {
+		case "daily", "weekly", "monthly":
+			return strings.ToLower(s), nil
+		}
+		return nil, fmt.Errorf("нужно daily, weekly, monthly или none")
 	case "quota":
 		return parseSizeWithSuffix(s, 1024)
 	case "up", "down":
@@ -152,4 +159,29 @@ func parseSizeWithSuffix(s string, base float64) (uint64, error) {
 		return 0, fmt.Errorf("нужно число с суффиксом K/M/G/T или none; результат должен быть от 1 до 18446744073709551615")
 	}
 	return uint64(scaled), nil
+}
+
+// Removing the quota must also remove its recurring schedule in the same write.
+func mtpLimitPatch(f mtpLimitField, value any) map[string]any {
+	patch := map[string]any{f.JSON: value}
+	if f.Key == "quota" && value == nil {
+		patch["quota_period"] = nil
+	}
+	return patch
+}
+
+func formatMtpQuotaPeriod(period *string) string {
+	if period == nil {
+		return "без автосброса"
+	}
+	switch *period {
+	case "daily":
+		return "ежедневно (UTC)"
+	case "weekly":
+		return "еженедельно (UTC)"
+	case "monthly":
+		return "ежемесячно (UTC)"
+	default:
+		return *period
+	}
 }
