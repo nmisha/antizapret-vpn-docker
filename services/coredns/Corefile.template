@@ -1,30 +1,17 @@
 .:53 {
     log
     errors
-
-    # Keep world-first routing, but skip unreachable exits until they recover.
-    forward . ${AZ_FORWARD_HOSTS} {
-        policy sequential
-        prefer_udp
-        failover SERVFAIL
-        # SERVFAIL is a routing decision, not a failed health check.
-        # Only transport failures should take an exit out of rotation.
-        # A failed query starts probing (". NS", 1s timeout, any reply is
-        # healthy) every health_check until one succeeds; an exit is down when
-        # failed probes > max_fails. 2/2s: down after ~7s of consecutive
-        # timeouts, so one slow reply does not reroute world domains; back in
-        # rotation within ~2s after recovery.
-        max_fails 2
-        health_check 2s
+    health :8080
+    fallbackttl ${AZ_EXPECTED_EXITS} ${AZ_FALLBACK_HOST} {
+        forward . ${AZ_FORWARD_HOSTS} {
+            prefer_udp
+            failover SERVFAIL REFUSED
+            max_connect_attempts 1
+            max_fails 1
+            health_check 1s
+            failfast_all_unhealthy_upstreams
+        }
     }
-    finalize force_resolve
 
     reload 2s
-}
-
-# A local-only probe also works when every external resolver is unavailable.
-healthcheck.invalid:53 {
-    hosts {
-        127.0.0.1 healthcheck.invalid
-    }
 }

@@ -1,37 +1,44 @@
 #!/usr/bin/env bash
 set -e
 
-# resolve domain address to ip address
-function resolve () {
-    # $1 domain/ip address, $2 fallback ip address
-    res="$(timeout 3s getent ahostsv4 "$1" | awk 'NR == 1 {print $1}')"
-    if [[ "$res" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-        echo "$res"
-    else
-        echo "$2"
-    fi
+resolve() {
+    local address
+    read -r address _ < <(timeout 2 getent ahostsv4 "$1") || return 0
+    printf '%s' "$address"
 }
 
-AZ_LOCAL_HOST="$(resolve 'az-local.antizapret' '')"
-AZ_WORLD_HOST="$(resolve 'az-world.antizapret' "$AZ_LOCAL_HOST")"
-DNS_HOST="$(resolve 'adguard.antizapret' '')"
+local_host=$(resolve az-local.antizapret)
+world_host=""
+AZ_EXPECTED_EXITS=1
+if [[ "${AZ_WORLD_ENABLED:-0}" == 1 ]]; then
+    world_host=$(resolve az-world.antizapret)
+    AZ_EXPECTED_EXITS=2
+fi
+adguard_host=$(resolve adguard.antizapret)
 
-if [ -z "$AZ_LOCAL_HOST" ] || [ -z "$DNS_HOST" ]; then
-    echo 'Required Docker DNS address unavailable; preserving Corefile' >&2
-    # An existing configuration can continue serving during a discovery outage.
-    [ -s /Corefile ] && exit 0
+hosts=()
+[[ -z "$world_host" || "$world_host" == "$local_host" ]] || hosts+=("$world_host")
+[[ -z "$local_host" ]] || hosts+=("$local_host")
+AZ_FALLBACK_HOST=""
+if [[ -n "$adguard_host" && "$adguard_host" != "$world_host" && "$adguard_host" != "$local_host" ]]; then
+    hosts+=("$adguard_host")
+    AZ_FALLBACK_HOST="$adguard_host:53"
+fi
+AZ_FORWARD_HOSTS="${hosts[*]}"
+if [[ -z "$AZ_FORWARD_HOSTS" ]]; then
+    echo "No DNS upstreams registered; keeping the previous Corefile" >&2
     exit 1
 fi
 
-if [ "$AZ_WORLD_HOST" = "$AZ_LOCAL_HOST" ]; then
-    export AZ_FORWARD_HOSTS="$AZ_LOCAL_HOST $DNS_HOST"
-else
-    export AZ_FORWARD_HOSTS="$AZ_WORLD_HOST $AZ_LOCAL_HOST $DNS_HOST"
-fi
+export AZ_EXPECTED_EXITS AZ_FALLBACK_HOST AZ_FORWARD_HOSTS
 
-candidate=$(mktemp /Corefile.XXXXXXXX)
-trap 'rm -f "$candidate"' EXIT
-envsubst < /root/Corefile.template > "$candidate"
-if ! cmp -s "$candidate" /Corefile; then
-    mv -f "$candidate" /Corefile
-fi
+corefile=$(envsubst < /root/Corefile.template)
+[[ -n "$corefile" ]]
+cmp -s /Corefile - <<< "$corefile" && exit 0
+
+# Publish atomically so reload sees a complete file.
+corefile_tmp=$(mktemp /Corefile.XXXXXX)
+trap 'rm -f "$corefile_tmp"' EXIT
+printf '%s\n' "$corefile" > "$corefile_tmp"
+chmod 644 "$corefile_tmp"
+mv -f "$corefile_tmp" /Corefile
