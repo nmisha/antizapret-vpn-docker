@@ -4,6 +4,12 @@ networks:
     driver_opts:
       encrypted: "true"
       com.docker.network.driver.mtu: 1500
+  telemt-panel-auth:
+    driver_opts:
+      encrypted: "true"
+  twofauth-auth:
+    driver_opts:
+      encrypted: "true"
   host:
     name: host
     external: true
