@@ -20,7 +20,6 @@ function activateTab(index) {
 }
 
 function createTab(serviceName, serviceUrl, hashValue) {
-    serviceHashes.push(hashValue);
     let tabEl = document.createElement('a');
     tabEl.className = 'tab';
     tabEl.textContent = serviceName;
@@ -30,7 +29,6 @@ function createTab(serviceName, serviceUrl, hashValue) {
     extLink.href = serviceUrl;
     extLink.title=`Открыть ${serviceName} во внешней вкладке`
     extLink.target = '_blank';
-    extLink.rel = 'noopener noreferrer';
     extLink.textContent = '🔗';
     extLink.className = 'tab-ext-link';
 
@@ -49,16 +47,6 @@ function createTab(serviceName, serviceUrl, hashValue) {
     allContents.push(contentEl);
 }
 
-function createExternalLink(serviceName, serviceUrl) {
-    const link = document.createElement('a');
-    link.className = 'tab';
-    link.textContent = `${serviceName} ↗`;
-    link.href = serviceUrl;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
-    link.title = `${serviceName} — открыть в новой вкладке`;
-    tabContainer.appendChild(link);
-}
 
 function tryActivateTabFromHash() {
     let rawHashValue = window.location.hash ? window.location.hash.substring(1) : '';
@@ -74,28 +62,23 @@ function tryActivateTabFromHash() {
 fetch(servicesUrl)
     .then(response => response.json())
     .then(config => {
-        if (config.authUrl) {
-            const authUrl = new URL(config.authUrl);
-            if (authUrl.protocol === 'https:') {
-                const authLink = document.getElementById('auth-link');
-                authLink.href = authUrl.href;
-                authLink.title = 'Authelia';
-            }
-        }
         let internalHostname = config.internalHostname;
         let services = config.services;
 
-        services.forEach(service => {
-            const externalUrl = service.externalUrl || `https://${currentHost}:${service.externalPort}`;
-            if (service.openMode === 'external') {
-                createExternalLink(service.name, externalUrl);
-                return;
-            }
-            const url = internalHostname === currentHost
-                ? `http://${service.internalHostname}:${service.internalPort}`
-                : externalUrl;
-            createTab(service.name, url, service.internalHostname);
-        });
+        if (internalHostname === currentHost){
+            services.forEach(service => {
+                serviceHashes.push(service.internalHostname);
+                let url = `http://${service.internalHostname}:${service.internalPort}`;
+                createTab(service.name, url, service.internalHostname);
+            });
+        }
+        else {
+            services.forEach(service => {
+                serviceHashes.push(service.internalHostname);
+                let url = `https://${currentHost}:${service.externalPort}`;
+                createTab(service.name, url, service.internalHostname);
+            });
+        }
 
         tryActivateTabFromHash();
     })

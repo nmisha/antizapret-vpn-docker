@@ -2,8 +2,7 @@ services:
   antizapret:
     entrypoint: ["/usr/local/lib/docktinel/entrypoint"]
     command: ["/init.sh"]
-    # image: xtrime/antizapret-vpn:6.12.5
-    image: nmisha/antizapret-vpn:6.12.5
+    image: xtrime/antizapret-vpn:6.12.5
     restart: unless-stopped
     init: true
     cap_add:
@@ -17,7 +16,6 @@ services:
       - "github.io=185.199.110.153"
       - "xtrime-ru.github.io=185.199.110.153"
       - "adguardteam.github.io=185.199.110.153"
-      - "nmisha.github.io=185.199.110.153"
     build: 
       context: .
       args:
@@ -69,28 +67,15 @@ services:
       - WARP_PORT=${WARP_PORT:-500}
       - ZAPRET_ENABLED=0
       - ZAPRET_CONFIG
-      # - |
-      #   IPS_URL=
-      #   https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips.txt;
-      # - |
-      #   IPS_WORLD_URL=
-      #   https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips-world.txt;
-      # - |
-      #   ASN_URL=
-      #   https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn.txt;
-      # - |
-      #   ASN_WORLD_URL=
-      #   https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn-world.txt;
-
       - |
         IPS_URL=
-        https://nmisha.github.io/antizapret-vpn-docker/lists/ips.txt;
+        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips.txt;
       - |
         IPS_WORLD_URL=
-        https://nmisha.github.io/antizapret-vpn-docker/lists/ips-world.txt;
+        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/ips-world.txt;
       - |
         ASN_URL=
-        https://nmisha.github.io/antizapret-vpn-docker/lists/asn.txt;
+        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn.txt;
       - |
         ASN_WORLD_URL=
-        https://nmisha.github.io/antizapret-vpn-docker/lists/asn-world.txt;
+        https://xtrime-ru.github.io/antizapret-vpn-docker/lists/asn-world.txt;

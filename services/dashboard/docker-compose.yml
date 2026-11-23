@@ -5,7 +5,7 @@ services:
     init: true
     hostname: dashboard.antizapret
     restart: unless-stopped
-    image: nmisha/antizapret-vpn-dashboard:6.12.2
+    image: xtrime/antizapret-vpn-dashboard:6.12.2
     stop_grace_period: 30s
     healthcheck:
       test: ["CMD", "docktinel", "healthcheck", "--startup-grace", "10m"]
@@ -14,7 +14,7 @@ services:
       start_period: 10m
       start_interval: 1s
       retries: 3
-    build:
+    build: 
       context: .
       args:
         DOCKTINEL_IMAGE: ${DOCKTINEL_IMAGE:-ghcr.io/xtrime-ru/docktinel:0.2.0}
@@ -27,14 +27,9 @@ services:
     environment:
       - TINI_KILL_PROCESS_GROUP=1
       - DOCKTINEL_STARTUP_TIMEOUT=10m
-      # Basic Auth is disabled here because access is handled by Authelia.
-      - DASHBOARD_AUTH_ENABLED=${DASHBOARD_AUTH_ENABLED:-0}
-      - DASHBOARD_AUTH_URL=${DASHBOARD_AUTH_URL:-}
       - DASHBOARD_USERNAME=admin
       - DASHBOARD_PASSWORD=password
 
-      # DASHBOARD_SERVICE_URL_N=https://service.example.com overrides the external URL.
-      # DASHBOARD_SERVICE_MODE_N=iframe|external (default: iframe).
       # DASHBOARD_SERVICE_N=name:external_port:internal_hostname:internal_port
       - DASHBOARD_SERVICE_1=AdGuard:1443:adguard.antizapret:3000
       - DASHBOARD_SERVICE_2=File Browser:2443:filebrowser.antizapret:80

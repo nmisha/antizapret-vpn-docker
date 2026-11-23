@@ -4,7 +4,7 @@ services:
     command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
     init: true
     restart: unless-stopped
-    image: nmisha/antizapret-vpn-https:6.12.3
+    image: xtrime/antizapret-vpn-https:6.12.3
     stop_grace_period: 30s
     healthcheck:
       test: ["CMD", "docktinel", "healthcheck", "--startup-grace", "10m"]
@@ -13,7 +13,7 @@ services:
       start_period: 10m
       start_interval: 1s
       retries: 3
-    build:
+    build: 
       context: .
       args:
         DOCKTINEL_IMAGE: ${DOCKTINEL_IMAGE:-ghcr.io/xtrime-ru/docktinel:0.2.0}
@@ -35,20 +35,8 @@ services:
     environment:
       - TINI_KILL_PROCESS_GROUP=1
       - DOCKTINEL_STARTUP_TIMEOUT=10m
-      # Optional domain for Dashboard and other HTTPS services. Public IPv4 is used when empty.
+      # Optional domain for HTTPS services. Public IPv4 is used when empty.
       - PROXY_DOMAIN=
-      # Optional certificate identity for ocserv. Defaults to PROXY_DOMAIN/public IPv4.
-      - OCSERV_DOMAIN=
-      # SNI_ROUTE_N=sni:upstream_hostname:upstream_port:none|proxy-v1|proxy-v2
-      # Example: vpn.example.com:ocserv.antizapret:443:proxy-v2
-      - SNI_ROUTE_1=
-      # Optional catch-all route. Empty means unmatched/no-SNI connections are dropped.
-      # Format: upstream_hostname:upstream_port:none|proxy-v1|proxy-v2
-      - SNI_DEFAULT_ROUTE=
-      # SNI_CERT_N=identity:/absolute/output/directory
-      - SNI_CERT_1=
-      # Serve the bundled public page for this certificate-only site instead of 204.
-      - SNI_CERT_STATIC_1=false
       # Optional Let's Encrypt account email.
       - PROXY_EMAIL=
       - PROXY_IP=${PROXY_IP:-}
@@ -56,16 +44,7 @@ services:
       - PROXY_CERT_MODE=auto
       - PROXY_ACME_CA=https://acme-v02.api.letsencrypt.org/directory
       - PROXY_HTTPS_PORT=444
-      # Optional portal domain; empty keeps the legacy PROXY_DOMAIN:9091 address.
-      - PROXY_AUTHELIA_DOMAIN=
-      # PROXY_VHOST_N=name:domain:internal_hostname:internal_port (protected by Authelia).
-      # With SNI routing, also route each domain to 127.0.0.1:PROXY_HTTPS_PORT:proxy-v2.
-      - PROXY_VHOST_1=
-      # Optional shared account mapping for the same PROXY_VHOST_N index.
-      # Both values must be set together. Other authenticated users keep their login.
-      - PROXY_VHOST_SHARED_GROUP_1=
-      - PROXY_VHOST_SHARED_USER_1=
-      # PROXY_SERVICE_N=name:external_port:internal_hostname:internal_port
+      # PROXY_SERVICE_N=external_port:internal_hostname:internal_port
       - PROXY_SERVICE_1=Dashboard:444:dashboard.antizapret:80
       - PROXY_SERVICE_2=AdGuard:1443:adguard.antizapret:3000
       - PROXY_SERVICE_3=File Browser:2443:filebrowser.antizapret:80

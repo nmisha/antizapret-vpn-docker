@@ -84,12 +84,9 @@ antigravity.google
 apis.google.com
 appcatalyst.pa.googleapis.com
 assistant-s3-pa.googleapis.com
-clients4.google.com
-clientservices.googleapis.com
 cloud.google.com
 colab.research.google.com
 content-aisandbox-pa.googleapis.com
-content-autofill.googleapis.com
 content-people.googleapis.com
 developerprofiles-pa.googleapis.com
 gemini.google.com
@@ -114,6 +111,58 @@ waa-pa.clients6.google.com
 webchannel-alkalimakersuite-pa.clients6.google.com
 subscriptionsfirstparty-pa.googleapis.com
 robinfrontend-pa.googleapis.com
+
+# Google AI
+# Google DeepMind source: https://github.com/v2fly/domain-list-community/blob/master/data/google-deepmind
+ai.google.dev
+ai.studio
+aicode.googleapis.com
+aida.googleapis.com
+aisandbox-pa.googleapis.com
+aistudio.google.com
+alkalicore-pa.clients6.google.com
+alkalimakersuite-pa.clients6.google.com
+antigravity-pa.googleapis.com
+antigravity-unleash.goog
+antigravity.google
+antigravity.googleapis.com
+appsgenaiserver-pa.clients.google.com
+appsgenaiserver-pa.clients6.google.com
+appsgenaiserver-pa.googleapis.com
+bard.google.com
+cloudaicompanion.googleapis.com
+cloudcode-pa.googleapis.com
+daily-cloudcode-pa.googleapis.com
+deepmind.com
+deepmind.google
+flow.google
+flow.google.com
+geller-pa.googleapis.com
+gemini.google
+gemini.google.com
+gemini.gstatic.com
+geminiweb-pa.clients.google.com
+geminiweb-pa.clients6.google.com
+generativeai.google
+generativelanguage.googleapis.com
+jules.google
+jules.google.com
+labs.google
+labs.google.com
+labstailwind.pa.googleapis.com
+makersuite.google.com
+notebook.google
+notebook.google.com
+notebooklm-pa.googleapis.com
+notebooklm.google
+notebooklm.google.com
+notebooklm.googleapis.com
+opal.google
+opal.google.com
+proactivebackend-pa.googleapis.com
+robinfrontend-pa.googleapis.com
+stitch.withgoogle.com
+webchannel-alkalimakersuite-pa.clients6.google.com
 
 # Telemetry / Analytics / Monitoring
 101555001786.collect.observeinc.com
@@ -540,12 +589,6 @@ discordsays.com
 discordstatus.com
 mee6.xyz
 rythm.fm
-
-# CDN
-contentful.com
-ctfassets.net
-cdn.tagdeliver.com
-fastly.com
 
 # shopping
 shein.com

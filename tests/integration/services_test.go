@@ -146,10 +146,10 @@ printf '198.51.100.0/24\n' > /tmp/feed-v4
 exec /usr/local/lib/docktinel/entrypoint /root/entrypoint.sh`, firewallHost(), "V4_FILE=blacklist-v4.txt", "V6_FILE=blacklist-v6.txt", "V4_URL=file:///tmp/feed-v4", "V6_URL=file:///tmp/feed-v6", "INTERVAL=1s")
 	f.runtime()
 	f.waitState("degraded")
-	f.mustExec("ipset", "test", "az_firewall_v4", "198.51.100.1")
-	f.mustExec("grep", "198.51.100.0/24", "/var/lib/antizapret-firewall/v4")
+	f.mustExec("ipset", "test", "az_firewall_v4", "192.0.2.1")
+	f.mustExec("grep", "192.0.2.0/24", "/root/blacklist-v4.txt")
 	f.mustExec("docktinel", "healthcheck")
-	// IPv4 updates independently when the IPv6 source is missing or malformed.
+	// A downloaded but malformed second family must also preserve both active sets.
 	f.mustExec("sh", "-ec", `printf invalid > /tmp/feed-v6`)
 	ctx, cancel := context.WithCancel(t.Context())
 	_, code, _ := f.exec(ctx, "/root/refresh.sh")
@@ -157,26 +157,26 @@ exec /usr/local/lib/docktinel/entrypoint /root/entrypoint.sh`, firewallHost(), "
 	if code == 0 {
 		t.Fatal("malformed list was accepted")
 	}
-	f.mustExec("ipset", "test", "az_firewall_v4", "198.51.100.1")
+	f.mustExec("ipset", "test", "az_firewall_v4", "192.0.2.1")
 	f.mustExec("ipset", "test", "az_firewall_v6", "2001:db8:1::1")
 	f.mustExec("sh", "-ec", `printf '2001:db8:2::/48\n' > /tmp/feed-v6`)
 	f.waitState("healthy")
 	f.mustExec("ipset", "test", "az_firewall_v4", "198.51.100.1")
 	f.mustExec("ipset", "test", "az_firewall_v6", "2001:db8:2::1")
-	// A failed IPv6 swap keeps IPv6 active while IPv4 and its cache advance.
+	// Fail the second swap after IPv4 was applied: IPv4 must roll back as well.
 	f.mustExec("sh", "-ec", `mv /usr/sbin/ipset /usr/sbin/ipset.real
 cat > /usr/sbin/ipset <<'SH'
 #!/bin/sh
 if [ "$1" = swap ]; then
- case "$2" in az_firewall_v6_next) exit 1;; esac
+ case "$2" in az_firewall_v6_new_*) exit 1;; esac
 fi
 exec /usr/sbin/ipset.real "$@"
 SH
 chmod +x /usr/sbin/ipset
 printf '203.0.113.0/24\n' > /tmp/feed-v4`)
 	f.waitState("degraded")
-	f.mustExec("ipset", "test", "az_firewall_v4", "203.0.113.1")
-	f.mustExec("grep", "203.0.113.0/24", "/var/lib/antizapret-firewall/v4")
+	f.mustExec("ipset", "test", "az_firewall_v4", "198.51.100.1")
+	f.mustExec("grep", "198.51.100.0/24", "/root/blacklist-v4.txt")
 	f.mustExec("mv", "/usr/sbin/ipset.real", "/usr/sbin/ipset")
 	f.waitState("healthy")
 	f.mustExec("ipset", "test", "az_firewall_v4", "203.0.113.1")

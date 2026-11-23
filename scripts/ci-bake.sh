@@ -10,7 +10,7 @@ fi
 sources=$(jq -er --arg service "$SERVICE" --argjson shared "$shared" '
     .images[] | select(.name == $service or ($shared and .name == "antizapret")) |
     [.name,.source,.compose,.target] | @tsv
-' versions.json | tr -d '\r')
+' versions.json)
 # Preserve the Compose build arguments, including those of the shared runtime.
 while IFS=$'\t' read -r name source compose target; do
     (cd "$source" && docker buildx bake -f "$compose" --print "$target") |
@@ -22,7 +22,7 @@ done <<< "$sources" |
         --arg arch "$BUILD_ARCH" --arg service "$SERVICE" --arg oci "$OCI_DIR" \
         --argjson tags "${CACHE_TAGS:-null}" \
         --slurpfile manifest versions.json --argjson shared "$shared" '
-        def release_branch: test("^(dev|v[0-9]+|v6-mine)$");
+        def release_branch: test("^(dev|v[0-9]+)$");
         def tag($name; $branch): $name + "-build-" + $branch + "-" + $arch;
         def cache: "type=registry,ref=" + ($repo | ascii_downcase) + ":" + .;
         (["dev", $base, $branch] | map(select(release_branch)) | unique) as $branches |

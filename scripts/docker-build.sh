@@ -2,14 +2,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-namespace=${DOCKERHUB_NAMESPACE:-nmisha}
-
-dry_run=false
 versions=()
 services=()
 while (($#)); do
     case "$1" in
-        --dry-run) dry_run=true; shift; continue;;
         -v|--version) versions+=("${2:?Missing version}");;
         -s|--services) services+=("${2:?Missing service}");;
         *) echo "Unknown argument: $1" >&2; exit 1;;
@@ -29,18 +25,12 @@ images=$(jq -er '
         INDEX(.images[]; .name) as $images |
         $ARGS.positional[] | $images[.] // error("Unknown service: " + .)
     end | [.source,.compose,.target,.repository] | @tsv
-' "${manifest_args[@]}" | tr -d '\r')
+' "${manifest_args[@]}")
 
 while IFS=$'\t' read -r source compose target repository; do
     tags=()
     for version in "${versions[@]}"; do
-        tags+=(--set "$target.tags=$namespace/$repository:$version")
+        tags+=(--set "$target.tags=xtrime/$repository:$version")
     done
-    if [[ "$dry_run" == true ]]; then
-        printf 'cd %q && ' "$source"
-        printf '%q ' docker buildx bake -f "$compose" "${tags[@]}" --push "$target"
-        printf '\n'
-    else
-        (cd "$source" && docker buildx bake -f "$compose" "${tags[@]}" --push "$target")
-    fi
+    (cd "$source" && docker buildx bake -f "$compose" "${tags[@]}" --push "$target")
 done <<< "$images"

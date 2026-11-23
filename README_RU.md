@@ -2,6 +2,20 @@
 
 # AntiZapret VPN в Docker
 
+[![AdGuard Home v1.0.0](https://img.shields.io/badge/AdGuard%20Home-v1.0.0-68BC71?style=flat-square&logo=adguard&logoColor=white)](https://github.com/AdguardTeam/AdGuardHome/releases/tag/v1.0.0)
+[![wg-easy 15.5.0](https://img.shields.io/badge/wg--easy-15.5.0-88171A?style=flat-square&logo=wireguard&logoColor=white)](https://github.com/wg-easy/wg-easy/releases/tag/v15.5.0)
+[![OpenVPN 2.7.9](https://img.shields.io/badge/OpenVPN-2.7.9-EA7E20?style=flat-square&logo=openvpn&logoColor=white)](https://github.com/OpenVPN/openvpn/releases/tag/v2.7.9)
+[![AmneziaWG tools 3.1.20260812](docs/badges/amneziawg.svg)](https://github.com/amnezia-vpn/amneziawg-tools/releases/tag/v3.1.20260812)
+[![zapret2 1.0.7](https://img.shields.io/badge/zapret2-1.0.7-2563EB?style=flat-square)](https://github.com/vernette/ss-zapret2)
+[![CoreDNS 1.15.0](docs/badges/coredns.svg)](https://github.com/coredns/coredns/releases/tag/v1.15.0)
+
+[![Caddy 2.11.9](https://img.shields.io/badge/Caddy-2.11.9-1F88C0?style=flat-square&logo=caddy&logoColor=white)](https://github.com/caddyserver/caddy/releases/tag/v2.11.9)
+[![ocserv 1.6.0](https://img.shields.io/badge/ocserv-1.6.0-16803C?style=flat-square)](https://gitlab.com/openconnect/ocserv/-/tags/1.6.0)
+[![Cloudflare WARP 2026.8.2115.0](https://img.shields.io/badge/Cloudflare%20WARP-2026.8.2115.0-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/#linux)
+[![Docktinel 0.2.0](https://img.shields.io/badge/Docktinel-0.2.0-2496ED?style=flat-square)](https://github.com/xtrime-ru/docktinel)
+
+Версии компонентов, используемых в проекте.
+
 Antizapret создан для того, чтобы перенаправлять только заблокированные домены через VPN-туннель. Это называется раздельное туннелирование (split tunneling).
 Этот репозиторий основан на идее оригинального [AntiZapret LXD image](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/).
 
@@ -78,6 +92,8 @@ Antizapret создан для того, чтобы перенаправлять
     - [Wireguard/Wireguard Amnezia](#wireguardwireguard-amnezia)
     - [SOCKS5 прокси (устарело, используйте proxy ниже)](#socks5-прокси-устарело-используйте-proxy-ниже)
     - [Proxy (http + socks5)](#proxy-http--socks5)
+  - [Состояние контейнеров](#состояние-контейнеров)
+    - [Проверки и задачи по сервисам](#проверки-и-задачи-по-сервисам)
   - [DNS](#dns)
     - [Upstream DNS для Adguard](#upstream-dns-для-adguard)
     - [CDN + ECS](#cdn--ecs)
@@ -91,9 +107,8 @@ Antizapret создан для того, чтобы перенаправлять
     - [Поддержка устаревших клиентов](#поддержка-устаревших-клиентов)
   - [Amnezia Wireguard](#amnezia-wireguard)
     - [Включение расширения ядра Amnezia Wireguard](#включение-расширения-ядра-amnezia-wireguard)
-      - [Ubuntu 26.04](#ubuntu-2604)
-      - [Ubuntu 24.04](#ubuntu-2404)
-      - [Ubuntu 20.04, 22.04](#ubuntu-2004-2204)
+      - [Ubuntu 26.04/24.04](#ubuntu-26042404)
+      - [Ubuntu 22.04/20.04](#ubuntu-22042004)
     - [Параметры AmneziaWG](#параметры-amneziawg)
       - [Таблица совместимости параметров](#таблица-совместимости-параметров)
       - [Примечания](#примечания)
@@ -121,9 +136,9 @@ https://t.me/antizapret_support
 
 1. AdGuard Home применяет DNS-фильтры и направляет обычные запросы в CoreDNS. Адресные upstream могут разрешать отдельные домены напрямую.
 2. CoreDNS последовательно опрашивает VPN-узлы: `az-world` → `az-local` в Swarm или только `az-local` в односерверном Compose.
-3. Каждый узел выхода обращается к AdGuard со своим ClientID. Совпавшее доменное правило включает VPN-маршрутизацию; иначе `dnsmap` разрешает имя через `az-resolver` и проверяет полученные IPv4-адреса по правилам ASN и организаций.
+3. Каждый узел выхода обращается к AdGuard со своим ClientID. Доменные исключения имеют приоритет над обычными include. Без исключения include включает VPN-маршрутизацию; иначе `dnsmap` разрешает имя через `az-resolver` и проверяет полученные IPv4-адреса по правилам ASN и организаций.
 4. При совпадении `dnsmap` выделяет виртуальные IPv4-адреса и создаёт правила DNAT к реальным адресам. Пулы по умолчанию: `14.16.0.0/15` для локального узла и `14.18.0.0/15` для зарубежного.
-5. CoreDNS возвращает VPN-адреса либо обычный DNS-ответ, если ни один узел выхода не дал совпадения. `finalize force_resolve` также проверяет CNAME-цели через ту же цепочку маршрутизации.
+5. CoreDNS возвращает виртуальные адреса от подходящего VPN-узла. Если узлы отклонили запрос или недоступны, CoreDNS обращается к AdGuard за прямым DNS-ответом. Во время сбоя узла CoreDNS обнуляет TTL прямого ответа, чтобы VPN-маршрутизация возобновилась после восстановления узла.
 6. VPN-клиенты направляют виртуальные адреса через туннель. Явные IP/CIDR-списки могут дополнительно создавать маршруты для реальных адресов. См. [Правила маршрутизации: include, exclude и ASN](#правила-маршрутизации-include-exclude-и-asn).
 
 
@@ -391,7 +406,7 @@ Zram будет автоматически запускаться при заг�
 ### HTTPS
 По умолчанию все контейнеры доступны через https. Для управления сертификатами используется отдельный контейнер `https`.
 Если домен не задан, Caddy определяет публичный IPv4 сервера и запрашивает для него краткосрочный сертификат Let's Encrypt. До успешной проверки ACME используется постоянный самоподписанный сертификат, поэтому HTTPS и ocserv запускаются, даже когда `80/tcp` недоступен из Интернета.
-Caddy маршрутизирует соединения своего Layer 4 listener на `443/tcp` по переменным `SNI_ROUTE_N`. Dashboard использует отдельный HTTPS-порт `444/tcp`, а канал DTLS ocserv публикуется напрямую на `443/udp`. Если подходящего маршрута нет и `SNI_DEFAULT_ROUTE` пуст, соединение никуда не передаётся.
+Caddy передаёт все соединения со своего Layer 4 listener на `443/tcp` в ocserv и сообщает исходный адрес клиента через PROXY protocol v2. Dashboard использует отдельный HTTPS-порт `444/tcp`, а канал DTLS ocserv публикуется напрямую на `443/udp`.
 
 - dashboard: https://%your-server-ip%:444
 - adguard: https://%your-server-ip%:1443
@@ -401,9 +416,6 @@ Caddy маршрутизирует соединения своего Layer 4 lis
 - wireguard-amnezia: https://%your-server-ip%:5443
 
 #### Собственные сайты на портах 80 и 444
-
-Для генерации доменных сайтов с Authelia используйте `PROXY_AUTHELIA_DOMAIN` и
-`PROXY_VHOST_N`: [настройка и порядок переноса](services/https/README.md).
 
 Дополнительные конфигурации Caddy можно сохранять в каталоге `config/https/config/sites-enabled`. Каталог создаётся автоматически при запуске контейнера `https`, а все файлы из него подключаются к основному Caddyfile.
 
@@ -458,6 +470,14 @@ services:
 
 ## Обновление
 
+При обновлении ocserv до 1.6 в собственных IPv6-конфигах учтите смену адреса
+сервера: теперь это адрес сети, а не адрес сети плюс один. Ошибочные или
+недоступные конфиги пользователей/групп теперь приводят к отказу в подключении
+для соответствующей сессии. Стандартный IPv4-конфиг проекта менять не нужно.
+В Caddy 2.11.9 лимит заголовков запроса по умолчанию составляет 16 КиБ, а
+таймауты простоя чтения/записи — одну минуту; для собственных приложений эти
+значения можно переопределить в конфигурации Caddy.
+
 - Одиночный экземпляр
    ```shell
    git pull --rebase
@@ -499,8 +519,12 @@ services:
      - Нажмите save на странице конфигурации сервера openvpn-ui: http://openvpn-ui.antizapret:8080/ov/config/ а затем перезапустите сервер openvpn.
      - Установите новый dkms модуль на хост: `apt remove openvpn-dkms-dco` + https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/README.md?tab=readme-ov-file#enable-openvpn-data-channel-offload-dco
    - Socks
-   Замените его на контейнер proxy и переименуйте переменные окружения. См. пример: https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/docker-compose.override.sample.yml#L63-L93
+   Замените его на контейнер proxy и переименуйте переменные окружения. См. пример: https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/docker-compose.override.sample.yml#L75-L105
    Убедитесь, что используете надежный пароль, потому что теперь HTTPS прокси доступен из интернета.
+
+Если вы добавляли в AdGuard Home свои правила с `dnsrewrite=SERVFAIL` для
+пропуска узла выхода VPN, замените в них `dnsrewrite=SERVFAIL` на
+`dnsrewrite=REFUSED`. Два штатных правила обновляются автоматически.
 
 ## Сброс:
 Удалить все настройки, VPN-конфигурации и вернуть начальное состояние сервиса:
@@ -608,7 +632,7 @@ docker service logs --since 10m --tail 200 --timestamps antizapret_adguard
 Не путайте DNS-сервер с клиентом AdGuard. Таймаут внешнего upstream:
 
 ```text
-[error] dnsproxy: response received upstream_type=custom client_name=coredns addr=https://dns.google:443/dns-query proto=tcp status="… Client.Timeout exceeded while awaiting headers"
+[error] dnsproxy: response received upstream_type=custom client_name=coredns addr=https://8.8.8.8:443/dns-query proto=tcp status="… Client.Timeout exceeded while awaiting headers"
 ```
 
 Здесь `client_name=coredns` — имя клиента, а таймаут произошёл при обращении к **Google DNS**. В таком случае проверяйте также доступ к внешним DNS, исходящий HTTPS и ошибки upstream. Сопоставляйте ошибки за один период времени, желательно для одного домена. Запросы и ответы также доступны в [журнале AdGuard](http://adguard.antizapret:3000/#logs).
@@ -661,20 +685,20 @@ docker service logs --since 10m --tail 200 --timestamps antizapret_az-world
 ```text
 antizapret_coredns.1.…@az-local | [INFO] 10.200.0.33:51045 - 47063 "A IN example.com. udp 52 false 1232" NOERROR qr,rd,ra,ad 94 0.071461249s
 antizapret_az-local.1.…@az-local | Request: [10.200.0.33:38244] (udp) / 'example.com.' (A)
-antizapret_az-local.1.…@az-local | Reply: [10.200.0.33:38244] (udp) / 'example.com.' (A) / SERVFAIL
+antizapret_az-local.1.…@az-local | Reply: [10.200.0.33:38244] (udp) / 'example.com.' (A) / REFUSED
 antizapret_az-world.1.…@az-world | Request: [10.200.0.33:43260] (udp) / 'example.com.' (A)
 antizapret_az-world.1.…@az-world | Reply: [10.200.0.33:43260] (udp) / 'example.com.' (A) / RRs: A,A
 ```
 
-Ищите DNS-строки `Request:` / `Reply:` и записи CoreDNS, а не только HTTP-запросы `/config-md5/`. В проекте логирование DNS включено по умолчанию. `SERVFAIL` от `az-local` или `az-world` может быть штатным ответом, если домен не соответствует правилам этого узла: CoreDNS переходит к следующему upstream. При успешном ответе `az-world` тот же запрос не обязан появляться у `az-local`.
+Ищите DNS-строки `Request:` / `Reply:` и записи CoreDNS, а не только HTTP-запросы `/config-md5/`. В проекте логирование DNS включено по умолчанию. `REFUSED` от `az-local` или `az-world` может быть штатным ответом, если домен не соответствует правилам этого узла: CoreDNS переходит к следующему upstream. При успешном ответе `az-world` тот же запрос не обязан появляться у `az-local`.
 
 Чтобы проверить каждый сервер отдельно, выполните на **хосте, где запущен контейнер AdGuard** (обычно `az-local`):
 
 ```shell
 ADGUARD_ID=$(docker ps -q --filter label=com.docker.swarm.service.name=antizapret_adguard --filter status=running | head -n 1)
-docker exec "$ADGUARD_ID" dig @coredns.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
-docker exec "$ADGUARD_ID" dig @az-world.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
-docker exec "$ADGUARD_ID" dig @az-local.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
+docker exec "$ADGUARD_ID" busybox nslookup -type=a -retry=1 -timeout=5 example.com coredns.antizapret
+docker exec "$ADGUARD_ID" busybox nslookup -type=a -retry=1 -timeout=5 example.com az-world.antizapret
+docker exec "$ADGUARD_ID" busybox nslookup -type=a -retry=1 -timeout=5 example.com az-local.antizapret
 ```
 
 ```text
@@ -752,110 +776,97 @@ docker exec "$ADGUARD_ID" ping -c 4 -W 2 az-world.antizapret
 
 ## Алгоритм разрешения DNS
 
-Схемы показывают IPv4-запросы (`A`). Конфигурация AdGuard по умолчанию отключает ответы AAAA; `dnsmap` также возвращает пустые ответы на запросы `AAAA` и `HTTPS`. ClientID `az-local`, `az-world` и `az-resolver` позволяют AdGuard применять разные правила и upstream к внутренним запросам.
+Схемы показывают IPv4-запросы (`A`). AdGuard использует ClientID `az-local`, `az-world` и `az-resolver`, чтобы применять разные правила и upstream к внутренним запросам. Конфигурация AdGuard по умолчанию отключает ответы `AAAA`.
 
 ### Docker Swarm
 
 ```mermaid
 flowchart TB
-    client["VPN-клиент"] -->|DNS-запрос| adguard["AdGuard Home"]
-    adguard -->|Блокировка| deny["Ответ блокировки"]
-    adguard -->|Адресный upstream| external["Внешний DNS"]
-    adguard --> core["CoreDNS"]
-    core --> world
-    world["az-world: dnsmap<br/>домены / ASN"]
-    world -->|Домен или ASN| worldip["14.18.0.0/15<br/>DNAT"]
-    world -->|SERVFAIL| local
-    local["az-local: dnsmap<br/>домены / ASN"]
-    local -->|Домен или ASN| localip["14.16.0.0/15<br/>DNAT"]
-    local -->|SERVFAIL| retry["AdGuard: client=coredns"]
-    retry -->|Обычный upstream| external
-    classDef service fill:#1e293b,stroke:#64748b,color:#f8fafc
-    classDef exit fill:#312e81,stroke:#a5b4fc,color:#ffffff
-    classDef mapped fill:#115e59,stroke:#5eead4,color:#ffffff
-    class adguard,core,retry,external service
-    class local,world exit
-    class localip,worldip mapped
+    client["VPN-клиент"] --> adguard["AdGuard Home"]
+    adguard -->|Блокировка| blocked["Ответ блокировки"]
+    adguard -->|Upstream для домена| external["Внешний DNS"]
+    adguard -->|Обычный запрос| core["CoreDNS"]
+    core --> world["az-world (dnsmap)"]
+    world -->|Совпал домен или ASN| world_ip["VPN-адрес: 14.18.0.0/15"]
+    world -->|Отказ или сбой| local_exit["az-local (dnsmap)"]
+    local_exit -->|Совпал домен или ASN| local_ip["VPN-адрес: 14.16.0.0/15"]
+    local_exit -->|Отказ или сбой| direct_dns["Прямой DNS через AdGuard (клиент coredns)"]
+    direct_dns --> external
+    adguard -.->|Сбой основного upstream| fallback_dns["Резервный DNS AdGuard"]
 ```
 
 ### Один сервер (Docker Compose)
 
 ```mermaid
 flowchart TB
-    client["VPN-клиент"] -->|DNS-запрос| adguard["AdGuard Home"]
-    adguard -->|Блокировка| deny["Ответ блокировки"]
-    adguard -->|Адресный upstream| external["Внешний DNS"]
-    adguard --> core["CoreDNS"]
-    core --> local
-    local["az-local: dnsmap<br/>домены / ASN"]
-    local -->|Домен или ASN| localip["14.16.0.0/15<br/>DNAT"]
-    local -->|SERVFAIL| retry["AdGuard: client=coredns"]
-    retry -->|Обычный upstream| external
-    classDef service fill:#1e293b,stroke:#64748b,color:#f8fafc
-    classDef exit fill:#312e81,stroke:#a5b4fc,color:#ffffff
-    classDef mapped fill:#115e59,stroke:#5eead4,color:#ffffff
-    class adguard,core,retry,external service
-    class local exit
-    class localip mapped
+    client["VPN-клиент"] --> adguard["AdGuard Home"]
+    adguard -->|Блокировка| blocked["Ответ блокировки"]
+    adguard -->|Upstream для домена| external["Внешний DNS"]
+    adguard -->|Обычный запрос| core["CoreDNS"]
+    core --> local_exit["az-local (dnsmap)"]
+    local_exit -->|Совпал домен или ASN| local_ip["VPN-адрес: 14.16.0.0/15"]
+    local_exit -->|Отказ или сбой| direct_dns["Прямой DNS через AdGuard (клиент coredns)"]
+    direct_dns --> external
+    adguard -.->|Сбой основного upstream| fallback_dns["Резервный DNS AdGuard"]
 ```
 
-В Swarm CoreDNS использует `az-world`, затем `az-local`, затем прямой запрос в AdGuard. Переход к следующему upstream происходит только при `SERVFAIL`. Последний запрос в AdGuard относится к клиенту `coredns`, для которого настроены обычные внешние DNS-серверы: запрос не возвращается обратно в CoreDNS.
+В Swarm CoreDNS использует `az-world`, затем `az-local`, затем прямой запрос в AdGuard. Переход к следующему upstream происходит при сетевой ошибке, таймауте, `REFUSED` или `SERVFAIL`. Последний запрос в AdGuard относится к клиенту `coredns`, для которого настроены обычные внешние DNS-серверы: запрос не возвращается обратно в CoreDNS.
 
-В односерверном Compose контейнер `az-local` также получает alias `az-world` и `az-world.antizapret`. CoreDNS определяет общий адрес, опрашивает узел выхода один раз и затем использует AdGuard. Локальные и зарубежные доменные списки применяются к ClientID `az-local`, а `ASN_FILES` включает оба итоговых ASN-списка.
+При сетевой ошибке CoreDNS запускает фоновые пробы upstream с интервалом в одну секунду. Узлу, который пропускается по результатам проверки, возвращается исходный приоритет после успешной пробы. Ответ `REFUSED` вызывает переход только для текущего запроса и не исключает узел.
+
+CoreDNS обнуляет TTL резервного ответа AdGuard, если адрес настроенного узла выхода отсутствует, узел не ответил на текущий запрос или вернул `SERVFAIL`. Исходный TTL сохраняется у ответов от узлов выхода и у ответов AdGuard, когда все настроенные узлы вернули `REFUSED`. Новые адреса и роли upstream вступают в силу после обнаружения и перечитывания Corefile.
+
+При раздельном обновлении сначала обновите CoreDNS, затем AdGuard и узлы выхода. При запуске entrypoint AdGuard переводит на `REFUSED` два штатных правила для `az-local` и `az-world`. Подписки обновляются штатным механизмом AdGuard. Если пользовательское правило использует `SERVFAIL` для пропуска узла, обновите его отдельно.
+
+В односерверном Compose CoreDNS использует только `az-local` перед переходом к AdGuard. Локальные и зарубежные доменные списки применяются к ClientID `az-local`, а `ASN_FILES` включает оба итоговых ASN-списка. Если основной upstream AdGuard недоступен, AdGuard может обратиться к своим [резервным DNS-серверам](#upstream-dns-для-adguard).
 
 ### Внутри узла выхода: домены и ASN
 
 ```mermaid
 flowchart TB
-    q["Исходный A-запрос"] --> first["AdGuard: client=az-local / az-world"]
-    first --> has{"NOERROR и есть A-записи?"}
-    has -->|Да| mapped["Виртуальные IP + DNAT"]
-    has -->|SERVFAIL| direct["AdGuard: client=az-resolver"]
-    has -->|Другой ответ| err["Исходный ответ / ошибка"]
-    direct --> res{"NOERROR и есть A-записи?"}
-    res -->|Да| asn{"Совпала ASN или организация?"}
-    res -->|Нет| err
-    asn -->|Да| mapped
-    asn -->|Нет| fail["SERVFAIL: следующий upstream"]
-    classDef service fill:#1e293b,stroke:#64748b,color:#f8fafc
-    classDef exit fill:#312e81,stroke:#a5b4fc,color:#ffffff
-    classDef mapped fill:#115e59,stroke:#5eead4,color:#ffffff
-    class first,direct,err,has,res,asn service
-    class mapped mapped
+    query["Исходный A-запрос"] --> exit_query["AdGuard с ClientID az-local или az-world"]
+    exit_query -->|NOERROR с A-записями| mapped["Виртуальные IPv4-адреса и DNAT"]
+    exit_query -->|REFUSED| resolver["AdGuard с ClientID az-resolver"]
+    exit_query -->|Другой ответ| original["Вернуть ответ в CoreDNS"]
+    resolver -->|NOERROR с A-записями| asn_match{"Совпала ASN или организация?"}
+    resolver -->|Другой ответ| original
+    asn_match -->|Да| mapped
+    asn_match -->|Нет| refused["Вернуть REFUSED в CoreDNS"]
 ```
 
 1. `dnsmap` отправляет исходный запрос в AdGuard по протоколу DoH через внутренний HTTP на `/dns-query/<CLIENT>`, где `<CLIENT>` — `az-local` или `az-world`. Порт DoH AdGuard по умолчанию — `3000`.
-2. Совпавшее доменное правило включения отменяет стандартный rewrite `SERVFAIL` для этого клиента. Если ответ содержит IPv4-адреса, `dnsmap` сразу подменяет их: в этой ветке ASN не проверяется и запрос к `az-resolver` не выполняется.
-3. Если первый ответ — `SERVFAIL`, `dnsmap` повторяет тот же исходный запрос с ClientID `az-resolver`. Для этого клиента по умолчанию используются Cloudflare, Google и Quad9 вместо CoreDNS.
-4. Совпавшее доменное исключение возвращает `SERVFAIL` для `az-resolver` и останавливает проверку ASN. Другие ошибки резолвера также возвращаются без создания подменных адресов.
-5. При успешном прямом разрешении `dnsmap` проверяет IPv4-адреса по базе ASN MaxMind. Если хотя бы один адрес совпал с номером ASN, подстрокой организации или regex организации, все IPv4-адреса ответа подменяются для этого узла выхода. При отсутствии совпадений CoreDNS получает исходный `SERVFAIL`.
+2. Совпавшее доменное include-правило отменяет стандартный rewrite `REFUSED` для этого клиента, если одновременно не совпало исключение с `important`. Если ответ содержит IPv4-адреса, `dnsmap` сразу подменяет их: в этой ветке ASN не проверяется и запрос к `az-resolver` не выполняется.
+3. Если первый ответ — `REFUSED`, `dnsmap` повторяет тот же исходный запрос с ClientID `az-resolver`. Для этого клиента по умолчанию используются Cloudflare, Google и Quad9 вместо CoreDNS.
+4. Совпавшее доменное исключение также возвращает `REFUSED` для `az-resolver`, останавливая проверку ASN после запрета обычного include на первом запросе. Другие ошибки резолвера также возвращаются без создания подменных адресов.
+5. При успешном прямом разрешении `dnsmap` проверяет IPv4-адреса по базе ASN MaxMind. Если хотя бы один адрес совпал с номером ASN, подстрокой организации или regex организации, все IPv4-адреса ответа подменяются для этого узла выхода. При отсутствии совпадений CoreDNS получает исходный `REFUSED`.
 6. При подмене `dnsmap` удаляет CNAME-записи, заменяет A-записи виртуальными адресами под исходным именем запроса и устанавливает TTL 300 секунд. Для виртуальных адресов создаются DNAT-правила к реальным адресам.
 
-Пустой ответ не создаёт подменных адресов. Ошибка установки правил подмены возвращает `SERVFAIL`. Пулы адресов и файлы правил описаны в разделе [Правила маршрутизации: include, exclude и ASN](#правила-маршрутизации-include-exclude-и-asn).
+Для запроса `HTTPS` при ответе `REFUSED` от ClientID узла `dnsmap` выполняет отдельный запрос `A` для проверки ASN. Из возвращаемых записей HTTPS удаляются подсказки IPv4 и IPv6. Записи, для которых эти подсказки обязательны, отбрасываются. Пустой ответ не создаёт подменных адресов. Ошибка установки правил подмены возвращает `SERVFAIL`. Пулы адресов и файлы правил описаны в разделе [Правила маршрутизации: include, exclude и ASN](#правила-маршрутизации-include-exclude-и-asn).
 
 ### Разрешение CNAME и прямые исключения
 
-CoreDNS сохраняет `finalize force_resolve`, чтобы домен с CNAME на заблокированный CDN также мог использовать VPN. Finalizer повторно запрашивает CNAME-цели, даже если исходный ответ уже содержит их реальные A-записи.
+CoreDNS передаёт ответы без повторных запросов каждой CNAME-цели. Для маршрутизации CDN `dnsmap` проверяет полученные IPv4-адреса по правилам ASN MaxMind.
 
-Каждая CNAME-цель — новый запрос через цепочку узлов выхода. Исключение исходного домена из проверки ASN не исключает его CNAME-цели автоматически. Для домена, работающего напрямую, используйте [адресный upstream AdGuard](#прямое-разрешение-доменов-на-cdn-из-vpn-списков). Он обходит CoreDNS для исходного запроса, сохраняя маршрутизацию CDN для остальных доменов.
+Общий `lists/exclude.txt` подключает списки Steam, PlayStation и Rockstar из v2fly. Фильтр AdGuard **Direct Access Rules** создаёт rewrite-правила `REFUSED` с `important` для `az-local`, `az-world` и `az-resolver`, перекрывая обычные Custom/Dist include и останавливая ASN-маршрутизацию. Затем CoreDNS получает прямой ответ через AdGuard. Независимые IP-маршруты продолжают действовать. Новый список служит только источником правил AdGuard и не удаляет строки из include-списков.
 
 ### Как читать журнал запросов
 
-Для домена, направленного через VPN по ASN, журнал AdGuard может показывать:
+При разборе доменной и ASN-маршрутизации журнал AdGuard может показывать:
 
 | Клиент | Ответ | Что означает |
 |---|---|---|
-| `az-world` или `az-local` | `SERVFAIL` | Доменное правило не разрешило первый запрос; далее ещё возможна проверка ASN |
+| `az-world` или `az-local` | `REFUSED` | Include не совпал или был перекрыт исключением с `important`; далее следует запрос резолвера |
 | `az-resolver` | `NOERROR`, реальные IPv4-адреса | Прямое разрешение для последующей проверки ASN |
+| `az-resolver` | `REFUSED` от исключения | Для запроса не применяется ни доменная, ни ASN-маршрутизация |
 | Исходный VPN-клиент | `NOERROR`, `14.18.*` или `14.16.*` | Узел выхода подменил адреса для VPN |
 
-Одна запись `SERVFAIL` для ClientID узла выхода не доказывает, что узел пропущен: проверьте последующий запрос `az-resolver` и сообщения `ASN match` в логах контейнера выхода. Если все узлы вернули `SERVFAIL`, запрос от `coredns` к обычному upstream даёт прямой ответ. Кэширование и CNAME-цепочки меняют число записей в журнале для одного клиентского запроса.
+Одна запись `REFUSED` для ClientID узла выхода не доказывает, что узел пропущен: проверьте последующий запрос `az-resolver` и сообщения `ASN match` в логах контейнера выхода. Если все узлы вернули `REFUSED`, запрос от `coredns` к обычному upstream даёт прямой ответ. Кэширование и CNAME-цепочки меняют число записей в журнале для одного клиентского запроса.
 
 ## Правила маршрутизации: include, exclude и ASN
 
 По умолчанию подключены дистрибутивные (`dist`) списки доменов, IP и ASN. Доменные списки проекта автоматически обновляются самим AdGuard Home через GitHub с использованием адаптера списков. IP- и ASN-списки отдельно загружает и обновляет контейнер antizapret из GitHub. Для стандартной настройки вручную добавлять правила не нужно. Пользовательские файлы необязательны: используйте их только для своих дополнений или исключений из готовых списков.
 
-Пользовательские файлы позволяют направлять домены и IP-сети через VPN или удалять правила из дистрибутивных списков. `include` добавляет правила, а `exclude` удаляет совпавшие записи из конкретного списка. Исключение не является универсальной командой обходить все остальные правила маршрутизации.
+Пользовательские файлы позволяют направлять домены и IP-сети через VPN или исключать их. Доменные исключения имеют приоритет над обычными доменными include и ASN-маршрутизацией. Файлы исключений IP и ASN удаляют совпавшие строки из соответствующих списков; доменные исключения не удаляют независимые IP/CIDR-маршруты.
 
 ### Файлы пользовательских правил
 
@@ -863,7 +874,7 @@ CoreDNS сохраняет `finalize force_resolve`, чтобы домен с CN
 
 | Файл включений | Файл исключений | Что настраивает |
 |---|---|---|
-| `include-hosts-custom.txt` | `exclude-hosts-custom.txt` | Доменные списки этого узла; доменные исключения также загружаются в фильтр AdGuard для `az-resolver` |
+| `include-hosts-custom.txt` | `exclude-hosts-custom.txt` | Доменные списки этого узла; исключения также создают правила AdGuard с `important` для `az-local`, `az-world` и `az-resolver` |
 | `include-ips-custom.txt` | `exclude-ips-custom.txt` | Локальные IPv4-адреса и CIDR-префиксы |
 | `include-ips-world-custom.txt` | `exclude-ips-world-custom.txt` | Зарубежные IPv4-адреса и CIDR-префиксы |
 | `include-asn-custom.txt` | `exclude-asn-custom.txt` | Локальные правила ASN и организаций |
@@ -897,17 +908,27 @@ subdomain.example.net
 Доменные исключения действуют двумя способами:
 
 1. Адаптер удаляет совпавшие входные строки из списков с `filter_custom=1` — это значение по умолчанию.
-2. AdGuard загружает исключения обоих узлов как rewrite-правила `SERVFAIL` для `az-resolver`, останавливая проверку ASN для совпавшего запроса.
+2. AdGuard загружает исключения обоих узлов как rewrite-правила `REFUSED` с `important` для `az-local`, `az-world` и `az-resolver`, перекрывая обычные include и останавливая проверку ASN.
 
-Адаптер фильтрует записи списка, а не все имена, охваченные итоговыми правилами AdGuard. Исключение `subdomain.example.com` не удаляет запись `example.com`, а вручную добавленное правило AdGuard не проходит через адаптер. Если другое правило уже разрешает первый запрос от `az-local` или `az-world`, `dnsmap` создаёт VPN-адреса без запроса к `az-resolver`.
+Адаптер фильтрует записи списка, а не все имена, охваченные итоговыми правилами AdGuard. Исключение `subdomain.example.com` не удаляет запись `example.com`, но создаваемое правило AdGuard с `important` всё равно перекрывает такой include для совпавших запросов. Порядок маршрутизации: **exclude > include > ASN**. Правила, введённые прямо в AdGuard, сохраняют его штатную семантику: явное `@@…$dnsrewrite,important` может переопределить исключение. Два базовых правила `||*^$dnsrewrite=REFUSED` остаются без `important`, чтобы обычные include могли их отменять.
 
-Оба фильтра исключений относятся к общему клиенту `az-resolver`, поэтому исключение с одного узла также может остановить проверку ASN на другом. Исключение домена не удаляет независимые IP/CIDR-маршруты. При `finalize force_resolve` CNAME-цели обрабатываются как отдельные запросы: см. [Прямое разрешение доменов на CDN из VPN-списков](#прямое-разрешение-доменов-на-cdn-из-vpn-списков).
+Оба фильтра исключений относятся ко всем трём внутренним клиентам, поэтому исключение с одного узла действует и на другом. Исключение домена не удаляет независимые IP/CIDR-маршруты. CoreDNS больше не запрашивает CNAME-цели отдельно.
+
+Общий `lists/exclude.txt` отличается от этих пользовательских regex-файлов: он использует синтаксис v2fly и служит только источником фильтра AdGuard **Direct Access Rules**. Он не удаляет входные строки из include-списков. Существующий параметр `filter_custom` сохраняет текстовую фильтрацию по `exclude-hosts-custom.txt`.
+
+Например, обычный include для `example.com` может сосуществовать с таким создаваемым исключением:
+
+```text
+||direct.example.com^$dnsrewrite=REFUSED,client=az-local|az-world|az-resolver,important
+```
+
+Запросы для `direct.example.com` и его поддоменов обходят доменную и ASN-маршрутизацию на обоих узлах выхода. Финальный запрос AdGuard от клиента `coredns` не входит в область действия исключения и возвращает прямой ответ.
 
 ### Добавление ASN
 
 Правила ASN позволяют направлять домены через VPN-узел на основании сети, которой принадлежат
 разрешённые IPv4-адреса. Если обычный запрос AdGuard для `az-local` или `az-world` вернул
-`SERVFAIL`, `dnsmap` разрешает домен напрямую через клиента `az-resolver` и проверяет
+`REFUSED`, `dnsmap` разрешает домен напрямую через клиента `az-resolver` и проверяет
 A-записи по базе ASN MaxMind. Если хотя бы один адрес совпал с правилом, все IPv4-адреса из
 этого DNS-ответа заменяются внутренними адресами `dnsmap`, трафик к которым направляется через
 соответствующий VPN-узел. Если A-записей нет или ни одна сеть не совпала, сохраняется исходный
@@ -919,12 +940,23 @@ A-записи по базе ASN MaxMind. Если хотя бы один адр
 - Регистронезависимую подстроку исходного названия организации MaxMind: `Cloudflare`
 - Регистронезависимое регулярное выражение между символами `/`: `/\bg-?core\b/`
 
-Списки включений поддерживают комментарии с `#` на отдельных строках или после правила. В файлах исключений указывайте точные строки правил без комментариев.
-Дистрибутивные правила из `ASN_URL` и `ASN_WORLD_URL` объединяются с соответствующими файлами
-пользовательских включений. Файлы исключений удаляют точные строки без учёта регистра до
-создания рабочих списков.
+Точный ASN можно ограничить именем из DNS-запроса через `domain:` или `regexp:`:
 
-Исключения удаляют текст правила, а не все правила, способные совпасть с одной сетью. Чтобы удалить `AS20940`, добавьте именно эту строку в соответствующий файл исключений: для фильтрации списка `20940` — другая строка. Если во включениях остаётся `Akamai`, сеть всё ещё может совпасть с правилом организации. Удаление ASN-правила не удаляет независимые доменные и IP-правила.
+```text
+AS15169 domain:googlevideo.com
+AS15169 domain:youtube.com
+AS21395 regexp:^rr?[0-9]+---sn-example\.googlevideo\.com$
+```
+
+`domain:` охватывает домен и его поддомены. `regexp:` проверяет имя из запроса регулярным выражением Python. Оба варианта игнорируют регистр и завершающую DNS-точку. В строке должны совпасть и ASN, и домен; отдельные строки работают как альтернативы. Указывайте один шаблон на строку, повторяя ASN для перечисления доменов. Запятые остаются частью регулярного выражения, а не разделителем списка. Префиксы соответствуют обозначениям доменных шаблонов v2fly; условия ASN — расширение проекта.
+
+При добавлении ограничений замените прежнее правило без условия: оставшийся `AS15169` или совпадающее правило организации продолжит направлять все домены этой сети через узел. Ошибка в условии отклоняет новый список; работающий резолвер сохраняет прежние правила.
+
+Списки включений поддерживают комментарии с `#` на отдельных строках или после правила. В файлах исключений поддерживаются такие же комментарии.
+Дистрибутивные правила из `ASN_URL` и `ASN_WORLD_URL` объединяются с соответствующими файлами
+пользовательских включений. Исключения применяются без учёта регистра до создания рабочих списков.
+
+ASN-исключения ищут буквальный текст без учёта регистра по границам слов (`grep -F -i -w`). `AS15169` удаляет все строки с этим обозначением, включая правила с `domain:` и `regexp:`, но не совпадает с `AS151690` или формой `15169`. Используйте формат номера из списка включений. Условие позволяет сузить исключаемый текст; регулярные выражения в исключениях воспринимаются буквально. Названия организаций также сравниваются по границам слов: `Cloudflare` удалит `Cloudflare Inc.`, но не `NotCloudflare`. Оставшиеся правила организаций всё ещё могут совпасть с сетью. ASN-исключения не удаляют независимые доменные и IP-правила.
 
 В односерверном Compose-режиме `ASN_FILES` передаёт `az-local` оба итоговых ASN-файла, поэтому
 оба списка маршрутизируются через локальный узел выхода. В Swarm-режиме каждый сервис выхода
@@ -963,23 +995,17 @@ VPN-клиенту также нужны маршруты для этих реа
 
 ### Прямое разрешение доменов на CDN из VPN-списков
 
-Если домен работает без VPN, но разрешается в IPv4-адреса сети, ASN которой включена в VPN-списки, добавьте отдельный upstream для этого домена в AdGuard Home: **Настройки → Настройки DNS → Upstream DNS-серверы**. Например, для прямой загрузки контента Steam:
+Общий фильтр **Direct Access Rules** загружает `lists/exclude.txt` через `format=v2fly&exclude=1`. Steam, PlayStation и Rockstar используют прямое разрешение даже на CDN с ASN из VPN-списков. При запуске обновлённого контейнера AdGuard добавляется отсутствующий фильтр, а штатные URL **Excluded Custom Local/World Rules** переводятся на `exclude=1&regex=1` с сохранением ID и включённости фильтров. Следующая фоновая задача Docktinel обновляет кешированные фильтры и очищает DNS-кэш AdGuard. Пользовательские правила и Custom include-фильтры сохраняются. Старая общая upstream-запись Steam/Rockstar удаляется.
 
-```text
-[/steampipe.akamaized.net/]https://cloudflare-dns.com/dns-query
-```
+Отдельный фильтр **Direct Access Rules - IP Checkers** загружает список v2fly `category-ip-geo-detect` напрямую. Он направляет сервисы проверки IP напрямую; его можно отключить независимо от игровых исключений.
 
-Этот upstream для Steam включён в конфигурацию по умолчанию. Существующие установки сохраняют свои настройки AdGuard: если записи ещё нет, добавьте её вручную.
+Для собственных исключений добавьте регулярное выражение в `exclude-hosts-custom.txt`. Оно удаляет совпавшие строки доменных списков и останавливает проверку ASN для совпавших имён. Исключения с `important` также перекрывают обычные include для родительского домена. Независимые IP-маршруты всё ещё могут направлять трафик через VPN.
 
-Сохраните остальные upstream, включая `coredns`. Добавленная настройка направляет запросы этого домена напрямую в Cloudflare, обходя CoreDNS и подмену адресов для VPN. Для остальных доменов сохраняется существующая логика выбора VPN.
-
-Это также необходимо, если исходный домен добавлен в `exclude-hosts-custom.txt`, но его CNAME указывает на CDN из включённой в VPN-списки ASN. CoreDNS с `finalize force_resolve` повторно запрашивает CNAME-цели через VPN-узлы; исключение исходного домена не распространяется на эти отдельные запросы. Отдельный upstream обходит всю эту цепочку, сохраняя маршрутизацию заблокированных CDN для остальных доменов.
-
-Сохраните настройки DNS, очистите DNS-кэш AdGuard и устройства, затем повторите запрос. Исключённый домен должен возвращать реальные IP-адреса вместо VPN-адресов из `14.16.0.0/14`. Селекторы доменов в upstream не являются регулярными выражениями: каждый нужный домен добавляется явно.
+Чтобы обойти всю цепочку узлов выхода, можно задать отдельный upstream: добавьте `[/example.com/]https://1.1.1.1/dns-query` в **Настройки → Настройки DNS → Upstream DNS-серверы**, сохранив `coredns` и остальные upstream. После изменения правил очистите DNS-кэши.
 
 ### Обновление и проверка правил
 
-Контейнеры выхода проверяют пользовательские файлы каждые 10 секунд. Пересборка списков может занять больше времени из-за загрузки внешних списков. AdGuard обнаруживает изменения конфигурации, обновляет фильтры и очищает свой DNS-кэш. В Swarm-режиме редактируйте файлы на нужном узле выхода.
+Контейнеры выхода проверяют метаданные файлов каждые 30 секунд и пересчитывают контрольные суммы только после изменений. Пересборка списков может занять больше времени из-за загрузки внешних списков. AdGuard обнаруживает изменения конфигурации, обновляет фильтры и очищает свой DNS-кэш. В Swarm-режиме редактируйте файлы на нужном узле выхода.
 
 После обновления проверьте созданный фильтр в AdGuard, очистите DNS-кэш устройства и повторите запрос. Адреса из `14.16.0.0/15` обозначают локальный VPN-узел, а из `14.18.0.0/15` — зарубежный. Если исключение не работает, проверьте журнал запросов для исходного домена и его CNAME-целей, клиента (`az-local`, `az-world` или `az-resolver`) и сработавшее правило. Совпадения ASN также записываются в лог `dnsmap`.
 
@@ -991,7 +1017,7 @@ VPN-клиенту также нужны маршруты для этих реа
 docker run --rm -it --pull=always ghcr.io/runnin4ik/dpi-detector:latest --tests 3
 ```
 
-Пересобрать IP- и ASN-списки вручную: `docker exec $(docker ps -q --filter=name=az | head -n1) doall`. Матчеры доменных исключений и фильтры AdGuard обновляются описанными выше healthcheck-проверками.
+Для ручной пересборки списков IP и ASN выполните `docker exec $(docker ps -q --filter=name=az | head -n1) doall`. Правила доменных исключений и фильтры AdGuard обновляются фоновыми задачами Docktinel. [Состояние контейнеров](#состояние-контейнеров)
 
 ## Добавление доменов
 Пользовательские файлы включений и исключений описаны в разделе [Правила маршрутизации: include, exclude и ASN](#правила-маршрутизации-include-exclude-и-asn). Ниже описаны ручные правила AdGuard, внешние доменные списки и маршрутизация для отдельного клиента.
@@ -1000,7 +1026,7 @@ docker run --rm -it --pull=always ghcr.io/runnin4ik/dpi-detector:latest --tests 
 Откройте панель adguard: http://adguard.antizapret:3000/#custom_rules
 Правила/синтаксис: https://adguard-dns.io/kb/general/dns-filtering-syntax/#basic-examples
 
-По умолчанию AdGuard возвращает `SERVFAIL` для внутренних запросов от `az-local` и `az-world`. Доменное правило с `@@` и `$dnsrewrite` разрешает узлу выхода получить адреса и направить домен через VPN. Если доменное правило не разрешило запрос, `dnsmap` проверяет ASN; если ни один способ не дал совпадения, CoreDNS пробует следующий upstream. Для обычных клиентских запросов сохраняется стандартная фильтрация AdGuard.
+По умолчанию AdGuard возвращает `REFUSED` для внутренних запросов от `az-local` и `az-world`. Доменное правило с `@@` и `$dnsrewrite` разрешает узлу выхода получить адреса и направить домен через VPN, если не совпало исключение с `important`. Если include не разрешил запрос, `dnsmap` обращается к `az-resolver`: исключение останавливает и этот запрос, иначе проверяются ASN. Если ни один способ не дал совпадения, CoreDNS пробует следующий upstream. Для обычных клиентских запросов сохраняется стандартная фильтрация AdGuard.
 
 
 Примеры:
@@ -1020,7 +1046,7 @@ docker run --rm -it --pull=always ghcr.io/runnin4ik/dpi-detector:latest --tests 
  - Добавить домены для локального узла выхода: `http://az-local.antizapret/list/?url=<ANY_URL>`
  - Добавить домены для отдельного мирового узла выхода в Swarm-режиме: `http://az-world.antizapret/list/?url=<ANY_URL>`
  - В односерверном Compose-режиме для обоих типов доменов используйте `az-local`.
-Используйте обычные доменные списки, regex-списки с обрамлением `/` или JSON-массивы доменных строк. Для готовых правил AdGuard задайте `raw=1`; пары IP/имя из hosts-файлов нужно предварительно преобразовать в доменные имена.
+Используйте обычные доменные списки, regex-списки с обрамлением `/` или JSON-массивы доменных строк. В обычном доменном списке берётся только первое слово до пробельного символа; атрибуты и комментарии после домена игнорируются. При `raw=1` и в regex-правилах пробелы сохраняются. Для готовых правил AdGuard задайте `raw=1`; пары IP/имя из hosts-файлов нужно предварительно преобразовать в доменные имена.
 
 ### Опции адаптера списков
 
@@ -1028,13 +1054,20 @@ docker run --rm -it --pull=always ghcr.io/runnin4ik/dpi-detector:latest --tests 
  - `file` - прочитать локальный файл. Используется для include-host-{custom,dist}.txt
  - `filter_custom=1` - фильтровать списки правилами из exclude-hosts-custom.txt.
  - `filter_dist=0` - фильтровать списки правилами из exclude-hosts-dist.txt
- - `format=list` - 'list' или 'json'. Определяется автоматически.
+ - `format=list` - `list`, `json` или `v2fly`. JSON определяется по Content-Type ответа; без `format=` каждая строка обрабатывается как v2fly, если начинается с `include:`, `domain:`, `full:`, `keyword:` или `regexp:` после удаления отступов. Остальные строки обрабатываются как обычный list. Источник и вложенные include читаются потоком без накопления целых списков. Явный `format=` имеет приоритет; при `raw=1` и `regex=1` автоматический разбор отключён.
+ - `exclude=0` - `exclude=1` создаёт rewrite-правила `REFUSED` с `important` для `az-local|az-world|az-resolver`, перекрывая обычные include и останавливая ASN fallback. Принудительно включает `allow=0`, `suffix=1`, `raw=0` и отключает custom/dist-фильтрацию источника исключений.
  - `client=az-local` - имя клиента для добавления в правила. Определяется автоматически.
  - `allow=1` - отключить эту опцию, чтобы блокировать домены из списка для этого узла выхода.
  - `raw=0` - не изменять правила
  - `suffix=1` - добавить "$dnsrewrite,client=xxx" в правила
- - `dnsrewrite=SERVFAIL` - указать зачение директивы dnsrewrite
+ - `dnsrewrite=REFUSED` - указать зачение директивы dnsrewrite
  - `regex=0` - задайте `regex=1`, чтобы обернуть каждую входную строку как регулярное выражение AdGuard
+
+Несовместимые режимы возвращают HTTP 400 до загрузки источника: `v2fly` с `raw=1` или `regex=1`, `raw=1` с `regex=1` и `exclude=1` с `raw=1`.
+
+`format=v2fly` поддерживает домены без префикса, `domain:`, точный `full:`, `keyword:`, `regexp:`, комментарии `#` и рекурсивные `include:filename`. Атрибуты include требуют все `@attr` и исключают все `@-attr`. Имена файлов разрешаются относительно источника; абсолютные HTTP(S) include — расширение адаптера для `lists/exclude.txt`. Ошибочные правила, циклы и чрезмерная вложенность прерывают запрос; если выдача уже началась, соединение обрывается. Входящие affiliations `&list` автоматически не обнаруживаются; подключайте такие правила явно.
+
+Пример: `http://az-local.antizapret/list/?format=v2fly&exclude=1&url=https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/steam`.
 
 ### Перенаправление сайта через VPN для отдельного клиента
 
@@ -1049,7 +1082,7 @@ docker run --rm -it --pull=always ghcr.io/runnin4ik/dpi-detector:latest --tests 
    ```
 3. Откройте настройки DNS AdGuard Home: http://adguard.antizapret:3000/#dns и добавьте upstream для нужного домена:
    ```text
-   [/example.com/]1.1.1.1
+   [/example.com/]https://1.1.1.1/dns-query
    ```
 4. Добавьте `example.com` в файл `include-hosts-custom.txt`, либо добавьте на странице пользовательских правил http://adguard.antizapret:3000/#custom_rules следующее правило:
    ```text
@@ -1171,6 +1204,8 @@ services:
 
 При первом запуске конфигурация zapret2 создается в `./config/antizapret/zapret2/zapret.conf`. 
 
+При включённом zapret2 неизменённые стандартные конфиги предыдущих версий автоматически обновляются при запуске контейнера. Конфиги с пользовательскими изменениями сохраняются.
+
 ### Изменение конфигураций
 Изменяйте `NFQWS2_OPT` в этом файле, чтобы подобрать стратегии для HTTP, TLS и QUIC. Чтобы снова отключить zapret2, установите `ZAPRET_ENABLED=0`.
 
@@ -1217,22 +1252,22 @@ services:
   az-local:
     environment:
       - WARP_ENABLED=1
+      - WARP_PROTOCOL=WireGuard
+      - WARP_PORT=500
 ```
 
-Чтобы включить WARP на зарубежном узле выхода, используйте `az-world`. Примеры
-для обоих узлов находятся в конце `docker-compose.override.sample.yml`; пример
-для `az-world` закомментирован.
+Для зарубежного узла используйте `az-world`. Примените настройки командой
+`docker compose up -d`.
 
-Примените конфигурацию как обычно. Отдельные команды WARP не нужны:
+По умолчанию используется WireGuard на UDP/500. Для MASQUE задайте
+`WARP_PROTOCOL=MASQUE` и `WARP_PORT=443` (HTTP/3 с резервным HTTP/2).
+`WARP_PORT=0` включает автоматический выбор endpoint. Фиксированного IP нет,
+DNS остаётся под управлением Antizapret. При включённом zapret2 нестандартные
+UDP-порты MASQUE нужно добавить в его firewall-фильтр и фильтр стратегии.
 
-```shell
-docker compose up -d
-```
-
-Регистрация сохраняется в `./config/antizapret/warp`. WARP работает в режиме
-только для трафика, оставляя DNS под управлением Antizapret, и использует
-MASQUE. Поскольку zapret2 запускается раньше, его QUIC-стратегия обрабатывает
-внешний трафик WARP-туннеля на UDP/443.
+Регистрация хранится в `./config/antizapret/warp` и автоматически пересоздаётся
+при смене `WARP_PROTOCOL`; привязку лицензии может потребоваться восстановить.
+Смена только порта сохраняет регистрацию.
 
 ### Docker Swarm
 
@@ -1255,6 +1290,8 @@ docker compose --env-file compose.swarm.env config | docker run --pull always --
 - `DOALL_DISABLED=` - пропустить генерацию списков внутри контейнера. Обычно оставляйте пустым: init использует owner-файл на общем volume `result`, поэтому в Docker Compose списки генерируются только один раз, а в Swarm узлы генерируют их независимо на своих локальных volumes.
 - `IPTABLES_SAVE_DISABLED=` - пропустить восстановление правил iptables при запуске и сохранение при остановке.
 - `WARP_ENABLED=0` - задайте `1`, чтобы направить трафик узла выхода через Cloudflare WARP.
+- `WARP_PROTOCOL=WireGuard` - протокол туннеля: `WireGuard` или `MASQUE` (регистр важен).
+- `WARP_PORT=500` - порт входа, `1`–`65535`; `0` включает автоматический выбор endpoint клиентом. Для MASQUE обычно задаётся `443`.
 - `IPS_URL=` - URL списков IP-префиксов для локального узла, разделённые точкой с запятой. Объединённый результат записывается в `result/ips.txt`.
 - `IPS_WORLD_URL=` - URL списков IP-префиксов для зарубежного узла, разделённые точкой с запятой. Объединённый результат записывается в `result/ips-world.txt`.
 - `ASN_URL=` - URL списков номеров ASN или названий организаций для локального узла, разделённые точкой с запятой. Объединённый результат записывается в `result/asn.txt`.
@@ -1264,7 +1301,7 @@ docker compose --env-file compose.swarm.env config | docker run --pull always --
 - `ZAPRET_CONFIG=/opt/zapret2/config/zapret.conf` - путь внутри контейнера к файлу конфигурации zapret2. Конфигурация по умолчанию создается автоматически при первом запуске и сохраняется в `./config/antizapret/zapret2/zapret.conf`.
 
 ### Adguard:
-- `ROUTES` - имена контейнеров и маршрутизируемые адреса/подсети. Обновление маршрутов обеспечивает доступность VPN-клиентов и узлов выхода; ClientID и IP клиентов отдельно настраиваются entrypoint и healthcheck AdGuard.
+- `ROUTES` - имена контейнеров и маршрутизируемые адреса/подсети. Обновление маршрутов обеспечивает доступность VPN-клиентов и узлов выхода; ClientID и IP клиентов отдельно настраиваются entrypoint и фоновой задачей Docktinel в AdGuard.
 - `AZ_WORLD_ENABLED=` - включает отдельного клиента `az-world`, отслеживание его IP и checksum мировой конфигурации. Автоматически устанавливается в `1` файлом `compose.swarm.yml`; в односерверном Compose-режиме оставьте переменную пустой.
 - `ADGUARDHOME_PORT=3000`
 - `ADGUARDHOME_USERNAME=admin`
@@ -1276,14 +1313,10 @@ docker compose --env-file compose.swarm.env config | docker run --pull always --
 
 ### Filebrowser:
 - `FILEBROWSER_USERNAME=admin`
-- `FILEBROWSER_PASSWORD=password`
+- `FILEBROWSER_PASSWORD=antizapret-browser` — для новых пользователей нужен пароль не короче 12 символов, отсутствующий в списке распространённых. Пароли существующих пользователей сохраняются; явно заданное значение `password` нужно заменить перед пересозданием контейнера.
 
 ### Https:
-- `PROXY_DOMAIN=` - необязательный домен Dashboard и остальных HTTPS-сервисов. Если значение пустое, при запуске определяется публичный IPv4 сервера.
-- `OCSERV_DOMAIN=` - необязательная identity сертификата ocserv. По умолчанию используется `PROXY_DOMAIN` или определённый публичный IPv4.
-- `SNI_ROUTE_N=` - нумерованные маршруты TCP 443 в формате `sni:upstream_hostname:upstream_port:none|proxy-v1|proxy-v2`. Нумерация должна идти без пропусков. Маршруты управляют только трафиком; identity сертификатов задаются отдельно.
-- `SNI_DEFAULT_ROUTE=` - необязательный маршрут по умолчанию в формате `upstream_hostname:upstream_port:none|proxy-v1|proxy-v2`. Если значение пустое, соединения с неизвестным SNI или без SNI никуда не передаются.
-- `SNI_CERT_N=` - дополнительные управляемые Caddy сертификаты в формате `identity:/абсолютный/выходной/каталог`. В каталог записываются `fallback.crt`, `fallback.key`, `certificate.crt`, `certificate.key`, `identity` и `identity.type`. Нумерация должна идти без пропусков.
+- `PROXY_DOMAIN=` - необязательный общий домен HTTPS-сервисов и ocserv. Если значение пустое, при запуске определяется публичный IPv4 сервера.
 - `PROXY_EMAIL=` - необязательный email учётной записи Let's Encrypt.
 - `PROXY_IP=` - необязательное переопределение публичного IPv4 для окружений, где автоматическое определение недоступно.
 - `PROXY_CERT_MODE=auto` - режим сертификата: `auto` сохраняет самоподписанный fallback и запрашивает сертификат через ACME; `selfsigned` отключает ACME-запросы.
@@ -1293,7 +1326,7 @@ docker compose --env-file compose.swarm.env config | docker run --pull always --
 ### OpenConnect (ocserv)
 - `ROUTES` - список VPN-контейнеров и их виртуальных адресов.
 - `OC_DEFAULT_ADDRESS=10.1.164.x` - диапазон адресов клиентов; значение должно оканчиваться на `.x`.
-- `OC_PORT=443` - внутренний TCP- и UDP-порт. Caddy передаёт на него совпавшие SNI-маршруты с `443/tcp`, UDP публикуется напрямую.
+- `OC_PORT=443` - внутренний TCP- и UDP-порт. Caddy передаёт на него все публичные соединения с `443/tcp`, UDP публикуется напрямую.
 - `OC_USER=admin` - пользователь, создаваемый при первом запуске.
 - `OC_USERPASS=password` - пароль пользователя, задаваемый при первом запуске.
 - `OC_SECRET=kvn` - секрет маскировки ocserv.
@@ -1342,14 +1375,49 @@ docker compose --env-file compose.swarm.env config | docker run --pull always --
 - `EXTRA_ACCOUNTS` - Дополнительные пары логин:пароль. Пример: `login:password;login2:password2`
 - `EXTRA_CONFIG` - Сырые строки конфигурации 3proxy, внедряемые перед директивами proxy/socks (по умолчанию пусто)
 
-### Firewall
-- `INTERVAL=3h` - интервал обновления блоклистов.
-- `V4_URL`, `V6_URL` - блоклисты IPv4/IPv6; источники из этих сетей не могут обращаться к опубликованным портам контейнеров.
-- `EXCEPTIONS_FILE=` - необязательный файл исключений, по одному на строку: `интерфейс IP-назначения tcp|udp порт[,порт...]` (см. `services/firewall/exceptions.example`). Источники из блоклиста смогут обращаться к этим опубликованным адресам/портам, например к SMTP почтового сервера. Адреса и порты — публичные, как до Docker DNAT. Неверный файл останавливает обновление и сохраняет текущие правила. Применить изменения сразу: `docker exec <firewall-container> /root/block.sh`.
+## Состояние контейнеров
+
+В каждом контейнере под управлением Docktinel работает свой демон. Он выполняет зарегистрированные проверки при запуске и в работе, планирует фоновые задания и следит за вспомогательными процессами. Команды запускаются дочерними процессами демона, а результаты он записывает в локальный файл состояния.
+
+- **Статус Docker.** Docker отдельно запускает `docktinel healthcheck`. Команда читает файл состояния и проверяет, что демон жив и продолжает его обновлять. Актуальный статус `degraded` проходит проверку. Три учтённые ошибки подряд дают `unhealthy`. Если демон завершился, перестал обновлять состояние или критическая задача не уложилась в срок, команда может остановить приложение. [Документация Docker healthcheck](https://docs.docker.com/reference/dockerfile/#healthcheck)
+- **Перезапуск.** Docktinel останавливает приложение, если обязательная задача запуска не уложилась в срок или проверка достигла порога ошибок. Compose перезапускает контейнер после выхода приложения по политике `restart: unless-stopped`. Swarm также может заменить задачу со статусом `unhealthy`. Сгенерированная проектом политика задаёт неограниченное число попыток с задержкой 1 с. Явно заданная политика `deploy.restart_policy` имеет приоритет. [Замена задач в Swarm](https://docs.docker.com/engine/swarm/how-swarm-mode-works/services/)
+- **Фоновые задачи.** Docktinel перезапускает вспомогательные процессы после их выхода. Сбой периодической задачи даёт `degraded` и повтор с увеличением задержки.
+- **Обновление маршрутов.** В сервисах с `routes` процесс запускается вместе с контейнером, постоянно работает в фоне и по умолчанию обновляет маршруты каждые 10 с. Если процесс не запустился или завершился, Docktinel повторяет его запуск, а контейнер продолжает работать.
+
+### Проверки и задачи по сервисам
+
+| Сервис | Проверки и сроки при запуске | Проверки в работе и причины перезапуска | Фоновые процессы и задачи |
+| --- | --- | --- | --- |
+| `az-local`, `az-world` | <ul><li>До 8 мин на появление маркера инициализации dnsmap.</li></ul> | <ul><li>Раз в минуту `nslookup` ждёт от локального dnsmap ответ `127.0.0.1` на запрос `healthcheck.invalid.`.</li><li>Если WARP включён, его подключение тоже проверяется раз в минуту.</li><li>Три ошибки подряд в любой из проверок вызывают перезапуск.</li><li>Выход dnsmap также завершает основной процесс.</li></ul> | <ul><li>`routes`</li><li>API</li><li>iperf3</li><li>dnsmap, запускаемый скриптом приложения.</li><li>`warp-svc`, если включён WARP.</li><li>zapret2, если он включён.</li><li>Проверка изменений конфигурации и списков каждые 30 с.</li><li>Запуск `doall` каждые 6 ч с первой попыткой через 6 ч.</li></ul> |
+| AdGuard | <ul><li>До 60 с на DNS-регистрацию зависимостей, затем запуск с доступными адресами.</li><li>До 5 мин на инициализацию.</li><li>До 5 мин на проверку локального TCP-порта 53 в рамках общего лимита.</li></ul> | <ul><li>Проверка локального TCP-порта 53 раз в минуту.</li><li>Три ошибки подключения подряд вызывают перезапуск. Недоступность основных и резервных DNS-серверов сама по себе не влияет на эту проверку.</li></ul> | <ul><li>`routes`.</li><li>Фоновое обслуживание каждые 10 с.<ul><li>Сверка адресов клиентов.</li><li>Переинициализация DNS при изменении зависимостей.</li><li>Обновление фильтров при изменении их конфигурации.</li></ul></li></ul> |
+| CoreDNS | <ul><li>До 1 мин на формирование Corefile из доступных адресов.</li><li>До 30 с на проверку локального HTTP `/health` на порту 8080.</li></ul> | <ul><li>Проверка `/health` каждые 5 с.</li><li>Три ошибки подряд вызывают перезапуск.</li><li>CoreDNS проверяет сбойные upstream-серверы каждую секунду.</li><li>После восстановления связи серверы автоматически получают прежний приоритет.</li></ul> | <ul><li>Поиск адресов upstream-серверов каждые 5 с.</li><li>Если все адреса недоступны, сохраняется прежний Corefile.</li><li>При изменении файла CoreDNS перечитывает его.</li></ul> |
+| HTTPS | <ul><li>До 2 мин на настройку Caddy.</li><li>До 30 с на проверку локального HTTP `/healthz` на порту 2018.</li></ul> | <ul><li>Проверка `/healthz` каждые 5 с.</li><li>Три ошибки подряд вызывают перезапуск.</li></ul> | <ul><li>Синхронизация сертификата ocserv каждые 10 с.</li><li>При необходимости используется резервный сертификат.</li><li>При ошибке перезагрузки конфигурации Caddy попытка повторяется.</li></ul> |
+| WireGuard и AmneziaWG | <ul><li>До 8 мин на появление маркера инициализации.</li><li>После первичной настройки базы запрашивается перезапуск, чтобы загрузить настройки.</li></ul> | <ul><li>Проверка контрольной суммы списков IP каждые 10 с.</li><li>Одна ошибка вызывает перезапуск для применения маршрутов.</li></ul> | <ul><li>`routes --vpn`.</li><li>Docktinel следит за BIRD при `BGP_ENABLE=true`.</li></ul> |
+| OpenVPN | <ul><li>До 8 мин на появление маркера инициализации.</li></ul> | <ul><li>Проверка контрольной суммы списка блокируемых подсетей каждые 10 с.</li><li>Одна ошибка вызывает перезапуск для применения маршрутов.</li><li>Обновление CRL также запрашивает перезапуск.</li></ul> | <ul><li>`routes --vpn`</li><li>Процесс чтения журнала OpenVPN.</li><li>Ротация журналов каждые 24 ч.</li><li>Проверка необходимости обновить CRL каждые 24 ч.</li></ul> |
+| OpenConnect (`ocserv`) | <ul><li>Ожидание общего сертификата HTTPS, по умолчанию до 180 с.</li><li>До 8 мин на появление маркера инициализации.</li></ul> | <ul><li>Проверка контрольной суммы списков IP каждые 10 с.</li><li>Проверка активного сертификата и имени или IP сервера каждые 10 с.</li><li>Одна ошибка вызывает перезапуск, в том числе при изменении или недоступности сертификата.</li></ul> | <ul><li>`routes --vpn`.</li></ul> |
+| OpenVPN UI | <ul><li>До 2 мин на настройку SQLite и интерфейса.</li><li>До 30 с на проверку локальной страницы входа.</li></ul> | <ul><li>Проверка страницы входа каждые 5 с.</li><li>Три ошибки подряд вызывают перезапуск.</li></ul> | — |
+| HTTP/SOCKS-прокси (`proxy-local`, `proxy-world`) | <ul><li>До 30 с на проверку локального порта HTTP-прокси.</li><li>Проверка локального порта SOCKS в тот же срок.</li></ul> | <ul><li>Проверка порта HTTP-прокси каждые 5 с.</li><li>Проверка порта SOCKS в том же цикле.</li><li>Три ошибки подряд вызывают перезапуск.</li></ul> | <ul><li>`routes --vpn`.</li></ul> |
+| Dashboard | <ul><li>До 30 с на генерацию конфигурации и настройку аутентификации.</li><li>До 30 с на проверку локального HTTP-доступа к `/config.json` с учётными данными.</li></ul> | <ul><li>Проверка `/config.json` каждые 5 с.</li><li>Три ошибки подряд вызывают перезапуск.</li></ul> | — |
+| File Browser | <ul><li>До 30 с на проверку локального HTTP `/health` на порту 80.</li></ul> | <ul><li>Проверка `/health` каждые 5 с.</li><li>Три ошибки подряд вызывают перезапуск.</li></ul> | — |
+| Firewall | <ul><li>До 3 мин на восстановление последних рабочих списков IPv4 и IPv6 из локального тома `firewall-lists` или их загрузку.</li><li>До 30 с на проверку активных ipset и правил.</li></ul> | <ul><li>Проверка заголовков ipset каждые 5 с.</li><li>Проверка обязательных правил IPv4/IPv6 в том же цикле.</li><li>Три ошибки подряд вызывают перезапуск.</li></ul> | <ul><li>Обновление обоих списков с интервалом `INTERVAL` (по умолчанию `3h`, простое число означает секунды).</li><li>Сохранение пары после успешного применения обоих списков.</li><li>При сбое обновления рабочие правила сохраняются.</li><li>При остановке основного процесса правила удаляются.</li></ul> |
+| Cloak | <ul><li>Запуск `ck-server` под Docker init.</li></ul> | <ul><li>При выходе сервера действует политика перезапуска Docker.</li><li>Для Cloak проверки Docker и Docktinel отсутствуют.</li></ul> | — |
+
+Задачи Docktinel можно посмотреть командой `docker exec CONTAINER docktinel status`, а результаты проверок Docker — командой `docker inspect --format '{{json .State.Health}}' CONTAINER`.
 
 ## DNS
+
+Проверки DNS и причины перезапуска перечислены в разделе [Состояние контейнеров](#состояние-контейнеров). Запуск и работа VPN-контейнеров не зависят от доступности AdGuard. Восстановление DNS обеспечивают резервные серверы AdGuard, переинициализация DNS-кэшей при изменении зависимостей и переключение upstream-серверов CoreDNS. Остановка сервера WireGuard не отключает клиентов и не возвращает им обычную интернет-маршрутизацию.
+
 ### Upstream DNS для Adguard
-AdGuard направляет обычные клиентские запросы через CoreDNS, кроме доменов с отдельным upstream, например `steampipe.akamaized.net`. Клиенты `az-local`, `az-world`, `coredns` и `az-resolver` по умолчанию используют Cloudflare, Google и Quad9, с дополнительными upstream для отдельных доменов. `az-resolver` используется для прямого разрешения перед проверкой ASN. Сохранённые настройки клиентов остаются прежними; при добавлении отсутствующего `az-resolver` в старую конфигурацию entrypoint копирует upstream клиента `az-local`. Сгенерированная конфигурация хранится в `./config/adguard/conf/AdGuardHome.yaml`; её можно изменить через интерфейс AdGuard Home.
+
+В штатной конфигурации внешние upstream используют DoH напрямую по IP: Cloudflare `https://1.1.1.1/dns-query`, Google `https://8.8.8.8/dns-query`, Quad9 ECS `https://9.9.9.11/dns-query` и Яндекс Базовый `https://77.88.8.8/dns-query`. Сохранённые адреса провайдеров автоматически не переписываются; в региональных правилах остаётся также MSK-IX `62.76.76.62`.
+
+Таймаут upstream в AdGuard составляет 5 секунд. При пустом `fallback_dns` entrypoint добавляет резервные DoH-серверы `https://1.1.1.1/dns-query` и `https://8.8.8.8/dns-query`; заданные пользователем fallback-серверы сохраняются. Имена `*.antizapret` направляются в Docker DNS `127.0.0.11` также в резервной конфигурации. Резервный ответ содержит реальные IP и не восстанавливает недоступный узел выхода или уже закэшированные синтетические адреса.
+
+Перед запуском AdGuard ожидает регистрацию `az-local`, CoreDNS и, при включённом `AZ_WORLD_ENABLED=1`, `az-world` в DNS не более 60 секунд. После истечения этого времени запуск продолжается; фоновая задача Docktinel обнаруживает адреса восстановившихся сервисов. Ожидание регистрации не проверяет готовность их DNS- и HTTP-серверов.
+
+При исчезновении, восстановлении или смене IP этих зависимостей фоновая задача Docktinel переинициализирует DNS через `/control/dns_config` перед проверкой обновлений фильтров. Это пересоздаёт также внутренний DNS-кэш HTTP-загрузчика, который не очищается обычным `/control/cache_clear`. Новый снимок адресов сохраняется после успешной переинициализации; при ошибке попытка повторяется. Смена адресов сама по себе не запускает обновление фильтров и не меняет MD5 их конфигурации.
+AdGuard направляет обычные клиентские запросы через CoreDNS, кроме доменов с отдельно настроенным upstream. Прямой доступ Steam/Rockstar в штатной конфигурации теперь обеспечивают фильтры исключений вместо отдельного upstream. Клиенты `az-local`, `az-world`, `coredns` и `az-resolver` по умолчанию используют Cloudflare, Google и Quad9, с дополнительными upstream для отдельных доменов. `az-resolver` используется для прямого разрешения перед проверкой ASN. Сохранённые настройки клиентов остаются прежними; при добавлении отсутствующего `az-resolver` в старую конфигурацию entrypoint копирует upstream клиента `az-local`. Сгенерированная конфигурация хранится в `./config/adguard/conf/AdGuardHome.yaml`; её можно изменить через интерфейс AdGuard Home.
 
 Сторонний резолвер `xbox-dns.ru` можно настроить вручную как доменный upstream, если Gemini неправильно определяет страну по IP-адресу exit-сервера и не работает из-за географических ограничений. Например:
 
@@ -1368,7 +1436,7 @@ ECS позволяет предоставить IP клиента в DNS-зап�
 
 ## OpenConnect (ocserv)
 
-Сервис `ocserv` совместим с клиентами OpenConnect и Cisco AnyConnect. Он использует подсеть `10.1.164.0/24` и принимает TCP- и UDP-соединения на порту `443`. Caddy передаёт в ocserv совпавшие SNI-маршруты с `443/tcp` по внутренней Docker-сети, а Docker напрямую публикует UDP-канал контейнера ocserv. Dashboard доступен отдельно на `444/tcp` и также может получить собственный SNI-маршрут.
+Сервис `ocserv` совместим с клиентами OpenConnect и Cisco AnyConnect. Он использует подсеть `10.1.164.0/24` и принимает TCP- и UDP-соединения на порту `443`. Caddy передаёт в ocserv все публичные соединения с `443/tcp` по внутренней Docker-сети с PROXY protocol v2, а Docker напрямую публикует UDP-канал контейнера ocserv. Dashboard доступен отдельно на `444/tcp`; разделение трафика на порту 443 по ALPN не выполняется.
 
 В полном примере `docker-compose.override.sample.yml` сервис уже включён. Для существующей установки добавьте его в `docker-compose.override.yml` и задайте пользователя и надёжный пароль до первого запуска:
 
@@ -1383,20 +1451,7 @@ services:
       - OC_USERPASS=strongpassword
 ```
 
-Без дополнительных настроек сервис `https` определяет публичный IPv4 сервера и создаёт постоянный резервный самоподписанный сертификат. Caddy обслуживает им соединения на порту 444, независимо запрашивает публичный сертификат Let's Encrypt с SAN типа `IP Address`, а затем переключается на managed-сертификат без остановки сервисов. Проверка ACME выполняется методом HTTP-01 через порт 80. Сертификаты на IP используют обязательный профиль `shortlived`, действуют 160 часов и обновляются автоматически. Неудачные ACME-попытки повторяются, а сервисы в это время остаются доступны с резервным сертификатом. Для локальной установки без публичного IP задайте `PROXY_CERT_MODE=selfsigned`, чтобы отключить ACME-запросы. TCP-порт 443 настраивается переменными `SNI_ROUTE_N`; при пустом `SNI_DEFAULT_ROUTE` неизвестные соединения не маршрутизируются.
-
-Режим `none` передаёт TCP-поток без изменений. Используйте `proxy-v1` или `proxy-v2` только для upstream-сервиса, который поддерживает соответствующую версию PROXY protocol: перед TLS-потоком будет передан исходный адрес клиента.
-
-Дополнительный сертификат можно запрашивать независимо от маршрутизации:
-
-```yaml
-services:
-  https:
-    environment:
-      - SNI_CERT_1=mail.example.com:/data/certs/mail
-```
-
-Caddy сразу создаёт самоподписанный fallback, в режиме `auto` запрашивает публичный сертификат и атомарно обновляет `certificate.crt` и `certificate.key` в указанном каталоге. Этот каталог следует смонтировать read-only в upstream, завершающий TLS. Запись `SNI_CERT_N` не создаёт `SNI_ROUTE_N` автоматически.
+Без дополнительных настроек сервис `https` определяет публичный IPv4 сервера и создаёт постоянный резервный самоподписанный сертификат. Caddy обслуживает им соединения на порту 444, независимо запрашивает публичный сертификат Let's Encrypt с SAN типа `IP Address`, а затем переключается на managed-сертификат без остановки сервисов. Поскольку порт 443 зарезервирован для ocserv, проверка ACME выполняется методом HTTP-01 через порт 80. Сертификаты на IP используют обязательный профиль `shortlived`, действуют 160 часов и обновляются автоматически. Неудачные ACME-попытки повторяются, а сервисы в это время остаются доступны с резервным сертификатом. Для локальной установки без публичного IP задайте `PROXY_CERT_MODE=selfsigned`, чтобы отключить ACME-запросы. Чтобы использовать один домен для HTTPS-сервисов и ocserv, задайте `PROXY_DOMAIN` сервису `https`.
 
 Разрешите входящие `443/tcp` и `443/udp`, затем запустите сервис:
 
@@ -1440,7 +1495,7 @@ docker compose exec ocserv occtl show users
 https://SERVER/?SECRET
 ```
 
-В качестве `SERVER` используйте `OCSERV_DOMAIN`; если он пуст, используйте `PROXY_DOMAIN` или определённый публичный IP. Соответствующий `SNI_ROUTE_N` должен направлять это имя в ocserv. `SECRET` — значение `OC_SECRET`, по умолчанию `kvn`. Строка запроса обязательна из-за режима маскировки ocserv.
+Если настроен `PROXY_DOMAIN`, используйте его вместо `SERVER`; иначе укажите публичный IP сервера. `SECRET` — значение `OC_SECRET`, по умолчанию `kvn`. Строка запроса обязательна из-за режима маскировки ocserv.
 
 Для OpenConnect укажите протокол AnyConnect и созданного выше пользователя:
 
@@ -1460,7 +1515,7 @@ openssl x509 -in ./config/https/data/ocserv/certificate.crt \
 
 OpenConnect позволяет закрепить fingerprint из предупреждения параметром `--servercert`. После переключения Caddy с fallback на managed-сертификат pin изменится.
 
-Сервис `https` хранит резервный, активный сертификат и выбранный identity в `./config/https/data/ocserv`; оригинал публичного сертификата остаётся в управляемом хранилище Caddy. Caddy копирует действующий управляемый сертификат в активный путь, а до его появления использует самоподписанный fallback. Если managed-сертификат истёк или исчез до успешного продления, Caddy возвращается на fallback и автоматически активирует managed-сертификат, когда тот снова появляется. ocserv читает тот же активный сертификат, а healthcheck перезапускает контейнер после продления, замены сертификата или изменения identity. Резервный сертификат сохраняется между перезапусками и генерируется заново только при изменении identity или приближении срока окончания. Если IP сервера изменился, перезапустите сервис `https`, чтобы он определил новый адрес.
+Сервис `https` хранит резервный, активный сертификат и выбранный identity в `./config/https/data/ocserv`; оригинал публичного сертификата остаётся в управляемом хранилище Caddy. Caddy копирует действующий управляемый сертификат в активный путь, а до его появления использует самоподписанный fallback. Если managed-сертификат истёк или исчез до успешного продления, Caddy возвращается на fallback и автоматически активирует managed-сертификат, когда тот снова появляется. ocserv читает тот же активный сертификат, а проверка Docktinel перезапускает контейнер после продления, замены сертификата или изменения identity. Резервный сертификат сохраняется между перезапусками и генерируется заново только при изменении identity или приближении срока окончания. Если IP сервера изменился, перезапустите сервис `https`, чтобы он определил новый адрес.
 
 Подключение напрямую по IP поддерживается [OpenConnect](https://www.infradead.org/openconnect/manual.html) и [Cisco Secure Client](https://www.cisco.com/c/en/us/td/docs/security/vpn_client/anyconnect/Cisco-Secure-Client-5/admin/guide/b-cisco-secure-client-admin-guide-5-1/configure_vpn.html). Публичный сертификат на IP не требует ручной установки доверия или закрепления сертификата, необходимых при использовании самоподписанного сертификата.
 
@@ -1474,7 +1529,7 @@ https://github.com/d3vilh/openvpn-ui?tab=readme-ov-file#generating-ovpn-client-p
 5) нажмите на имя сертификата в списке, чтобы скачать файл ovpn.
 
 ### Включение OpenVPN Data Channel Offload (DCO)
-[OpenVPN Data Channel Offload (DCO)](https://openvpn.net/as-docs/openvpn-dco.html) обеспечивает повышение производительности за счет перемещения обработки канала данных в пространство ядра, где она может обрабатываться более эффективно и с многопоточностью.
+[OpenVPN Data Channel Offload (DCO)](https://openvpn.net/as-docs/openvpn-dco/) обеспечивает повышение производительности за счет перемещения обработки канала данных в пространство ядра, где она может обрабатываться более эффективно и с многопоточностью.
 **tl;dr** увеличивает скорость и снижает нагрузку на процессор сервера.
 
 Расширения ядра можно установить только на <u>хостовую машину</u>, а не в контейнер.
@@ -1501,7 +1556,7 @@ DCO несовместим с устаревшими шифрами и буде�
 
 https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#ubuntu
 
-Образ WireGuard основан на стабильном `wg-easy` 15.4.0 и заменяет встроенные инструменты AmneziaWG 3.0 на инструменты AmneziaWG 3.1. На хост установите только соответствующий DKMS-модуль ядра; `awg` и `awg-quick` уже включены в образ контейнера.
+Образ WireGuard основан на стабильном `wg-easy` 15.5.0 с инструментами AmneziaWG 3.1. На хост установите только соответствующий DKMS-модуль ядра; `awg` и `awg-quick` уже включены в образ контейнера.
 
 #### Ubuntu 26.04/24.04
 
@@ -1605,7 +1660,7 @@ docker compose down && rm -rf ./config/wireguard_amnezia/ && docker compose up -
 
 ## Дополнительная информация
 - [Руководство по настройке OpenWrt](./docs/guide_OpenWrt.md) - как настроить роутер OpenWrt с этим решением, чтобы локальные клиенты работали нормально.
-- [Руководство по настройке Keenetic](./docs/guide_Keenetic_RU.md) - инструкции по настройке сервера и подключению к нему роутеров Keenetic [(на русском языке)](./docs/guide_Keenetic_RU.md)
+- [Руководство по настройке Keenetic](./docs/guide_Keenetic_RU.md) - инструкции по настройке сервера и подключению к нему роутеров Keenetic
 
 ## Тест скорости с iperf3
 iperf3 сервер включен в контейнер antizapret-vpn.
@@ -1623,15 +1678,34 @@ iperf3 сервер включен в контейнер antizapret-vpn.
     ```
 
 # Благодарности
+
 - [ProstoVPN](https://antizapret.prostovpn.org) — оригинальный проект
 - [AntiZapret VPN Container](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/) — исходный код LXD-контейнера
 - [AntiZapret PAC Generator](https://bitbucket.org/anticensority/antizapret-pac-generator-light/src/master/) — генератор автоконфигурации прокси для обхода цензуры в Российской Федерации
-- [WireGuard VPN](https://github.com/wg-easy/wg-easy) — используется для интеграции Wireguard
+- [WireGuard](https://www.wireguard.com/) — протокол VPN и инструменты
+- [wg-easy](https://github.com/wg-easy/wg-easy) — контейнер и веб-интерфейс WireGuard
+- [AmneziaWG](https://github.com/amnezia-vpn/amneziawg-linux-kernel-module) — модуль ядра
+- [AmneziaWG tools](https://github.com/amnezia-vpn/amneziawg-tools) — инструменты командной строки
+- [OpenVPN](https://github.com/OpenVPN/openvpn) — сервер VPN
+- [d3vilh/openvpn-server](https://github.com/d3vilh/openvpn-server) — базовый образ OpenVPN
+- [d3vilh/openvpn-ui](https://github.com/d3vilh/openvpn-ui) — интерфейс управления OpenVPN
 - [ocserv](https://gitlab.com/openconnect/ocserv) — сервер OpenConnect
-- [OpenVPN](https://github.com/d3vilh/openvpn-ui) - используется для интеграции OpenVPN
-- [AdGuardHome](https://github.com/AdguardTeam/AdGuardHome) - DNS-резолвер
-- [filebrowser](https://github.com/filebrowser/filebrowser) - веб-браузер файлов и редактор
-- [lighttpd](https://github.com/lighttpd/lighttpd1.4) - веб-сервер для единой панели управления
-- [caddy](https://github.com/caddyserver/caddy) - обратный прокси
-- [No Thought Is a Crime](https://ntc.party) — форум о технических, политических и экономических аспектах интернет-цензуры в разных странах
-- [3proxy](https://github.com/3proxy/3proxy) - HTTP(S) и SOCKS5 прокси для маршрутизации конкретных приложений
+- [AdGuard Home](https://github.com/AdguardTeam/AdGuardHome) — DNS-резолвер и фильтрация
+- [CoreDNS](https://github.com/coredns/coredns) — перенаправление DNS-запросов и переключение при сбоях
+- [Cloudflare WARP](https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/#linux) — опциональный туннель для исходящего трафика
+- [zapret2](https://github.com/bol-van/zapret2) — средства обхода DPI
+- [ss-zapret2](https://github.com/vernette/ss-zapret2) — источник встроенных файлов zapret2
+- [Cloak](https://github.com/cbeuw/Cloak) — опциональный транспорт прокси
+- [Docktinel](https://github.com/xtrime-ru/docktinel) — проверки состояния контейнеров и управление процессами
+- [File Browser](https://github.com/filebrowser/filebrowser) — веб-интерфейс для работы с файлами и их редактирования
+- [lighttpd](https://github.com/lighttpd/lighttpd1.4) — веб-сервер панели управления
+- [jitesoft/lighttpd](https://hub.docker.com/r/jitesoft/lighttpd) — базовый образ панели управления
+- [Caddy](https://github.com/caddyserver/caddy) — обратный прокси HTTPS
+- [caddy-l4](https://github.com/mholt/caddy-l4) — перенаправление TCP-трафика в ocserv
+- [3proxy](https://github.com/3proxy/3proxy) — прокси HTTP и SOCKS5
+- [3proxy-docker](https://github.com/tarampampam/3proxy-docker) — исходный образ 3proxy
+- [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community) — списки доменов для правил маршрутизации
+- [MaxMind GeoLite2 ASN](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/) — база ASN, которая загружается в образ из P3TERX/GeoLite.mmdb
+- [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) — источник файла базы GeoLite2 ASN
+- [iperf3](https://github.com/esnet/iperf) — измерение пропускной способности сети
+- [No Thought Is a Crime](https://github.com/net4people/bbs/issues/11) — анонс форума исследователей интернет-цензуры от его основателя

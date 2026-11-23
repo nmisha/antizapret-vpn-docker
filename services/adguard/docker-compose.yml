@@ -2,8 +2,7 @@ services:
   adguard:
     entrypoint: ["/usr/local/lib/docktinel/entrypoint"]
     command: ["/root/entrypoint.sh", "--no-check-update", "-c", "/opt/adguardhome/conf/AdGuardHome.yaml", "-w", "/opt/adguardhome/work"]
-    # image: xtrime/antizapret-vpn-adguard:6.12.5
-    image: nmisha/antizapret-vpn-adguard:6.12.5
+    image: xtrime/antizapret-vpn-adguard:6.12.5
     build:
       context: .
       args:
@@ -26,7 +25,6 @@ services:
       - "github.io=185.199.110.153"
       - "xtrime-ru.github.io=185.199.110.153"
       - "adguardteam.github.io=185.199.110.153"
-      - "nmisha.github.io=185.199.110.153"
     stop_grace_period: 30s
     healthcheck:
       test: ["CMD", "docktinel", "healthcheck", "--startup-grace", "10m"]

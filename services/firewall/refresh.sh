@@ -3,42 +3,34 @@ set -euo pipefail
 cd /root
 cache=/var/lib/antizapret-firewall
 mkdir -p "$cache"
-exec 8>"$cache/lock"
-flock 8
+exec 9>"$cache/lock"
+flock 9
 staged=$(mktemp -d "$cache/.refresh.XXXXXX")
 trap 'rm -rf -- "$staged"' EXIT
 
-apply_family() {
-    local family="$1" candidate="$2"
-    if [[ "$family" == 4 ]]; then
-        FIREWALL_FAMILY=4 V4_FILE="$candidate" ./block.sh
-    else
-        FIREWALL_FAMILY=6 V6_FILE="$candidate" ./block.sh
+archive="$cache/lists.tar"
+if [[ "${1:-}" == --restore && -s "$archive" ]]; then
+    if tar -xf "$archive" -C "$staged" v4 v6 &&
+        [[ -s "$staged/v4" && -s "$staged/v6" ]] &&
+        V4_FILE="$staged/v4" V6_FILE="$staged/v6" ./block.sh; then
+        exit 0
     fi
-}
+    echo 'Could not apply cached firewall lists, trying available lists' >&2
+fi
 
-refresh_family() {
-    local family="$1" source_url="$2" local_file="$3" restore="$4"
-    local saved="$cache/v$family" candidate="$staged/v$family"
-    if [[ "$restore" == --restore ]]; then
-        if [[ -s "$saved" ]] && apply_family "$family" "$saved"; then
-            return 0
-        fi
-        if [[ -s "$local_file" ]]; then
-            cp -- "$local_file" "$candidate" || return 1
-            if apply_family "$family" "$candidate"; then
-                mv -f -- "$candidate" "$saved" || return 1
-                return 0
-            fi
-        fi
-    fi
-    ./download.sh "$source_url" "$candidate" || return 1
-    apply_family "$family" "$candidate" || return 1
-    # Cache only lists successfully applied to this family; keep the old cache on error.
-    mv -f -- "$candidate" "$saved" || return 1
-}
+if [[ "${1:-}" == --restore && -s "$V4_FILE" && -s "$V6_FILE" ]]; then
+    cp -- "$V4_FILE" "$staged/v4"
+    cp -- "$V6_FILE" "$staged/v6"
+else
+    ./download.sh "$V4_URL" "$staged/v4"
+    ./download.sh "$V6_URL" "$staged/v6"
+fi
+test -s "$staged/v4"
+test -s "$staged/v6"
+tar -cf "$staged/lists.tar" -C "$staged" v4 v6
 
-status=0
-refresh_family 4 "$V4_URL" "$V4_FILE" "${1:-}" || status=1
-refresh_family 6 "$V6_URL" "$V6_FILE" "${1:-}" || status=1
-exit "$status"
+# Publish both families in a single rename, only after the rules are applied.
+V4_FILE="$staged/v4" V6_FILE="$staged/v6" ./block.sh
+mv -f -- "$staged/lists.tar" "$archive"
+mv -f -- "$staged/v4" "$V4_FILE"
+mv -f -- "$staged/v6" "$V6_FILE"

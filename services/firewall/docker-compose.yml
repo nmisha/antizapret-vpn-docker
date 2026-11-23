@@ -7,7 +7,7 @@ services:
     entrypoint: ["/usr/local/lib/docktinel/entrypoint"]
     command: ["/root/entrypoint.sh"]
     restart: unless-stopped
-    image: nmisha/antizapret-vpn-firewall:6.12.2
+    image: xtrime/antizapret-vpn-firewall:6.12.2
     init: true
     stop_grace_period: 30s
     healthcheck:
@@ -34,7 +34,6 @@ services:
       - "github.io=185.199.110.153"
       - "xtrime-ru.github.io=185.199.110.153"
       - "adguardteam.github.io=185.199.110.153"
-      - "nmisha.github.io=185.199.110.153"
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
@@ -45,9 +44,6 @@ services:
     environment:
       - TINI_KILL_PROCESS_GROUP=1
       - DOCKTINEL_STARTUP_TIMEOUT=10m
-      # Optional exceptions file: interface destination-IP tcp|udp port[,port...]
-      # (format: exceptions.example), e.g. mounted from the host config directory.
-      - EXCEPTIONS_FILE=${FIREWALL_EXCEPTIONS_FILE:-}
       - INTERVAL=3h
       - V4_URL=https://raw.githubusercontent.com/C24Be/AS_Network_List/refs/heads/main/blacklists/blacklist-v4.txt
       - V4_FILE=blacklist-v4.txt

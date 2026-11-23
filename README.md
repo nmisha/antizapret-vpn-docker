@@ -2,6 +2,20 @@
 
 # AntiZapret VPN in Docker
 
+[![AdGuard Home v1.0.0](https://img.shields.io/badge/AdGuard%20Home-v1.0.0-68BC71?style=flat-square&logo=adguard&logoColor=white)](https://github.com/AdguardTeam/AdGuardHome/releases/tag/v1.0.0)
+[![wg-easy 15.5.0](https://img.shields.io/badge/wg--easy-15.5.0-88171A?style=flat-square&logo=wireguard&logoColor=white)](https://github.com/wg-easy/wg-easy/releases/tag/v15.5.0)
+[![OpenVPN 2.7.9](https://img.shields.io/badge/OpenVPN-2.7.9-EA7E20?style=flat-square&logo=openvpn&logoColor=white)](https://github.com/OpenVPN/openvpn/releases/tag/v2.7.9)
+[![AmneziaWG tools 3.1.20260812](docs/badges/amneziawg.svg)](https://github.com/amnezia-vpn/amneziawg-tools/releases/tag/v3.1.20260812)
+[![zapret2 1.0.7](https://img.shields.io/badge/zapret2-1.0.7-2563EB?style=flat-square)](https://github.com/vernette/ss-zapret2)
+[![CoreDNS 1.15.0](docs/badges/coredns.svg)](https://github.com/coredns/coredns/releases/tag/v1.15.0)
+
+[![Caddy 2.11.9](https://img.shields.io/badge/Caddy-2.11.9-1F88C0?style=flat-square&logo=caddy&logoColor=white)](https://github.com/caddyserver/caddy/releases/tag/v2.11.9)
+[![ocserv 1.6.0](https://img.shields.io/badge/ocserv-1.6.0-16803C?style=flat-square)](https://gitlab.com/openconnect/ocserv/-/tags/1.6.0)
+[![Cloudflare WARP 2026.8.2115.0](https://img.shields.io/badge/Cloudflare%20WARP-2026.8.2115.0-F38020?style=flat-square&logo=cloudflare&logoColor=white)](https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/#linux)
+[![Docktinel 0.2.0](https://img.shields.io/badge/Docktinel-0.2.0-2496ED?style=flat-square)](https://github.com/xtrime-ru/docktinel)
+
+Component versions used in this project.
+
 Antizapret created to redirect only blocked domains to VPN tunnel. Its called split tunneling.
 This repo is based on idea from original [AntiZapret LXD image](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/)
 
@@ -78,6 +92,8 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
     - [Wireguard/Wireguard Amnezia](#wireguardwireguard-amnezia)
     - [SOCKS5 Proxy (deprecated, use proxy below)](#socks5-proxy-deprecated-use-proxy-below)
     - [Proxy (http + socks5)](#proxy-http--socks5)
+  - [Container health](#container-health)
+    - [Checks and jobs by service](#checks-and-jobs-by-service)
   - [DNS](#dns)
     - [Adguard Upstream DNS](#adguard-upstream-dns)
     - [CDN + ECS](#cdn--ecs)
@@ -91,9 +107,8 @@ This repo is based on idea from original [AntiZapret LXD image](https://bitbucke
     - [Legacy clients support](#legacy-clients-support)
   - [Amnezia Wireguard](#amnezia-wireguard)
     - [Enable Amnezia Wireguard Kernel Extension](#enable-amnezia-wireguard-kernel-extension)
-      - [Ubuntu 26.04](#ubuntu-2604)
-      - [Ubuntu 24.04](#ubuntu-2404)
-      - [Ubuntu 20.04, 22.04](#ubuntu-2004-2204)
+      - [Ubuntu 26.04/24.04](#ubuntu-26042404)
+      - [Ubuntu 22.04/20.04](#ubuntu-22042004)
     - [AmneziaWG Parameters](#amneziawg-parameters)
       - [Parameter Compatibility Table](#parameter-compatibility-table)
       - [Notes](#notes)
@@ -121,9 +136,9 @@ https://t.me/antizapret_support
 
 1. AdGuard Home applies its DNS filters and forwards ordinary queries to CoreDNS. Domain-specific upstreams can resolve selected domains directly.
 2. CoreDNS tries the VPN exit nodes in order: `az-world` → `az-local` in Swarm, or only `az-local` in single-server Compose.
-3. Each exit node asks AdGuard using its ClientID. A matching domain rule enables VPN routing; otherwise, `dnsmap` resolves through `az-resolver` and checks the returned IPv4 addresses against ASN and organization rules.
+3. Each exit node asks AdGuard using its ClientID. Domain exclusions take priority over ordinary includes. Without an exclusion, an include enables VPN routing; otherwise, `dnsmap` resolves through `az-resolver` and checks the returned IPv4 addresses against ASN and organization rules.
 4. For a match, `dnsmap` allocates virtual IPv4 addresses and creates iptables DNAT mappings to the real addresses. The default pools are `14.16.0.0/15` for the local exit and `14.18.0.0/15` for the world exit.
-5. CoreDNS returns virtual addresses for VPN-routed domains or falls back to an ordinary DNS answer when no exit node matches. `finalize force_resolve` also checks CNAME targets through the same routing chain.
+5. CoreDNS returns virtual addresses from a matching VPN exit. If the exits decline the query or are unavailable, it asks AdGuard for direct DNS resolution. During an exit outage, CoreDNS sets the direct answer's TTL to zero so VPN routing can resume as soon as an exit recovers.
 6. VPN clients route virtual addresses through the tunnel. Explicit IP/CIDR lists can also add routes for real addresses. See [Routing rules: include, exclude and ASN](#routing-rules-include-exclude-and-asn).
 
 
@@ -392,9 +407,7 @@ allocated to zram including overhead.
 ### HTTPS
 By default, all container can be accessed via https. For certificated management separate `https` container is used.
 If no domain is configured, Caddy detects the server's public IPv4 address and requests a short-lived Let's Encrypt certificate for that address. A persistent self-signed certificate is served until ACME validation succeeds, so HTTPS and ocserv can still start when `80/tcp` is not reachable from the Internet.
-The Dashboard uses the separate HTTPS port `444/tcp`, while the ocserv DTLS channel is exposed directly on `443/udp`. TCP port 443 is configured with `SNI_ROUTE_N` entries. If no route matches and `SNI_DEFAULT_ROUTE` is empty, the connection is not forwarded.
-
-To share `443/tcp` between the Dashboard and ocserv, configure two DNS names pointing to the server and add one SNI route for each. Caddy routes the Dashboard name to its internal HTTPS port and passes the VPN name to ocserv without terminating TLS. UDP `443` remains dedicated to ocserv.
+Caddy forwards all connections from its Layer 4 listener on `443/tcp` to ocserv and passes the original client address through PROXY protocol v2. The Dashboard uses the separate HTTPS port `444/tcp`, while the ocserv DTLS channel is exposed directly on `443/udp`.
 
 - dashboard: https://%your-server-ip%:444
 - adguard: https://%your-server-ip%:1443
@@ -403,12 +416,7 @@ To share `443/tcp` between the Dashboard and ocserv, configure two DNS names poi
 - wireguard: https://%your-server-ip%:4443
 - wireguard-amnezia: https://%your-server-ip%:5443
 
-When a route sends the Dashboard name to `127.0.0.1:444`, the Dashboard is also available on the standard TCP port 443. The original port 444 remains available.
-
 #### Custom sites on ports 80 and 444
-
-For generated domain sites with Authelia, use `PROXY_AUTHELIA_DOMAIN` and
-`PROXY_VHOST_N`; see [configuration and migration](services/https/README.md).
 
 Additional Caddy configurations can be stored in `config/https/config/sites-enabled`. The directory is created automatically when the `https` container starts, and all files in it are imported into the main Caddyfile.
 
@@ -463,6 +471,15 @@ Some containers have same ports. So you need to choose unique external port in d
 
 ## Update
 
+When upgrading ocserv to 1.6, custom IPv6 configurations must account for the
+server address changing from the network address plus one to the network
+address itself. Invalid or unreadable per-user/group configuration files now
+reject the affected session. The project's default IPv4 configuration needs
+no changes.
+Caddy 2.11.9 defaults to a 16 KiB request header limit and one-minute idle
+read/write timeouts; custom applications that need larger headers or longer
+stalls can override these in their Caddy configuration.
+
 - Single instance
    ```shell
    git pull --rebase
@@ -510,8 +527,12 @@ Some containers have same ports. So you need to choose unique external port in d
      - Click save at openvpn-ui server config page: http://openvpn-ui.antizapret:8080/ov/config/ and then restart openvpn server.
      - Install new dkms module on host: `apt remove openvpn-dkms-dco` + https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/README.md?tab=readme-ov-file#enable-openvpn-data-channel-offload-dco
    - Socks 
-   Replace it with proxy container and rename ENV variables. See example: https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/docker-compose.override.sample.yml#L63-L93
+   Replace it with proxy container and rename ENV variables. See example: https://github.com/xtrime-ru/antizapret-vpn-docker/blob/v6/docker-compose.override.sample.yml#L75-L105
    Make sure you use strong password, because now HTTPS proxy accessible from internet.
+
+If you added custom AdGuard Home rules that use `dnsrewrite=SERVFAIL` to skip a
+VPN exit node, change those rules to `dnsrewrite=REFUSED`. AdGuard Home migrates
+the two bundled rules automatically.
 
 ## Reset:
 Remove all settings, vpn configs and return initial state of service:
@@ -620,7 +641,7 @@ If only `coredns:53` times out while external upstreams such as Google and Cloud
 Do not confuse the upstream server with the AdGuard client. An external upstream timing out:
 
 ```text
-[error] dnsproxy: response received upstream_type=custom client_name=coredns addr=https://dns.google:443/dns-query proto=tcp status="… Client.Timeout exceeded while awaiting headers"
+[error] dnsproxy: response received upstream_type=custom client_name=coredns addr=https://8.8.8.8:443/dns-query proto=tcp status="… Client.Timeout exceeded while awaiting headers"
 ```
 
 Here `client_name=coredns` identifies the client; **Google DNS** timed out. Also check external DNS connectivity, outbound HTTPS and upstream errors in this case. Compare errors within the same time window, preferably for the same domain. Requests and responses are also available in the [AdGuard query log](http://adguard.antizapret:3000/#logs).
@@ -673,20 +694,20 @@ docker service logs --since 10m --tail 200 --timestamps antizapret_az-world
 ```text
 antizapret_coredns.1.…@az-local | [INFO] 10.200.0.33:51045 - 47063 "A IN example.com. udp 52 false 1232" NOERROR qr,rd,ra,ad 94 0.071461249s
 antizapret_az-local.1.…@az-local | Request: [10.200.0.33:38244] (udp) / 'example.com.' (A)
-antizapret_az-local.1.…@az-local | Reply: [10.200.0.33:38244] (udp) / 'example.com.' (A) / SERVFAIL
+antizapret_az-local.1.…@az-local | Reply: [10.200.0.33:38244] (udp) / 'example.com.' (A) / REFUSED
 antizapret_az-world.1.…@az-world | Request: [10.200.0.33:43260] (udp) / 'example.com.' (A)
 antizapret_az-world.1.…@az-world | Reply: [10.200.0.33:43260] (udp) / 'example.com.' (A) / RRs: A,A
 ```
 
-Look for DNS `Request:` / `Reply:` lines and CoreDNS query logs, rather than just HTTP `/config-md5/` requests. DNS logging is enabled by default in this project. An exit node may intentionally return `SERVFAIL` when a domain does not match its rules, causing CoreDNS to try the next upstream. When `az-world` answers successfully, the same query need not appear at `az-local`.
+Look for DNS `Request:` / `Reply:` lines and CoreDNS query logs, rather than just HTTP `/config-md5/` requests. DNS logging is enabled by default in this project. An exit node may intentionally return `REFUSED` when a domain does not match its rules, causing CoreDNS to try the next upstream. When `az-world` answers successfully, the same query need not appear at `az-local`.
 
 To test each DNS server separately, run these commands on the **host running the AdGuard container** (usually `az-local`):
 
 ```shell
 ADGUARD_ID=$(docker ps -q --filter label=com.docker.swarm.service.name=antizapret_adguard --filter status=running | head -n 1)
-docker exec "$ADGUARD_ID" dig @coredns.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
-docker exec "$ADGUARD_ID" dig @az-world.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
-docker exec "$ADGUARD_ID" dig @az-local.antizapret example.com A +time=5 +tries=1 +noall +comments +answer
+docker exec "$ADGUARD_ID" busybox nslookup -type=a -retry=1 -timeout=5 example.com coredns.antizapret
+docker exec "$ADGUARD_ID" busybox nslookup -type=a -retry=1 -timeout=5 example.com az-world.antizapret
+docker exec "$ADGUARD_ID" busybox nslookup -type=a -retry=1 -timeout=5 example.com az-local.antizapret
 ```
 
 ```text
@@ -764,110 +785,97 @@ Restarting containers or updating the stack alone is insufficient: the existing 
 
 ## DNS resolving algorithm
 
-The diagrams show IPv4 (`A`) queries. AdGuard's default configuration disables AAAA responses; `dnsmap` also returns empty responses for `AAAA` and `HTTPS` queries. AdGuard uses the ClientIDs `az-local`, `az-world` and `az-resolver` to apply different rules and upstreams to internal requests.
+The diagrams show IPv4 (`A`) queries. AdGuard uses the ClientIDs `az-local`, `az-world` and `az-resolver` to apply different rules and upstreams to internal requests. AdGuard's default configuration disables `AAAA` responses.
 
 ### Docker Swarm
 
 ```mermaid
 flowchart TB
-    client["VPN client"] -->|DNS query| adguard["AdGuard Home"]
-    adguard -->|Blocked| deny["Blocking response"]
+    client["VPN client"] --> adguard["AdGuard Home"]
+    adguard -->|Blocked| blocked["Blocking response"]
     adguard -->|Domain-specific upstream| external["External DNS"]
-    adguard --> core["CoreDNS"]
-    core --> world
-    world["az-world: dnsmap<br/>domains / ASN"]
-    world -->|Domain or ASN| worldip["14.18.0.0/15<br/>DNAT"]
-    world -->|SERVFAIL| local
-    local["az-local: dnsmap<br/>domains / ASN"]
-    local -->|Domain or ASN| localip["14.16.0.0/15<br/>DNAT"]
-    local -->|SERVFAIL| retry["AdGuard: client=coredns"]
-    retry -->|Ordinary upstream| external
-    classDef service fill:#1e293b,stroke:#64748b,color:#f8fafc
-    classDef exit fill:#312e81,stroke:#a5b4fc,color:#ffffff
-    classDef mapped fill:#115e59,stroke:#5eead4,color:#ffffff
-    class adguard,core,retry,external service
-    class local,world exit
-    class localip,worldip mapped
+    adguard -->|Ordinary query| core["CoreDNS"]
+    core --> world["az-world (dnsmap)"]
+    world -->|Domain or ASN match| world_ip["VPN address: 14.18.0.0/15"]
+    world -->|Refusal or failure| local_exit["az-local (dnsmap)"]
+    local_exit -->|Domain or ASN match| local_ip["VPN address: 14.16.0.0/15"]
+    local_exit -->|Refusal or failure| direct_dns["AdGuard direct DNS (coredns client)"]
+    direct_dns --> external
+    adguard -.->|Primary upstream fails| fallback_dns["AdGuard fallback DNS"]
 ```
 
 ### Single node (Docker Compose)
 
 ```mermaid
 flowchart TB
-    client["VPN client"] -->|DNS query| adguard["AdGuard Home"]
-    adguard -->|Blocked| deny["Blocking response"]
+    client["VPN client"] --> adguard["AdGuard Home"]
+    adguard -->|Blocked| blocked["Blocking response"]
     adguard -->|Domain-specific upstream| external["External DNS"]
-    adguard --> core["CoreDNS"]
-    core --> local
-    local["az-local: dnsmap<br/>domains / ASN"]
-    local -->|Domain or ASN| localip["14.16.0.0/15<br/>DNAT"]
-    local -->|SERVFAIL| retry["AdGuard: client=coredns"]
-    retry -->|Ordinary upstream| external
-    classDef service fill:#1e293b,stroke:#64748b,color:#f8fafc
-    classDef exit fill:#312e81,stroke:#a5b4fc,color:#ffffff
-    classDef mapped fill:#115e59,stroke:#5eead4,color:#ffffff
-    class adguard,core,retry,external service
-    class local exit
-    class localip mapped
+    adguard -->|Ordinary query| core["CoreDNS"]
+    core --> local_exit["az-local (dnsmap)"]
+    local_exit -->|Domain or ASN match| local_ip["VPN address: 14.16.0.0/15"]
+    local_exit -->|Refusal or failure| direct_dns["AdGuard direct DNS (coredns client)"]
+    direct_dns --> external
+    adguard -.->|Primary upstream fails| fallback_dns["AdGuard fallback DNS"]
 ```
 
-In Swarm, CoreDNS uses `az-world`, then `az-local`, then a direct query to AdGuard. It proceeds to the next upstream only on `SERVFAIL`. The final AdGuard request uses the `coredns` client, whose upstreams are ordinary external resolvers, so it does not loop back into CoreDNS.
+In Swarm, CoreDNS uses `az-world`, then `az-local`, then a direct query to AdGuard. It proceeds to the next upstream on a network error, timeout, `REFUSED`, or `SERVFAIL`. The final AdGuard request uses the `coredns` client, whose upstreams are ordinary external resolvers, so it does not loop back into CoreDNS.
 
-In single-server Compose, `az-local` also owns the aliases `az-world` and `az-world.antizapret`. CoreDNS detects the shared address and queries the exit container once, then falls back to AdGuard. Both local and world domain lists use the `az-local` ClientID, and `ASN_FILES` includes both generated ASN lists.
+On a network error, CoreDNS starts background upstream probes with a 1-second interval between attempts. An upstream skipped by health checks regains its priority after a successful probe. A `REFUSED` response causes failover for the current query without excluding the upstream.
+
+CoreDNS sets the TTL of fallback answers from AdGuard to zero if a configured exit is missing from discovery, fails to respond, or returns `SERVFAIL`. Answers from an exit keep their original TTL, as do AdGuard answers when every configured exit replied with `REFUSED`. Upstream addresses and roles take effect after discovery and Corefile reload.
+
+When upgrading separately, update CoreDNS first, then AdGuard and the exit nodes. On startup, the AdGuard entrypoint updates the two bundled routing rules for `az-local` and `az-world` to `REFUSED`. AdGuard refreshes subscriptions through its regular update process. Update custom routing rules separately if they still use `SERVFAIL` to skip an exit.
+
+In single-server Compose, CoreDNS uses only `az-local` before falling back to AdGuard. Both local and world domain lists use the `az-local` ClientID, and `ASN_FILES` includes both generated ASN lists. If AdGuard cannot reach its primary upstream, it can use its own [fallback resolvers](#adguard-upstream-dns).
 
 ### Inside an exit node: domains and ASN
 
 ```mermaid
 flowchart TB
-    q["Original A query"] --> first["AdGuard: client=az-local / az-world"]
-    first --> has{"NOERROR with A records?"}
-    has -->|Yes| mapped["Virtual IPs + DNAT"]
-    has -->|SERVFAIL| direct["AdGuard: client=az-resolver"]
-    has -->|Other response| err["Original response / error"]
-    direct --> res{"NOERROR with A records?"}
-    res -->|Yes| asn{"ASN or organization match?"}
-    res -->|No| err
-    asn -->|Yes| mapped
-    asn -->|No| fail["SERVFAIL: next upstream"]
-    classDef service fill:#1e293b,stroke:#64748b,color:#f8fafc
-    classDef exit fill:#312e81,stroke:#a5b4fc,color:#ffffff
-    classDef mapped fill:#115e59,stroke:#5eead4,color:#ffffff
-    class first,direct,err,has,res,asn service
-    class mapped mapped
+    query["Original A query"] --> exit_query["AdGuard using az-local or az-world"]
+    exit_query -->|NOERROR with A records| mapped["Virtual IPv4 addresses and DNAT"]
+    exit_query -->|REFUSED| resolver["AdGuard using az-resolver"]
+    exit_query -->|Other response| original["Return the response to CoreDNS"]
+    resolver -->|NOERROR with A records| asn_match{"ASN or organization match?"}
+    resolver -->|Other response| original
+    asn_match -->|Yes| mapped
+    asn_match -->|No| refused["Return REFUSED to CoreDNS"]
 ```
 
 1. `dnsmap` sends the original query to AdGuard using the DoH protocol over internal HTTP at `/dns-query/<CLIENT>`, with `<CLIENT>` set to `az-local` or `az-world`. The default AdGuard DoH port is `3000`.
-2. For that client, AdGuard's default `SERVFAIL` rewrite is overridden by a matching domain include rule. If the response contains IPv4 addresses, `dnsmap` maps them immediately; it does not check ASN or query `az-resolver` in this branch.
-3. If the first response is `SERVFAIL`, `dnsmap` sends the same original query with ClientID `az-resolver`. The default upstreams for this client are Cloudflare, Google and Quad9, rather than CoreDNS.
-4. A matching domain exclusion returns `SERVFAIL` for `az-resolver` and stops the ASN check. Other resolver errors are also returned without creating mappings.
-5. If direct resolution succeeds, `dnsmap` checks the returned IPv4 addresses in the MaxMind ASN database. If any address matches an ASN number, organization substring or organization regex, all IPv4 addresses in that response are mapped through this exit node. With no matching address, the original `SERVFAIL` is returned to CoreDNS.
+2. For that client, a matching domain include cancels AdGuard's default `REFUSED` rewrite unless an important exclusion also matches. If the response contains IPv4 addresses, `dnsmap` maps them immediately; it does not check ASN or query `az-resolver` in this branch.
+3. If the first response is `REFUSED`, `dnsmap` sends the same original query with ClientID `az-resolver`. The default upstreams for this client are Cloudflare, Google and Quad9, rather than CoreDNS.
+4. A matching domain exclusion also returns `REFUSED` for `az-resolver`, stopping the ASN check after blocking the ordinary include at the first request. Other resolver errors are also returned without creating mappings.
+5. If direct resolution succeeds, `dnsmap` checks the returned IPv4 addresses in the MaxMind ASN database. If any address matches an ASN number, organization substring or organization regex, all IPv4 addresses in that response are mapped through this exit node. With no matching address, the original `REFUSED` is returned to CoreDNS.
 6. When mapping addresses, `dnsmap` removes CNAME records, replaces A records with virtual addresses under the original query name, and sets their TTL to 300 seconds. It installs DNAT mappings from the virtual addresses to the real addresses.
 
-An empty answer does not create mappings. A failure to install mappings returns `SERVFAIL`. The default address pools and rule files are described in [Routing rules: include, exclude and ASN](#routing-rules-include-exclude-and-asn).
+For an `HTTPS` query, `dnsmap` uses a separate `A` lookup for ASN matching when the exit's ClientID returns `REFUSED`. It strips IPv4 and IPv6 address hints from returned HTTPS records and drops records that require those hints. An empty answer creates no mappings. A failure to install mappings returns `SERVFAIL`. The default address pools and rule files are described in [Routing rules: include, exclude and ASN](#routing-rules-include-exclude-and-asn).
 
 ### CNAME resolution and direct exceptions
 
-CoreDNS keeps `finalize force_resolve` enabled so that a domain whose CNAME points to a blocked CDN can still use the VPN. The finalizer repeats queries for CNAME targets even if the initial response already contains their real A records.
+CoreDNS forwards answers without re-querying each CNAME target. `dnsmap` checks the resolved IPv4 addresses against MaxMind ASN rules to route CDN traffic.
 
-Each CNAME target is a new query through the exit-node chain. Excluding the original domain from ASN routing does not automatically exclude its CNAME targets. For a domain that works directly, use a [domain-specific AdGuard upstream](#direct-dns-resolution-for-domains-on-vpn-listed-cdn-networks). That bypasses CoreDNS for the original query while preserving CDN routing for other domains.
+The bundled `lists/exclude.txt` loads Steam, PlayStation and Rockstar domain lists from v2fly. AdGuard's **Direct Access Rules** filter returns important `REFUSED` rewrites for `az-local`, `az-world` and `az-resolver`, overriding ordinary custom/dist includes and preventing ASN routing. CoreDNS then reaches the direct AdGuard upstream. Independent IP routes still apply. The new list supplies AdGuard rules only; it does not remove entries from include lists.
 
 ### Reading the query log
 
-For a domain routed by ASN, the AdGuard log can show:
+When inspecting domain and ASN routing, the AdGuard log can show:
 
 | Client | Response | Meaning |
 |---|---|---|
-| `az-world` or `az-local` | `SERVFAIL` | No domain rule allowed the first request; ASN fallback may still follow |
+| `az-world` or `az-local` | `REFUSED` | No include matched, or an important exclusion overrode it; a resolver request follows |
 | `az-resolver` | `NOERROR`, real IPv4 addresses | Direct resolution for the subsequent ASN check |
+| `az-resolver` | `REFUSED` from an exclusion | Neither domain nor ASN routing is used for this query |
 | Original VPN client | `NOERROR`, `14.18.*` or `14.16.*` | An exit node mapped the addresses through the VPN |
 
-A `SERVFAIL` entry for an exit ClientID alone does not prove that the exit was skipped: inspect the following `az-resolver` request and the `ASN match` messages in the exit container's logs. If all exits return `SERVFAIL`, a query from `coredns` to an ordinary upstream provides the direct answer. Caching and CNAME chains change the number of log entries per client query.
+A `REFUSED` entry for an exit ClientID alone does not prove that the exit was skipped: inspect the following `az-resolver` request and the `ASN match` messages in the exit container's logs. If all exits return `REFUSED`, a query from `coredns` to an ordinary upstream provides the direct answer. Caching and CNAME chains change the number of log entries per client query.
 
 ## Routing rules: include, exclude and ASN
 
 Distribution (`dist`) domain, IP and ASN lists are enabled by default. AdGuard Home automatically refreshes the bundled domain lists from GitHub through the list adapter. The antizapret container downloads and updates the IP and ASN lists from GitHub separately. No manual rules are needed for the standard setup. Custom files are optional: use them only to add your own entries or exclude entries from the supplied lists.
 
-Use custom files to route domains and IP networks through the VPN or remove rules from the distributed lists. `include` adds rules; `exclude` removes matching entries from a specific list. An exclusion is not a universal instruction to bypass every other routing rule.
+Use custom files to route domains and IP networks through the VPN or exclude them. Domain exclusions take priority over ordinary domain includes and ASN routing. IP and ASN exclusion files remove matching rule text from their respective lists; domain exclusions do not remove independent IP/CIDR routes.
 
 ### Custom rule files
 
@@ -875,7 +883,7 @@ Files are stored in `./config/antizapret/custom/` on the corresponding exit node
 
 | Include file | Exclude file | What it controls |
 |---|---|---|
-| `include-hosts-custom.txt` | `exclude-hosts-custom.txt` | Domain lists served by this exit node; domain exclusions also feed the AdGuard `az-resolver` filter |
+| `include-hosts-custom.txt` | `exclude-hosts-custom.txt` | Domain lists served by this exit node; exclusions also feed important AdGuard rules for `az-local`, `az-world` and `az-resolver` |
 | `include-ips-custom.txt` | `exclude-ips-custom.txt` | Local IPv4 addresses and CIDR prefixes |
 | `include-ips-world-custom.txt` | `exclude-ips-world-custom.txt` | World IPv4 addresses and CIDR prefixes |
 | `include-asn-custom.txt` | `exclude-asn-custom.txt` | Local ASN and organization rules |
@@ -909,16 +917,26 @@ The first pattern removes the exact `example.com` list entry; the second matches
 Domain exclusions have two effects:
 
 1. The list adapter removes matching input lines from lists with `filter_custom=1` (the default).
-2. AdGuard loads exclusions from both exit nodes as `SERVFAIL` rewrite rules for `az-resolver`, stopping the ASN fallback for a matching query.
+2. AdGuard loads exclusions from both exit nodes as important `REFUSED` rewrite rules for `az-local`, `az-world` and `az-resolver`, overriding ordinary includes and stopping ASN fallback.
 
-The adapter filters list entries, not all hostnames covered by the resulting AdGuard rules. Excluding `subdomain.example.com` does not remove an `example.com` entry, and a manually added AdGuard rule is not processed by the adapter. If another rule already allows the first request from `az-local` or `az-world`, `dnsmap` creates VPN addresses without querying `az-resolver`.
+The adapter filters list entries, not all hostnames covered by the resulting AdGuard rules. Excluding `subdomain.example.com` does not remove an `example.com` entry, but the generated important AdGuard exclusion still overrides that parent-domain include for matching queries. The routing order is **exclude > include > ASN**. Rules entered directly in AdGuard retain its native semantics: an explicit `@@…$dnsrewrite,important` can override an exclusion. The two default `||*^$dnsrewrite=REFUSED` rules stay without `important` so ordinary includes can cancel them.
 
-Because both exclusion filters target the shared `az-resolver` client, an exclusion loaded from either node can also prevent ASN fallback on the other node. Excluding a hostname does not remove independent IP/CIDR routes. CNAME targets are separate queries under `finalize force_resolve`; see [Direct DNS resolution for domains on VPN-listed CDN networks](#direct-dns-resolution-for-domains-on-vpn-listed-cdn-networks).
+Because both exclusion filters target all three internal clients, an exclusion loaded from either node also applies to the other node. Excluding a hostname does not remove independent IP/CIDR routes. CoreDNS no longer re-queries CNAME targets separately.
+
+The bundled `lists/exclude.txt` is separate from these custom regex files: it uses v2fly syntax and only supplies the **Direct Access Rules** AdGuard filter. It never removes input lines from include lists. The existing `filter_custom` option keeps its text-filtering behavior for `exclude-hosts-custom.txt`.
+
+For example, an ordinary include for `example.com` can coexist with this generated exclusion:
+
+```text
+||direct.example.com^$dnsrewrite=REFUSED,client=az-local|az-world|az-resolver,important
+```
+
+Queries for `direct.example.com` and its subdomains bypass domain and ASN routing on both exit nodes. The final AdGuard request from `coredns` is outside the exclusion's client scope and returns the direct answer.
 
 ### Adding ASNs
 
 ASN rules route domains through a VPN node based on the network that owns their resolved IPv4
-addresses. When the regular AdGuard request for `az-local` or `az-world` returns `SERVFAIL`,
+addresses. When the regular AdGuard request for `az-local` or `az-world` returns `REFUSED`,
 `dnsmap` resolves the domain directly through the `az-resolver` client and checks A
 records in the MaxMind ASN database. If at least one address matches a rule, all IPv4 addresses
 from that DNS response are mapped through the corresponding VPN node. If there are no A records
@@ -930,11 +948,23 @@ Each non-empty line may contain:
 - A case-insensitive substring of the raw MaxMind organization name: `Cloudflare`
 - A case-insensitive regular expression enclosed in `/`: `/\bg-?core\b/`
 
-Include lists support comments starting with `#`, on separate lines or after a rule. Put exact rule lines without comments in exclude files. Distribution rules
-from `ASN_URL` and `ASN_WORLD_URL` are combined with the respective custom include files. Exclude
-files remove exact lines case-insensitively before the runtime lists are generated.
+An exact ASN can be restricted to a DNS query hostname with `domain:` or `regexp:`:
 
-Exclusions remove rule text, not every rule that can match the same network. To remove `AS20940`, use that exact line in the corresponding exclude file; `20940` is a different line for list filtering. If `Akamai` also remains in the include list, the network can still match that organization rule. Removing an ASN rule does not remove independent domain or IP rules.
+```text
+AS15169 domain:googlevideo.com
+AS15169 domain:youtube.com
+AS21395 regexp:^rr?[0-9]+---sn-example\.googlevideo\.com$
+```
+
+`domain:` matches the domain and its subdomains. `regexp:` matches the queried hostname using Python regular expressions. Both ignore case and the final DNS dot. Each line requires both the ASN and hostname to match; separate lines are alternatives. Use one matcher per line, repeating the ASN to list multiple domains. Commas are part of a regular expression, not list separators. These prefixes follow the domain matcher notation used by v2fly; ASN conditions are a project extension.
+
+Replace an unrestricted ASN entry when adding restrictions: a remaining `AS15169` or matching organization rule still routes all domains in that network. Invalid conditions reject the new list; a running resolver retains its previous rules.
+
+Include lists support comments starting with `#`, on separate lines or after a rule. The same comment syntax is supported in exclude files. Distribution rules
+from `ASN_URL` and `ASN_WORLD_URL` are combined with the respective custom include files. Exclude
+files are applied case-insensitively before the runtime lists are generated.
+
+ASN exclusions use literal, case-insensitive matching with word boundaries (`grep -F -i -w`). `AS15169` removes all lines containing that token, including `domain:` and `regexp:` rules, but does not match `AS151690` or the bare form `15169`. Use the number format written in the include list. A condition can narrow the excluded text; regex syntax in an exclusion is treated literally. Organization exclusions also match whole words: `Cloudflare` removes `Cloudflare Inc.` but not `NotCloudflare`. Remaining organization rules can still match the network. ASN exclusions do not remove independent domain or IP rules.
 
 In single-server Compose mode, `ASN_FILES` points `az-local` to both resulting ASN files, so both
 lists are routed through the local exit node. In Swarm mode, each exit service receives only its own
@@ -972,23 +1002,17 @@ The VPN client also needs routes for these real addresses. OpenVPN generates pus
 
 ### Direct DNS resolution for domains on VPN-listed CDN networks
 
-If a domain works without a VPN but resolves to IPv4 addresses in an ASN included in the VPN lists, add a domain-specific upstream in AdGuard Home under **Settings → DNS settings → Upstream DNS servers**. For example, to download Steam content directly:
+The bundled **Direct Access Rules** filter loads `lists/exclude.txt` using `format=v2fly&exclude=1`. Steam, PlayStation and Rockstar use direct resolution even on VPN-listed CDN ASNs. On startup, the updated AdGuard container adds this filter when missing and migrates the standard **Excluded Custom Local/World Rules** URLs to `exclude=1&regex=1`, preserving filter IDs and enabled states. The next Docktinel maintenance run refreshes cached filters and clears AdGuard's DNS cache. User rules and Custom include filters are preserved. The old bundled Steam/Rockstar upstream entry is removed.
 
-```text
-[/steampipe.akamaized.net/]https://cloudflare-dns.com/dns-query
-```
+The separate **Direct Access Rules - IP Checkers** filter loads the v2fly `category-ip-geo-detect` list directly. It keeps IP-checking services direct and can be disabled independently of the gaming exclusions.
 
-This Steam upstream is included in the default configuration. Existing installations retain their saved AdGuard settings, so add it manually if it is missing.
+For your own exceptions, add a regular expression to `exclude-hosts-custom.txt`. This filters domain list entries and prevents ASN fallback for matching names. Important exclusions also override ordinary include rules covering a broader parent domain. Independent IP routes can still route traffic through VPN.
 
-Keep the existing upstreams, including `coredns`. The added upstream sends queries for this domain directly to Cloudflare, bypassing CoreDNS and VPN address rewriting. Other domains continue to use the existing VPN selection logic.
-
-This is also needed when `exclude-hosts-custom.txt` excludes the original domain but its CNAME points to a CDN in a VPN-listed ASN. CoreDNS uses `finalize force_resolve` to query CNAME targets again through the VPN nodes; the original domain's exclusion does not apply to those separate queries. A domain-specific upstream bypasses this entire path without disabling CDN routing for other domains.
-
-Save the DNS settings, clear the AdGuard DNS cache and the client's DNS cache, and repeat the lookup. The excluded domain should return real IP addresses instead of the VPN addresses in `14.16.0.0/14`. Upstream domain selectors are not regular expressions; add each required domain explicitly.
+A domain-specific upstream remains an option for bypassing the complete exit chain: add `[/example.com/]https://1.1.1.1/dns-query` under **Settings → DNS settings → Upstream DNS servers**, keeping `coredns` and the other upstreams. Clear DNS caches after changing rules.
 
 ### Updating and checking rules
 
-Exit containers check custom files every 10 seconds. Rebuilding lists may take longer while remote lists are being downloaded. AdGuard detects configuration changes, refreshes its filters and clears its DNS cache. Edit files on the correct exit host in Swarm mode.
+Exit containers check file metadata every 30 seconds and recalculate checksums only after changes. Rebuilding lists may take longer while remote lists are being downloaded. AdGuard detects configuration changes, refreshes its filters and clears its DNS cache. Edit files on the correct exit host in Swarm mode.
 
 After an update, inspect the generated filter in AdGuard, clear the device's DNS cache and repeat the lookup. Addresses in `14.16.0.0/15` indicate the local VPN node; `14.18.0.0/15` indicate the world node. If an exclusion does not work, check the query log for both the original domain and its CNAME targets, the client (`az-local`, `az-world` or `az-resolver`), and the matching rule. ASN matches are also logged by `dnsmap`.
 
@@ -1000,7 +1024,7 @@ You can also check blocked ASNs from a Docker host using DPI Detector. Run this 
 docker run --rm -it --pull=always ghcr.io/runnin4ik/dpi-detector:latest --tests 3
 ```
 
-Rebuild IP and ASN lists manually: `docker exec $(docker ps -q --filter=name=az | head -n1) doall`. Domain exclusion matchers and AdGuard filters are refreshed by the healthchecks described above.
+Rebuild IP and ASN lists manually with `docker exec $(docker ps -q --filter=name=az | head -n1) doall`. Docktinel maintenance jobs refresh domain exclusion matchers and AdGuard filters. [Container health](#container-health)
 
 ## Adding Domains
 For custom include/exclude files, see [Routing rules: include, exclude and ASN](#routing-rules-include-exclude-and-asn). The following sections explain manual AdGuard rules, external domain lists and routing for a specific client.
@@ -1009,7 +1033,7 @@ For custom include/exclude files, see [Routing rules: include, exclude and ASN](
 Open adguard panel: http://adguard.antizapret:3000/#custom_rules
 Rules/syntaxes: https://adguard-dns.io/kb/general/dns-filtering-syntax/#basic-examples
 
-By default, AdGuard returns `SERVFAIL` for internal requests from `az-local` and `az-world`. A domain rule with `@@` and `$dnsrewrite` allows the exit node to resolve and map that domain through the VPN. If no domain rule allows the request, `dnsmap` checks ASN rules; when neither path matches, CoreDNS tries the next upstream. Regular client queries keep the standard AdGuard filtering behavior.
+By default, AdGuard returns `REFUSED` for internal requests from `az-local` and `az-world`. A domain rule with `@@` and `$dnsrewrite` allows the exit node to resolve and map that domain through the VPN unless an important exclusion matches. If no include allows the request, `dnsmap` queries `az-resolver`; an exclusion stops this request too, otherwise ASN rules are checked. When neither path matches, CoreDNS tries the next upstream. Regular client queries keep the standard AdGuard filtering behavior.
 
 
 Examples:
@@ -1029,7 +1053,7 @@ Need to use adapter, to parse and adapt list in different formats.
  - Add domains for local exit node: `http://az-local.antizapret/list/?url=<ANY_URL>`
  - Add domains for the separate world exit node in Swarm mode: `http://az-world.antizapret/list/?url=<ANY_URL>`
  - In single-server Compose mode, use `az-local` for both kinds of domains.
-Use plain domain lists, slash-delimited regex lists or JSON arrays of domain strings. Use `raw=1` for already formatted AdGuard rules; hosts-file IP/name pairs must be converted to domain names before using this adapter.
+Use plain domain lists, slash-delimited regex lists or JSON arrays of domain strings. In plain domain lists, only the first whitespace-separated token is used; trailing attributes and comments are ignored. `raw=1` and regex rules preserve spaces. Use `raw=1` for already formatted AdGuard rules; hosts-file IP/name pairs must be converted to domain names before using this adapter.
 
 ### List adapter options
 
@@ -1037,13 +1061,20 @@ Use plain domain lists, slash-delimited regex lists or JSON arrays of domain str
  - `file` - read local file. Used for include-host-{custom,dist}.txt
  - `filter_custom=1` - filter lists with rules from exclude-hosts-custom.txt.
  - `filter_dist=0` - filter lists with rules from exclude-hosts-dist.txt
- - `format=list` - 'list' or 'json'. Detected automatically.
+ - `format=list` - `list`, `json`, or `v2fly`. JSON is detected from the response Content-Type; without `format=`, each line is processed as v2fly when it starts with `include:`, `domain:`, `full:`, `keyword:` or `regexp:` after trimming. Other lines use plain list parsing. This streams the source and its includes without buffering whole lists. Explicit `format=` takes priority; `raw=1` and `regex=1` disable automatic parsing.
+ - `exclude=0` - `exclude=1` emits important `REFUSED` rewrites for `az-local|az-world|az-resolver`, overriding ordinary includes and disabling ASN fallback. It forces `allow=0`, `suffix=1`, `raw=0` and disables custom/dist filtering for this exclusion source.
  - `client=az-local` - name of client to add to rules. Detected automatically.
  - `allow=1` - disable this option, to block domains from list for this exit node.
  - `raw=0` - dont modify rules
  - `suffix=1` - add "$dnsrewrite,client=xxx" to rules
- - `dnsrewrite=SERVFAIL` - set custom dnsrewrite value
+ - `dnsrewrite=REFUSED` - set custom dnsrewrite value
  - `regex=0` - use `regex=1` to wrap each input line as an AdGuard regular expression rule
+
+Incompatible modes return HTTP 400 before loading the source: `v2fly` with `raw=1` or `regex=1`, `raw=1` with `regex=1`, and `exclude=1` with `raw=1`.
+
+`format=v2fly` supports bare domains, `domain:`, exact `full:`, `keyword:`, `regexp:`, `#` comments and recursive `include:filename`. Include attributes require all `@attr` and exclude all `@-attr`. Filenames resolve relative to the source; absolute HTTP(S) includes are an adapter extension used by `lists/exclude.txt`. Invalid rules, cycles and excessive nesting fail the request; errors after output begins abort the response. Incoming `&list` affiliations are not discovered automatically; include those rules explicitly.
+
+Example: `http://az-local.antizapret/list/?format=v2fly&exclude=1&url=https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/steam`.
 
 ### Routing a website through VPN for a specific client
 
@@ -1058,7 +1089,7 @@ To route a specific website through VPN for only one client:
    ```
 3. Open the AdGuard Home DNS settings: http://adguard.antizapret:3000/#dns and add an upstream for the required domain:
    ```text
-   [/example.com/]1.1.1.1
+   [/example.com/]https://1.1.1.1/dns-query
    ```
 4. Add `example.com` to `include-hosts-custom.txt`, or add the following rule on the custom filtering rules page: http://adguard.antizapret:3000/#custom_rules
    ```text
@@ -1183,6 +1214,8 @@ services:
 
 On the first start, the default zapret2 config is created at `./config/antizapret/zapret2/zapret.conf`.
 
+When zapret2 is enabled, unmodified standard configs from previous versions are automatically updated when the container starts. Configs with user changes are preserved.
+
 ### Changing configuration
 Edit `NFQWS2_OPT` in this file to tune HTTP, TLS, and QUIC strategies. To disable zapret2 again, set `ZAPRET_ENABLED=0`.
 
@@ -1229,22 +1262,22 @@ services:
   az-local:
     environment:
       - WARP_ENABLED=1
+      - WARP_PROTOCOL=WireGuard
+      - WARP_PORT=500
 ```
 
-Use `az-world` instead to enable WARP on the world exit node. Examples for both
-nodes are at the end of `docker-compose.override.sample.yml`; the world example
-is commented out.
+Use `az-world` instead for the world exit node. Apply changes with
+`docker compose up -d`.
 
-Apply the configuration normally. No additional WARP command is needed:
+The defaults are WireGuard on UDP/500. For MASQUE, set `WARP_PROTOCOL=MASQUE`
+and `WARP_PORT=443` (HTTP/3 with HTTP/2 fallback). `WARP_PORT=0` lets the client
+choose its endpoint automatically. No fixed IP is bundled; DNS stays under
+Antizapret control. With zapret2, non-default MASQUE UDP ports must also be
+added to its firewall and strategy filters.
 
-```shell
-docker compose up -d
-```
-
-The registration is persisted in `./config/antizapret/warp`. WARP runs in
-traffic-only mode to leave DNS under Antizapret control and uses MASQUE. Since
-zapret2 starts first, its QUIC strategy processes the outer WARP tunnel traffic
-on UDP/443.
+Registration is stored in `./config/antizapret/warp`. When `WARP_PROTOCOL`
+changes, startup automatically replaces the registration; any license
+association may need to be restored. Changing only the port keeps it.
 
 ### Docker Swarm
 
@@ -1268,6 +1301,8 @@ You can define these variables in docker-compose.override.yml file for your need
 - `DOALL_DISABLED=` - skip list generation inside the container. Normally leave unset: init uses a shared `result` owner file so Docker Compose generates lists only once, while Swarm nodes generate them independently on their local volumes.
 - `IPTABLES_SAVE_DISABLED=` - skip iptables rules restore on startup and save on shutdown.
 - `WARP_ENABLED=0` - set to `1` to route exit-node traffic through Cloudflare WARP.
+- `WARP_PROTOCOL=WireGuard` - tunnel protocol: `WireGuard` or `MASQUE` (case-sensitive).
+- `WARP_PORT=500` - endpoint port, `1`–`65535`; `0` lets the client select its endpoint automatically. For MASQUE, normally use `443`.
 - `IPS_URL=` - semicolon-separated URLs with IP prefixes for the local node. The merged result is written to `result/ips.txt`.
 - `IPS_WORLD_URL=` - semicolon-separated URLs with IP prefixes for the world node. The merged result is written to `result/ips-world.txt`.
 - `ASN_URL=` - semicolon-separated URLs with ASN numbers or organization names for the local node. The merged result is written to `result/asn.txt`.
@@ -1277,7 +1312,7 @@ You can define these variables in docker-compose.override.yml file for your need
 - `ZAPRET_CONFIG=/opt/zapret2/config/zapret.conf` - path inside the container to the zapret2 configuration file. The default config is created automatically on first start and is persisted at `./config/antizapret/zapret2/zapret.conf`.
 
 ### Adguard: 
-- `ROUTES` - container names and their routed addresses/subnets. The route updater provides reachability to VPN clients and exit nodes; ClientIDs and client IPs are configured separately by the AdGuard entrypoint and healthcheck.
+- `ROUTES` - container names and their routed addresses/subnets. The route updater provides reachability to VPN clients and exit nodes; ClientIDs and client IPs are configured separately by the AdGuard entrypoint and Docktinel maintenance job.
 - `AZ_WORLD_ENABLED=` - enables the separate `az-world` client, IP tracking, and world configuration checksum. Set automatically to `1` by `compose.swarm.yml`; leave unset in single-server Compose mode.
 - `ADGUARDHOME_PORT=3000`
 - `ADGUARDHOME_USERNAME=admin`
@@ -1289,24 +1324,20 @@ You can define these variables in docker-compose.override.yml file for your need
 
 ### Filebrowser:
 - `FILEBROWSER_USERNAME=admin`
-- `FILEBROWSER_PASSWORD=password`
+- `FILEBROWSER_PASSWORD=antizapret-browser` — new users require a non-common password of at least 12 characters. Existing users keep their password; change an explicitly configured `password` before recreating the container.
 
 ### Https:
-- `PROXY_DOMAIN=` - optional domain for the Dashboard and other HTTPS services. If empty, the public IPv4 address is detected at startup.
-- `OCSERV_DOMAIN=` - optional certificate identity for ocserv. It defaults to `PROXY_DOMAIN` or the detected public IPv4.
-- `SNI_ROUTE_N=` - numbered TCP 443 routes in `sni:upstream_hostname:upstream_port:none|proxy-v1|proxy-v2` format. Numbering must be contiguous. Routes control traffic only; certificate identities are configured separately.
-- `SNI_DEFAULT_ROUTE=` - optional catch-all in `upstream_hostname:upstream_port:none|proxy-v1|proxy-v2` format. If empty, unmatched SNI and connections without SNI are not forwarded.
-- `SNI_CERT_N=` - additional certificates managed by Caddy in `identity:/absolute/output/directory` format. The directory receives `fallback.crt`, `fallback.key`, `certificate.crt`, `certificate.key`, `identity`, and `identity.type`. Numbering must be contiguous.
+- `PROXY_DOMAIN=` - optional domain shared by the HTTPS services and ocserv. If empty, the public IPv4 address is detected at startup.
 - `PROXY_EMAIL=` - optional email for the Let's Encrypt account.
 - `PROXY_IP=` - optional public IPv4 override for environments where automatic detection is unavailable.
 - `PROXY_CERT_MODE=auto` - certificate mode: `auto` keeps a self-signed fallback while requesting an ACME certificate; `selfsigned` disables ACME requests.
 - `PROXY_ACME_CA=https://acme-v02.api.letsencrypt.org/directory` - ACME directory URL. Use the Let's Encrypt staging directory while testing certificate issuance.
-- `PROXY_HTTPS_PORT=444` - internal/direct HTTPS port for the Dashboard and custom Caddy sites. This value must not be 443 when SNI routing is configured.
+- `PROXY_HTTPS_PORT=444` - HTTPS port for the Dashboard and custom Caddy sites. Port `443/tcp` is reserved for ocserv Layer 4 traffic.
 
 ### OpenConnect (ocserv)
 - `ROUTES` - list of VPN containers and their virtual addresses.
 - `OC_DEFAULT_ADDRESS=10.1.164.x` - client address range; the value must end in `.x`.
-- `OC_PORT=443` - internal TCP and UDP port. Caddy forwards matching `443/tcp` SNI routes to it; UDP is published directly.
+- `OC_PORT=443` - internal TCP and UDP port. Caddy forwards all public `443/tcp` connections to it; UDP is published directly.
 - `OC_USER=admin` - user created on the first start.
 - `OC_USERPASS=password` - password assigned on the first start.
 - `OC_SECRET=kvn` - ocserv camouflage secret.
@@ -1355,14 +1386,49 @@ You can define these variables in docker-compose.override.yml file for your need
 - `EXTRA_ACCOUNTS` - Additional login:password pairs. Example: `login:password;login2:password2`
 - `EXTRA_CONFIG` - Raw 3proxy config lines injected before proxy/socks directives (empty by default)
 
-### Firewall
-- `INTERVAL=3h` - blocklist refresh interval.
-- `V4_URL`, `V6_URL` - IPv4/IPv6 blocklists; sources from these networks cannot reach published container ports.
-- `EXCEPTIONS_FILE=` - optional file with exceptions, one per line: `interface destination-IP tcp|udp port[,port...]` (see `services/firewall/exceptions.example`). Blocklisted sources may still reach these published addresses/ports, for example SMTP of a mail server. Addresses and ports are the public ones, as seen before Docker DNAT. An invalid file stops the update and keeps the current rules. Apply changes immediately with `docker exec <firewall-container> /root/block.sh`.
+## Container health
+
+Each supervised container runs a Docktinel daemon. The daemon runs the registered startup and runtime checks, schedules maintenance jobs, and supervises helper processes. It launches their commands as child processes and publishes the results in a local state file.
+
+- **Docker health.** Docker runs `docktinel healthcheck` separately. It reads the daemon's state file and checks that the daemon is alive and still updating it. A fresh `degraded` state passes. Three consecutive counted failures set `unhealthy`. The healthcheck can also stop the application if the daemon exits, its heartbeat expires, or a critical deadline is missed. [Docker healthcheck reference](https://docs.docker.com/reference/dockerfile/#healthcheck)
+- **Restart.** Docktinel stops the application when a required startup task misses its deadline or a runtime check reaches its failure threshold. Compose restarts the container after exit under `restart: unless-stopped`. Swarm can also replace an unhealthy task. The generated Swarm policy retries indefinitely with a 1s delay. An explicit `deploy.restart_policy` takes precedence. [Swarm task replacement](https://docs.docker.com/engine/swarm/how-swarm-mode-works/services/)
+- **Background work.** Docktinel restarts supervised helpers on exit. Failed periodic jobs report `degraded` and retry with backoff.
+- **Route updates.** Where configured, `routes` starts with the container and runs continuously, refreshing routes every 10s by default. If it fails to start or exits, Docktinel retries the helper and the container keeps running.
+
+### Checks and jobs by service
+
+| Service | Startup checks and deadlines | Runtime checks and restart triggers | Background processes and jobs |
+| --- | --- | --- | --- |
+| `az-local`, `az-world` | <ul><li>Wait up to 8m for the dnsmap initialization marker.</li></ul> | <ul><li>Once a minute, `nslookup` must get `127.0.0.1` for `healthcheck.invalid.` from local dnsmap.</li><li>If WARP is enabled, check that it is connected once a minute.</li><li>Three failures in either check trigger a restart.</li><li>dnsmap exit also stops the main process.</li></ul> | <ul><li>`routes`</li><li>API</li><li>iperf3</li><li>dnsmap, started by the startup script.</li><li>`warp-svc`, when WARP is enabled.</li><li>zapret2, when enabled.</li><li>Check for configuration and list changes every 30s.</li><li>Run `doall` every 6h, starting after 6h.</li></ul> |
+| AdGuard | <ul><li>Wait up to 60s for dependency DNS registration, then start with the addresses available.</li><li>Wait up to 5m for initialization.</li><li>Wait up to 5m for the local TCP listener on port 53, within the overall startup budget.</li></ul> | <ul><li>Check the local TCP listener on port 53 once a minute.</li><li>Three consecutive listener failures trigger a restart. Upstream and fallback DNS outages alone do not fail this check.</li></ul> | <ul><li>`routes`.</li><li>Maintenance every 10s.<ul><li>Reconcile client addresses.</li><li>Reinitialize DNS when dependencies change.</li><li>Refresh filters when their configuration changes.</li></ul></li></ul> |
+| CoreDNS | <ul><li>Generate a Corefile from available upstream addresses within 1m.</li><li>Check local HTTP `/health` on port 8080 within 30s.</li></ul> | <ul><li>Check `/health` every 5s.</li><li>Three failures trigger a restart.</li><li>The forwarder checks failing upstreams every 1s.</li><li>Recovered upstreams regain their priority automatically.</li></ul> | <ul><li>Rediscover upstream addresses every 5s.</li><li>Keep the previous Corefile if all addresses are missing.</li><li>Reload when the Corefile changes.</li></ul> |
+| HTTPS | <ul><li>Configure Caddy within 2m.</li><li>Check local HTTP `/healthz` on port 2018 within 30s.</li></ul> | <ul><li>Check `/healthz` every 5s.</li><li>Three failures trigger a restart.</li></ul> | <ul><li>Synchronize the ocserv certificate every 10s.</li><li>Use a fallback certificate when needed.</li><li>Retry after failed Caddy reloads.</li></ul> |
+| WireGuard and AmneziaWG | <ul><li>Wait up to 8m for the initialization marker.</li><li>First-time database setup requests a restart to load the generated settings.</li></ul> | <ul><li>Check the IP-list checksum every 10s.</li><li>One failed check triggers a restart to apply the new routes.</li></ul> | <ul><li>`routes --vpn`.</li><li>Supervise BIRD when `BGP_ENABLE=true`.</li></ul> |
+| OpenVPN | <ul><li>Wait up to 8m for the initialization marker.</li></ul> | <ul><li>Check the blocked-ranges checksum every 10s.</li><li>One failed check triggers a restart to apply the new routes.</li><li>A renewed CRL also requests a restart.</li></ul> | <ul><li>`routes --vpn`</li><li>OpenVPN log follower.</li><li>Rotate logs every 24h.</li><li>Check for CRL renewal every 24h.</li></ul> |
+| OpenConnect (`ocserv`) | <ul><li>Wait for the shared HTTPS certificate, up to 180s by default.</li><li>Wait up to 8m for the initialization marker.</li></ul> | <ul><li>Check the IP-list checksum every 10s.</li><li>Check the active certificate and server identity every 10s.</li><li>One failure triggers a restart, including a changed or unavailable certificate.</li></ul> | <ul><li>`routes --vpn`.</li></ul> |
+| OpenVPN UI | <ul><li>Configure SQLite and the UI within 2m.</li><li>Check the local login page within 30s.</li></ul> | <ul><li>Check the login page every 5s.</li><li>Three failures trigger a restart.</li></ul> | — |
+| HTTP/SOCKS proxy (`proxy-local`, `proxy-world`) | <ul><li>Check the local HTTP proxy listener within 30s.</li><li>Check the local SOCKS listener within the same deadline.</li></ul> | <ul><li>Check the HTTP proxy listener every 5s.</li><li>Check the SOCKS listener on the same run.</li><li>Three failures trigger a restart.</li></ul> | <ul><li>`routes --vpn`.</li></ul> |
+| Dashboard | <ul><li>Generate the configuration and set up authentication within 30s.</li><li>Check authenticated local HTTP access to `/config.json` within 30s.</li></ul> | <ul><li>Check `/config.json` every 5s.</li><li>Three failures trigger a restart.</li></ul> | — |
+| File Browser | <ul><li>Check local HTTP `/health` on port 80 within 30s.</li></ul> | <ul><li>Check `/health` every 5s.</li><li>Three failures trigger a restart.</li></ul> | — |
+| Firewall | <ul><li>Restore the last applied IPv4 and IPv6 lists from the node's `firewall-lists` volume or download them within 3m.</li><li>Verify the active ipsets and rules within 30s.</li></ul> | <ul><li>Check the ipset headers every 5s.</li><li>Check the required IPv4/IPv6 rules on the same run.</li><li>Three failures trigger a restart.</li></ul> | <ul><li>Refresh both lists every `INTERVAL` (default `3h`, plain numbers are seconds).</li><li>Save the pair together after applying both lists successfully.</li><li>Failed updates keep the working rules.</li><li>Stopping the main process removes the rules.</li></ul> |
+| Cloak | <ul><li>Start `ck-server` under Docker init.</li></ul> | <ul><li>Docker applies the restart policy if the server exits.</li><li>No Docker healthcheck or Docktinel probes are configured.</li></ul> | — |
+
+Inspect Docktinel tasks with `docker exec CONTAINER docktinel status` and Docker probe results with `docker inspect --format '{{json .State.Health}}' CONTAINER`.
 
 ## DNS
+
+See [Container health](#container-health) for DNS probes and restart conditions. VPN containers start and keep running independently of AdGuard availability. DNS recovery uses AdGuard fallback servers, DNS cache reinitialization on dependency changes, and CoreDNS failover. Stopping a WireGuard server does not make clients disconnect or restore ordinary internet routing.
+
 ### Adguard Upstream DNS
-AdGuard sends ordinary client queries through CoreDNS, except domains with a dedicated upstream such as `steampipe.akamaized.net`. The default `az-local`, `az-world`, `coredns` and `az-resolver` clients use Cloudflare, Google and Quad9, with additional domain-specific upstreams where configured. `az-resolver` is used for direct resolution before ASN checks. Existing saved client settings are retained; when adding a missing `az-resolver` client to an older configuration, the entrypoint copies the `az-local` upstreams. The generated configuration is stored in `./config/adguard/conf/AdGuardHome.yaml` and can be changed through the AdGuard Home UI.
+
+The bundled upstream configuration uses DoH directly over IP: Cloudflare `https://1.1.1.1/dns-query`, Google `https://8.8.8.8/dns-query`, Quad9 ECS `https://9.9.9.11/dns-query` and Yandex Basic `https://77.88.8.8/dns-query`. Saved provider URLs are not automatically rewritten; regional rules also retain MSK-IX `62.76.76.62`.
+
+AdGuard's upstream timeout is 5 seconds. When `fallback_dns` is empty, the entrypoint adds the fallback DoH servers `https://1.1.1.1/dns-query` and `https://8.8.8.8/dns-query`; existing custom fallback servers are retained. Names under `*.antizapret` also use Docker DNS at `127.0.0.11` in the fallback configuration. Fallback responses contain real IPs and cannot restore an unavailable exit or previously cached synthetic addresses.
+
+Before starting AdGuard, the entrypoint waits up to 60 seconds for DNS registration of `az-local`, CoreDNS and, when `AZ_WORLD_ENABLED=1`, `az-world`. Startup continues when the deadline expires; the Docktinel maintenance job discovers addresses of recovered services. DNS registration does not establish readiness of their DNS and HTTP servers.
+
+When these dependencies disappear, recover, or change IP, the Docktinel maintenance job reinitializes DNS through `/control/dns_config` before checking for filter updates. This also recreates the HTTP downloader's internal DNS cache, which `/control/cache_clear` does not clear. The new address snapshot is committed after successful reinitialization; failed attempts are retried. Address changes alone do not trigger filter refresh or change the filter configuration MD5.
+AdGuard sends ordinary client queries through CoreDNS, except domains with a separately configured upstream. Bundled Steam/Rockstar direct access is now handled by exclusion filters rather than a dedicated upstream. The default `az-local`, `az-world`, `coredns` and `az-resolver` clients use Cloudflare, Google and Quad9, with additional domain-specific upstreams where configured. `az-resolver` is used for direct resolution before ASN checks. Existing saved client settings are retained; when adding a missing `az-resolver` client to an older configuration, the entrypoint copies the `az-local` upstreams. The generated configuration is stored in `./config/adguard/conf/AdGuardHome.yaml` and can be changed through the AdGuard Home UI.
 
 The third-party `xbox-dns.ru` resolver can be configured manually as a domain-specific upstream when Gemini incorrectly detects the country from the exit server's IP address and refuses to work because of geographic restrictions. For example:
 
@@ -1381,7 +1447,7 @@ To enable ECS, open the AdGuard Home DNS settings at `http://your-server-ip:3000
 
 ## OpenConnect (ocserv)
 
-The `ocserv` service is compatible with OpenConnect and Cisco AnyConnect clients. It uses the `10.1.164.0/24` subnet and listens on TCP and UDP port `443`. Caddy forwards matching public `443/tcp` SNI routes to ocserv over the internal Docker network, while Docker publishes the UDP channel directly from the ocserv container. The Dashboard is available separately on `444/tcp` and can also receive a dedicated SNI route.
+The `ocserv` service is compatible with OpenConnect and Cisco AnyConnect clients. It uses the `10.1.164.0/24` subnet and listens on TCP and UDP port `443`. Caddy forwards every public `443/tcp` connection to ocserv over the internal Docker network with PROXY protocol v2, while Docker publishes the UDP channel directly from the ocserv container. The Dashboard is available separately on `444/tcp`; no ALPN-based multiplexing is performed on port 443.
 
 The service is already enabled in the complete `docker-compose.override.sample.yml`. For an existing installation, add it to `docker-compose.override.yml` and set a user and a strong password before the first start:
 
@@ -1396,35 +1462,7 @@ services:
       - OC_USERPASS=strongpassword
 ```
 
-Without additional settings, the `https` service detects the server's public IPv4 address and creates persistent self-signed fallback certificates. Caddy serves the web fallback on port 444 while independently requesting a public Let's Encrypt certificate containing an `IP Address` SAN. Managed web and ocserv certificates are copied from Caddy storage to their separate active paths without stopping the services. ACME validation uses HTTP-01 on port 80. IP certificates use the mandatory `shortlived` profile, are valid for 160 hours, and are renewed automatically. Failed ACME attempts are retried while the services remain available with the fallbacks. For a local installation without a public IP, set `PROXY_CERT_MODE=selfsigned` to disable ACME attempts.
-
-For domain-based SNI routing, both names must resolve to the server and port `80/tcp` must be reachable for certificate issuance:
-
-```yaml
-services:
-  https:
-    environment:
-      - PROXY_DOMAIN=dashboard.example.com
-      - OCSERV_DOMAIN=vpn.example.com
-      - SNI_ROUTE_1=dashboard.example.com:127.0.0.1:444:proxy-v2
-      - SNI_ROUTE_2=vpn.example.com:ocserv.antizapret:443:proxy-v2
-      - SNI_DEFAULT_ROUTE=
-```
-
-In this mode, `https://dashboard.example.com` uses the Dashboard certificate managed by Caddy, while ocserv presents the independently managed `vpn.example.com` certificate. Unknown SNI names and connections without SNI are rejected because the default route is empty. Set `SNI_DEFAULT_ROUTE=ocserv.antizapret:443:proxy-v2` only if that fallback is desired.
-
-Use `none` for an unmodified TCP stream. Use `proxy-v1` or `proxy-v2` only when the upstream supports that PROXY protocol version; these modes prepend the original client address to the stream.
-
-Additional certificates can be requested independently from routing:
-
-```yaml
-services:
-  https:
-    environment:
-      - SNI_CERT_1=mail.example.com:/data/certs/mail
-```
-
-Caddy creates a self-signed fallback immediately, requests the managed certificate in `auto` mode, and atomically updates `certificate.crt` and `certificate.key` in that directory. Mount the directory read-only into the upstream that terminates TLS. An `SNI_CERT_N` entry does not create an `SNI_ROUTE_N` entry automatically.
+Without additional settings, the `https` service detects the server's public IPv4 address and creates a persistent self-signed fallback certificate. Caddy serves it on port 444 while independently requesting a public Let's Encrypt certificate containing an `IP Address` SAN, then switches to the managed certificate without stopping the services. Because port 443 is reserved for ocserv, ACME validation uses HTTP-01 on port 80. IP certificates use the mandatory `shortlived` profile, are valid for 160 hours, and are renewed automatically. Failed ACME attempts are retried while the services remain available with the fallback. For a local installation without a public IP, set `PROXY_CERT_MODE=selfsigned` to disable ACME attempts. To use a domain for both HTTPS services and ocserv, set `PROXY_DOMAIN` for the `https` service.
 
 Allow incoming `443/tcp` and `443/udp`, then start the service:
 
@@ -1468,7 +1506,7 @@ The server address has the following format:
 https://SERVER/?SECRET
 ```
 
-Use `OCSERV_DOMAIN` as `SERVER`; when it is empty, use `PROXY_DOMAIN` or the detected public IP. The corresponding `SNI_ROUTE_N` must route that name to ocserv. `SECRET` is the configured `OC_SECRET` and defaults to `kvn`. The query string is required by ocserv camouflage mode.
+Use `PROXY_DOMAIN` as `SERVER` when configured; otherwise use the server's public IP. `SECRET` is the configured `OC_SECRET` and defaults to `kvn`. The query string is required by ocserv camouflage mode.
 
 For OpenConnect, specify the AnyConnect protocol and the user created above:
 
@@ -1477,7 +1515,7 @@ sudo openconnect --protocol=anyconnect --user username \
   'https://SERVER/?kvn'
 ```
 
-In an OpenConnect GUI, select the Cisco AnyConnect protocol and enter the same complete URL. In Cisco Secure Client/AnyConnect, enter `SERVER/?kvn` in the connection field, connect, and provide the username and password. When a Dashboard SNI route is configured, open its SNI name on port 443; otherwise use the direct Dashboard port 444.
+In an OpenConnect GUI, select the Cisco AnyConnect protocol and enter the same complete URL. In Cisco Secure Client/AnyConnect, enter `SERVER/?kvn` in the connection field, connect, and provide the username and password. Port 443 is dedicated to ocserv regardless of ALPN; open the Dashboard at `https://SERVER:444`.
 
 With a public ACME certificate, no additional certificate setup is needed. When the self-signed fallback is active, inspect the active certificate before accepting the client warning:
 
@@ -1488,7 +1526,7 @@ openssl x509 -in ./config/https/data/ocserv/certificate.crt \
 
 OpenConnect can pin the fingerprint offered in its warning with the `--servercert` option. The pin changes when Caddy switches from the fallback to a managed certificate.
 
-The `https` service stores separate fallback, active certificate, and identity files in `./config/https/data/web` and `./config/https/data/ocserv`; the original public certificates remain in Caddy's managed storage. Every 10 seconds the entrypoint copies valid managed certificates to the corresponding active paths and reloads Caddy when either certificate changes. If a managed certificate expires or disappears before renewal succeeds, its active path switches back to the matching fallback and automatically returns to the managed certificate when one becomes available again. ocserv reads its active certificate, and its healthcheck restarts the container after renewal, certificate replacement, or an identity change. Fallbacks are retained between container restarts and regenerated only when their identity changes or they approach expiration. If the server IP changes, restart the `https` service so it detects the new address.
+The `https` service stores the fallback, active certificate, and selected identity in `./config/https/data/ocserv`; the original public certificate remains in Caddy's managed storage. Caddy copies a valid managed certificate to the active path and uses the self-signed fallback until one is available. If the managed certificate expires or disappears before renewal succeeds, Caddy switches back to the fallback and automatically activates the managed certificate when it becomes available again. ocserv reads the same active certificate, and its Docktinel check restarts the container after renewal, certificate replacement, or an identity change. The fallback is retained between container restarts and regenerated only when the identity changes or it approaches expiration. If the server IP changes, restart the `https` service so it detects the new address.
 
 Direct IP connections are supported by [OpenConnect](https://www.infradead.org/openconnect/manual.html) and [Cisco Secure Client](https://www.cisco.com/c/en/us/td/docs/security/vpn_client/anyconnect/Cisco-Secure-Client-5/admin/guide/b-cisco-secure-client-admin-guide-5-1/configure_vpn.html). A public IP certificate avoids the manual trust or certificate pinning required by a self-signed certificate.
 
@@ -1502,7 +1540,7 @@ https://github.com/d3vilh/openvpn-ui?tab=readme-ov-file#generating-ovpn-client-p
 5) click on certificate name in list to download ovpn file.
 
 ### Enable OpenVPN Data Channel Offload (DCO)
-[OpenVPN Data Channel Offload (DCO)](https://openvpn.net/as-docs/openvpn-dco.html) provides performance improvements by moving the data channel handling to the kernel space, where it can be handled more efficiently and with multi-threading.
+[OpenVPN Data Channel Offload (DCO)](https://openvpn.net/as-docs/openvpn-dco/) provides performance improvements by moving the data channel handling to the kernel space, where it can be handled more efficiently and with multi-threading.
 **tl;dr** it increases speed and reduces CPU usage on a server.
 
 Kernel extensions can be installed only on <u>a host machine</u>, not in a container.
@@ -1530,7 +1568,7 @@ DCO is incompatible with legacy ciphers and will be disabled. This is also incre
 
 https://github.com/amnezia-vpn/amneziawg-linux-kernel-module?tab=readme-ov-file#ubuntu
 
-The WireGuard image is based on stable `wg-easy` 15.4.0 and replaces its AmneziaWG 3.0 tools with AmneziaWG 3.1 tools. Install only the matching DKMS kernel module on the host; `awg` and `awg-quick` are already included in the container image.
+The WireGuard image is based on stable `wg-easy` 15.5.0 with AmneziaWG 3.1 tools. Install only the matching DKMS kernel module on the host; `awg` and `awg-quick` are already included in the container image.
 
 #### Ubuntu 26.04/24.04
 
@@ -1652,15 +1690,34 @@ iperf3 server is included in antizapret-vpn container.
     ```
 
 # Credits
+
 - [ProstoVPN](https://antizapret.prostovpn.org) — the original project
 - [AntiZapret VPN Container](https://bitbucket.org/anticensority/antizapret-vpn-container/src/master/) — source code of the LXD-based container
 - [AntiZapret PAC Generator](https://bitbucket.org/anticensority/antizapret-pac-generator-light/src/master/) — proxy auto-configuration generator to bypass censorship of Russian Federation
-- [WireGuard VPN](https://github.com/wg-easy/wg-easy) — used for Wireguard integration
+- [WireGuard](https://www.wireguard.com/) — VPN protocol and tools
+- [wg-easy](https://github.com/wg-easy/wg-easy) — WireGuard container and web UI
+- [AmneziaWG](https://github.com/amnezia-vpn/amneziawg-linux-kernel-module) — kernel module
+- [AmneziaWG tools](https://github.com/amnezia-vpn/amneziawg-tools) — command-line tools
+- [OpenVPN](https://github.com/OpenVPN/openvpn) — VPN server
+- [d3vilh/openvpn-server](https://github.com/d3vilh/openvpn-server) — OpenVPN base image
+- [d3vilh/openvpn-ui](https://github.com/d3vilh/openvpn-ui) — OpenVPN management interface
 - [ocserv](https://gitlab.com/openconnect/ocserv) — OpenConnect server
-- [OpenVPN](https://github.com/d3vilh/openvpn-ui) - used for OpenVPN integration
-- [AdGuardHome](https://github.com/AdguardTeam/AdGuardHome) - DNS resolver
-- [filebrowser](https://github.com/filebrowser/filebrowser) - web file browser & editor
-- [lighttpd](https://github.com/lighttpd/lighttpd1.4) - web server for unified dashboard
-- [caddy](https://github.com/caddyserver/caddy) - reverse proxy
-- [No Thought Is a Crime](https://ntc.party) — a forum about technical, political and economical aspects of internet censorship in different countries
-- [3proxy](https://github.com/3proxy/3proxy) - HTTP(S) and SOCKS5 proxy for per-application routing
+- [AdGuard Home](https://github.com/AdguardTeam/AdGuardHome) — DNS resolver and filtering
+- [CoreDNS](https://github.com/coredns/coredns) — DNS forwarding and failover
+- [Cloudflare WARP](https://developers.cloudflare.com/cloudflare-one/team-and-resources/devices/cloudflare-one-client/download/#linux) — optional outbound tunnel
+- [zapret2](https://github.com/bol-van/zapret2) — DPI workarounds
+- [ss-zapret2](https://github.com/vernette/ss-zapret2) — source of the bundled zapret2 files
+- [Cloak](https://github.com/cbeuw/Cloak) — optional proxy transport
+- [Docktinel](https://github.com/xtrime-ru/docktinel) — container health checks and process supervision
+- [File Browser](https://github.com/filebrowser/filebrowser) — web file manager and editor
+- [lighttpd](https://github.com/lighttpd/lighttpd1.4) — dashboard web server
+- [jitesoft/lighttpd](https://hub.docker.com/r/jitesoft/lighttpd) — dashboard base image
+- [Caddy](https://github.com/caddyserver/caddy) — HTTPS reverse proxy
+- [caddy-l4](https://github.com/mholt/caddy-l4) — TCP forwarding to ocserv
+- [3proxy](https://github.com/3proxy/3proxy) — HTTP and SOCKS5 proxy
+- [3proxy-docker](https://github.com/tarampampam/3proxy-docker) — source image for 3proxy
+- [v2fly/domain-list-community](https://github.com/v2fly/domain-list-community) — domain lists used by the routing rules
+- [MaxMind GeoLite2 ASN](https://dev.maxmind.com/geoip/geolite2-free-geolocation-data/) — ASN data distributed in the image via P3TERX/GeoLite.mmdb
+- [P3TERX/GeoLite.mmdb](https://github.com/P3TERX/GeoLite.mmdb) — distribution of the GeoLite2 ASN database
+- [iperf3](https://github.com/esnet/iperf) — network throughput testing
+- [No Thought Is a Crime](https://github.com/net4people/bbs/issues/11) — the founder’s announcement of the internet censorship research forum
