@@ -1,9 +1,9 @@
-# routes is built in services/antizapret; take it from the fork's image, not upstream.
-# Build and push that image first: COPY --from pulls it from the registry.
-ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-2
-ARG IMAGE=ghcr.io/wg-easy/wg-easy:15.4.0
+ARG IMAGE=ghcr.io/wg-easy/wg-easy:15.5.0
+ARG DOCKTINEL_IMAGE=ghcr.io/xtrime-ru/docktinel:0.2.0
 
-FROM ${ROUTES_IMAGE} AS routes
+FROM ${DOCKTINEL_IMAGE} AS docktinel
+
+FROM xtrime/antizapret-vpn:6.12.2 AS antizapret
 
 FROM ${IMAGE} AS awg-tools-build
 
@@ -27,10 +27,16 @@ RUN apk del -U -r --no-cache iptables \
     && chmod +x /usr/bin/awg /usr/bin/awg-quick \
     && apk cache clean
 
-COPY --from=routes /usr/bin/routes /usr/bin/routes
+COPY --from=antizapret /usr/bin/routes /usr/bin/routes
 
 COPY bird.conf.template /
 COPY init.sh /
 COPY healthcheck.sh /
 
-CMD ["/init.sh"]
+CMD []
+
+COPY --from=docktinel /usr/local/bin/docktinel /usr/local/bin/docktinel
+COPY --from=antizapret --chmod=0755 /usr/local/lib/docktinel/ /usr/local/lib/docktinel/
+COPY --chmod=0755 docktinel.sh /etc/docktinel/tasks.sh
+HEALTHCHECK NONE
+ENTRYPOINT []
