@@ -2,11 +2,25 @@ name: CI
 
 on:
   pull_request:
-    branches: [dev, 'v[0-9]+']
-    paths: [versions.json]
+    branches: [v6-mine, dev, 'v[0-9]+']
+    paths:
+      - versions.json
+      - services/**
+      - scripts/**
+      - tests/integration/**
+      - .github/workflows/build.yml
+      - docker-compose.yml
+      - compose.swarm.yml
   push:
-    branches: [dev, 'v[0-9]+']
-    paths: [versions.json]
+    branches: [v6-mine, dev, 'v[0-9]+']
+    paths:
+      - versions.json
+      - services/**
+      - scripts/**
+      - tests/integration/**
+      - .github/workflows/build.yml
+      - docker-compose.yml
+      - compose.swarm.yml
   workflow_dispatch:
     inputs:
       publish:
@@ -19,6 +33,9 @@ permissions:
   packages: read
 
 env:
+  DOCKERHUB_NAMESPACE: nmisha
+  GHCR_NAMESPACE: ${{ github.repository_owner }}
+  RELEASE_BRANCH: v6-mine
   BUILD_CACHE_REPO: ghcr.io/${{ github.repository_owner }}/antizapret-buildcache
 
 concurrency:
@@ -44,23 +61,26 @@ jobs:
         shell: bash
         run: |
           cache_branch=
-          if [[ "$GITHUB_EVENT_NAME" != pull_request && "$GITHUB_REF_TYPE" == branch && "$GITHUB_REF_NAME" =~ ^(dev|v[0-9]+)$ ]]; then
+          if [[ "$GITHUB_EVENT_NAME" != pull_request && "$GITHUB_REF_TYPE" == branch && "$GITHUB_REF_NAME" =~ ^(dev|v[0-9]+|v6-mine)$ ]]; then
             cache_branch="$GITHUB_REF_NAME"
           fi
 
+          changed_files='[]'
           previous='{"images":[]}'
           if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch ]]; then
             if [[ "$BASE_SHA" =~ ^0+$ ]]; then
-              previous=$(cat versions.json)
+              : # A new branch builds every image.
             else
               git cat-file -e "$BASE_SHA^{commit}" || git fetch --depth=1 --no-tags origin "$BASE_SHA"
               previous=$(git show "$BASE_SHA:versions.json" 2>/dev/null || echo "$previous")
+              changed_files=$(git diff --name-only "$BASE_SHA" HEAD | jq -Rsc 'split("\n") | map(select(length > 0))')
             fi
           fi
 
-          plan=$(jq -c --argjson old "$previous" --arg branch "$cache_branch" --arg publish "$PUBLISH_REQUESTED" '
+          plan=$(jq -c --arg hub "$DOCKERHUB_NAMESPACE" --arg ghcr "${GHCR_NAMESPACE,,}" \
+            --arg release "$RELEASE_BRANCH" --argjson files "$changed_files" --argjson old "$previous" --arg branch "$cache_branch" --arg publish "$PUBLISH_REQUESTED" '
             def repositories:
-              ["ghcr.io/xtrime-ru/" + (.ghcr_repository // .repository), "xtrime/" + .repository];
+              ["ghcr.io/" + $ghcr + "/" + (.ghcr_repository // .repository), $hub + "/" + .repository];
             if (.images | type != "array") or any(.images[];
               any(.name,.repository,.version,.source,.compose,.target; type != "string" or length == 0)
               or (.aliases | type != "array" or any(.[]; type != "string"))
@@ -68,11 +88,15 @@ jobs:
             then error("Invalid versions.json") else .images end |
             if (map(.name) | unique | length) != length then error("Duplicate image name") else . end |
             ($old.images | INDEX(.name)) as $previous |
-            map(select(.version != $previous[.name].version)) as $built |
+            (any($files[]; startswith("scripts/") or startswith("tests/integration/") or
+              startswith("services/antizapret/") or . == ".github/workflows/build.yml" or
+              . == "docker-compose.yml" or . == "compose.swarm.yml")) as $rebuild_all |
+            map(. as $image | select(. != $previous[.name] or $rebuild_all or
+              any($files[]; startswith($image.source + "/")))) as $built |
             {
               changes: ($built | map({name, version})),
               services: ($built | map(.name)),
-              releases: (if $branch != "" and $publish == "true" then $built | map(
+              releases: (if $branch == $release and $publish == "true" then $built | map(
                 (repositories | reverse) as $repos |
                 {name, tags: [(.version, (.aliases[] | select($branch != "dev"))) as $tag |
                   $repos[] + ":" + $tag]}) else [] end),
@@ -89,6 +113,13 @@ jobs:
             echo '### Publication'
             jq -r '.releases | if length == 0 then "Publication disabled." else .[].tags[] | "- " + . end' <<< "$plan"
           } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Validate CI planning and local commands
+        run: |
+          python -m pip install PyYAML==6.0.3
+          python -m unittest discover -s scripts/tests -v
       - uses: docker/login-action@v4
         id: registry
         if: steps.plan.outputs.services != '[]'
@@ -137,7 +168,7 @@ jobs:
         run: |
           if tags=$(timeout 15s regctl tag ls "${BUILD_CACHE_REPO,,}" --format '{{json .Tags}}') &&
              tags=$(jq -ce 'if . == null then [] else select(type == "array" and all(.[]; type == "string")) end |
-               map(select(test("-build-(dev|v[0-9]+)-(amd64|arm64)$")))' <<< "$tags"); then
+               map(select(test("-build-(dev|v[0-9]+|v6-mine)-(amd64|arm64)$")))' <<< "$tags"); then
             echo "tags=$tags" >> "$GITHUB_OUTPUT"
           else
             echo "::warning::Could not list registry cache tags; using the full cache list"
@@ -263,7 +294,7 @@ jobs:
         with: *ghcr_login
       - uses: docker/login-action@v4
         with:
-          username: xtrime
+          username: ${{ vars.DOCKERHUB_USERNAME || env.DOCKERHUB_NAMESPACE }}
           password: ${{ secrets.DOCKER_TOKEN }}
       - name: Publish tested images
         env:
