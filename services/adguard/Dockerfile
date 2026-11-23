@@ -1,20 +1,33 @@
-# routes is built in services/antizapret; take it from the fork's image, not upstream.
-# Build and push that image first: COPY --from pulls it from the registry.
-ARG ROUTES_IMAGE=nmisha/antizapret-vpn:6.9.4-2
-FROM ${ROUTES_IMAGE} AS routes
+ARG DOCKTINEL_IMAGE=ghcr.io/xtrime-ru/docktinel:0.2.0
 
-FROM adguard/adguardhome:latest
+FROM ${DOCKTINEL_IMAGE} AS docktinel
 
-RUN apk --no-cache add iptables apache2-utils yq jq bash bind-tools curl
+FROM xtrime/antizapret-vpn:6.12.1 AS antizapret
 
-COPY --from=routes /usr/bin/routes /usr/bin/routes
+FROM adguard/adguardhome:v1.0.0 AS runtime-base
 
-ADD . /root/
+RUN apk --no-cache add iptables apache2-utils yq jq bash curl
 
-ENTRYPOINT ["/root/entrypoint.sh"]
+COPY AdGuardHome.yaml check-dns dependencies.sh dns-reload.sh docktinel.sh entrypoint.sh refresh-state.sh /root/
 
-CMD [ \
-	"--no-check-update", \
-	"-c", "/opt/adguardhome/conf/AdGuardHome.yaml", \
-	"-w", "/opt/adguardhome/work" \
-]
+FROM runtime-base AS test
+
+RUN apk --no-cache add python3
+COPY test_resilience.py /root/
+RUN --network=none YQ=yq python3 -B -m unittest discover -s /root -v && touch /test-passed
+
+FROM runtime-base AS runtime
+
+RUN --mount=from=test,source=/test-passed,target=/tmp/test-passed test -f /tmp/test-passed
+
+COPY --from=antizapret /usr/bin/routes /usr/bin/routes
+
+ENTRYPOINT []
+
+CMD []
+
+COPY --from=docktinel /usr/local/bin/docktinel /usr/local/bin/docktinel
+COPY --from=antizapret --chmod=0755 /usr/local/lib/docktinel/ /usr/local/lib/docktinel/
+COPY --chmod=0755 docktinel.sh /etc/docktinel/tasks.sh
+COPY --chmod=0755 check-dns /usr/local/lib/docktinel/check-dns
+HEALTHCHECK NONE

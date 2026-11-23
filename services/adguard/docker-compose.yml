@@ -1,9 +1,12 @@
 services:
   adguard:
-    image: nmisha/antizapret-vpn-adguard:6.9.2-1
-    # image: xtrime/antizapret-vpn-adguard:6.9.2
+    entrypoint: ["/usr/local/lib/docktinel/entrypoint"]
+    command: ["/root/entrypoint.sh", "--no-check-update", "-c", "/opt/adguardhome/conf/AdGuardHome.yaml", "-w", "/opt/adguardhome/work"]
+    image: xtrime/antizapret-vpn-adguard:6.12.5
     build:
       context: .
+      args:
+        DOCKTINEL_IMAGE: ${DOCKTINEL_IMAGE:-ghcr.io/xtrime-ru/docktinel:0.2.0}
       x-bake:
         platforms:
           - linux/amd64
@@ -22,14 +25,13 @@ services:
       - "github.io=185.199.110.153"
       - "xtrime-ru.github.io=185.199.110.153"
       - "adguardteam.github.io=185.199.110.153"
-      - "nmisha.github.io=185.199.110.153"
+    stop_grace_period: 30s
     healthcheck:
-      # Plain Compose does not restart unhealthy containers: stop PID 1 so that
-      # `restart: unless-stopped` recovers a hung AdGuard. tee keeps the output in docker logs.
-      test: (timeout 120s /root/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
+      test: ["CMD", "docktinel", "healthcheck", "--startup-grace", "10m"]
       interval: 10s
-      timeout: 150s
-      start_period: 90s
+      timeout: 5s
+      start_period: 10m
+      start_interval: 1s
       retries: 3
     logging:
       driver: json-file
@@ -49,8 +51,9 @@ services:
     depends_on:
       - coredns
       - az-local
-      # - caddy-dav
     environment:
+      - TINI_KILL_PROCESS_GROUP=1
+      - DOCKTINEL_STARTUP_TIMEOUT=10m
       - |
         ROUTES=
         ocserv:10.1.164.0/24;
@@ -63,4 +66,3 @@ services:
       - ADGUARDHOME_PORT
       - ADGUARDHOME_USERNAME
       - ADGUARDHOME_PASSWORD
-      - ADGUARDHOME_PASSWORD_HASH

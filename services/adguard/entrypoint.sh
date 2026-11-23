@@ -10,13 +10,6 @@ if [[ -n $ADGUARDHOME_PASSWORD ]]; then
     ADGUARDHOME_PASSWORD_HASH=$(htpasswd -B -C 10 -n -b "$ADGUARDHOME_USERNAME" "$ADGUARDHOME_PASSWORD")
     ADGUARDHOME_PASSWORD_HASH=${ADGUARDHOME_PASSWORD_HASH#*:}
 fi
-if [[ -z $ADGUARDHOME_PASSWORD_HASH ]]; then
-    # Never replace a working login with an empty hash.
-    echo "Warning: ADGUARDHOME_PASSWORD and ADGUARDHOME_PASSWORD_HASH are empty; keeping the password from AdGuardHome.yaml" >&2
-fi
-if [[ -z $ADGUARDHOME_PASSWORD ]]; then
-    echo "Warning: ADGUARDHOME_PASSWORD is empty; healthcheck cannot refresh filters or update client IPs" >&2
-fi
 
 ADGUARD_ADDRESS=$(echo "$ROUTES" | grep -E 'adguard:' | head -n1 | cut -d: -f2 | tr -d '[:space:];')
 if [[ ! "$ADGUARD_ADDRESS" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]]; then
@@ -26,52 +19,19 @@ fi
 
 iptables -t nat -A PREROUTING -d "$ADGUARD_ADDRESS" -j DNAT --to-destination 127.0.0.1
 
-routes &
+source /root/dependencies.sh
+echo "Waiting up to 60s for dependency DNS registration..."
+wait_for_dependencies 60
 
-function resolve () {
-    # $1 domain/ip address, $2 fallback ip address
-    res="$(timeout 3s getent hosts "$1" | head -n1 | awk '{print $1}')"
-    if [[ "$res" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-        echo "$res"
-    else
-        echo "$2"
-    fi
-}
-
-# The remote exit is optional for local DNS availability. Its client IP is
-# filled in by healthcheck after recovery; the stable DoH client ID stays valid.
-WAITING_MESSAGE="Waiting for az-local and coredns containers to register in DNS..."
-
-while :; do
-    AZ_LOCAL_HOST=$(resolve az-local '')
-    AZ_WORLD_HOST=$(resolve az-world '')
-    COREDNS_HOST=$(resolve coredns '')
-    if [ -n "${AZ_LOCAL_HOST}" ] && [ -n "${COREDNS_HOST}" ]; then
-        break
-    fi
-    sleep 1;
-    echo "$WAITING_MESSAGE"
-done;
-
-# Metadata is best-effort: a remote outage must not delay starting DNS.
-CONFIG_LOCAL=$(curl --connect-timeout 2 --max-time 3 -fsS "http://az-local.antizapret/config-md5/" || echo "")
+CONFIG_LOCAL=$(curl -fsS --connect-timeout 2 --max-time 5 "http://az-local.antizapret/config-md5/" || echo "")
 CONFIG_MD5="$CONFIG_LOCAL"
 AZ_WORLD_CLIENT_IDS='["az-world"]'
 if [ "$AZ_WORLD_ENABLED" = "1" ]; then
-    CONFIG_WORLD=$(curl --connect-timeout 2 --max-time 3 -fsS "http://az-world.antizapret/config-md5/" || echo "")
+    CONFIG_WORLD=$(curl -fsS --connect-timeout 2 --max-time 5 "http://az-world.antizapret/config-md5/" || echo "")
     CONFIG_MD5="$CONFIG_LOCAL $CONFIG_WORLD"
-    if [ -n "$AZ_WORLD_HOST" ]; then
-        AZ_WORLD_CLIENT_IDS='["az-world", "'$AZ_WORLD_HOST'"]'
-    fi
+    AZ_WORLD_CLIENT_IDS=$(jq -nc --arg ip "$AZ_WORLD_HOST" '["az-world", $ip] | map(select(. != ""))')
 fi
 echo "$CONFIG_MD5" > /dev/shm/.config_md5
-# Runtime filter state can differ after restart, especially after a cold start
-# without world. Reconcile both exits once the local API becomes available.
-# /dev/shm starts empty on every container start, so no applied checksums exist.
-touch /dev/shm/.config_md5.local_pending
-if [ "$AZ_WORLD_ENABLED" = "1" ]; then
-    touch /dev/shm/.config_md5.world_pending
-fi
 
 function ensure_filter () {
     local filter_url="$1"
@@ -91,10 +51,35 @@ function ensure_filter () {
             "id": env(FILTER_ID)
         }]
     ' /opt/adguardhome/conf/AdGuardHome.yaml || exit 1
+    : > /dev/shm/.config_md5
 }
 
-ensure_filter 'http://az-local.antizapret/list/?regex=1&allow=0&client=az-resolver&filter_custom=0&filter_dist=0&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'Excluded Custom Local Rules'
-ensure_filter 'http://az-world.antizapret/list/?regex=1&allow=0&client=az-resolver&filter_custom=0&filter_dist=0&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'Excluded Custom World Rules'
+function migrate_filter () {
+    local old_url="$1"
+    local new_url="$2"
+
+    if ! FILTER_OLD="$old_url" yq -e '.filters[] | select(.url == strenv(FILTER_OLD))' /opt/adguardhome/conf/AdGuardHome.yaml >/dev/null 2>&1; then
+        return
+    fi
+
+    FILTER_OLD="$old_url" FILTER_NEW="$new_url" yq -i '
+        (.filters[] | select(.url == strenv(FILTER_OLD)) | .url) = strenv(FILTER_NEW)
+    ' /opt/adguardhome/conf/AdGuardHome.yaml || exit 1
+    # Let the maintenance job refresh cached rules and clear DNS cache after startup.
+    : > /dev/shm/.config_md5
+}
+
+migrate_filter 'http://az-local.antizapret/list/?regex=1&allow=0&client=az-resolver&filter_custom=0&filter_dist=0&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'http://az-local.antizapret/list/?exclude=1&regex=1&file=/root/antizapret/config/custom/exclude-hosts-custom.txt'
+migrate_filter 'http://az-world.antizapret/list/?regex=1&allow=0&client=az-resolver&filter_custom=0&filter_dist=0&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'http://az-world.antizapret/list/?exclude=1&regex=1&file=/root/antizapret/config/custom/exclude-hosts-custom.txt'
+
+ensure_filter 'http://az-local.antizapret/list/?exclude=1&regex=1&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'Excluded Custom Local Rules'
+ensure_filter 'http://az-world.antizapret/list/?exclude=1&regex=1&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'Excluded Custom World Rules'
+
+ensure_filter 'http://az-local.antizapret/list/?exclude=1&format=v2fly&url=https://xtrime-ru.github.io/antizapret-vpn-docker/lists/exclude.txt' 'Direct Access Rules'
+ensure_filter 'http://az-local.antizapret/list/?exclude=1&format=v2fly&url=https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/category-ip-geo-detect' 'Direct Access Rules - IP Checkers'
+
+# Replace only the old bundled Steam/Rockstar upstream; retain user upstreams.
+yq -i 'del(.dns.upstream_dns[] | select(. == "[/steampipe.akamaized.net/rockstargames.com/]https://cloudflare-dns.com/dns-query"))' /opt/adguardhome/conf/AdGuardHome.yaml || exit 1
 
 # AdGuard's migration to schema 34 replaces http.doh with the legacy TLS flag.
 # Set that flag before startup; let AdGuard migrate the remaining configuration.
@@ -103,6 +88,7 @@ if [ "$ADGUARD_SCHEMA_VERSION" -lt 34 ]; then
     yq -i '.tls.allow_unencrypted_doh = true' /opt/adguardhome/conf/AdGuardHome.yaml || exit 1
 fi
 
+# Compare encoded rules so yq treats the asterisk literally.
 ADGUARDHOME_PORT="$ADGUARDHOME_PORT" \
 ADGUARDHOME_USERNAME="$ADGUARDHOME_USERNAME" \
 ADGUARDHOME_PASSWORD_HASH="$ADGUARDHOME_PASSWORD_HASH" \
@@ -110,15 +96,22 @@ AZ_LOCAL_HOST="$AZ_LOCAL_HOST" \
 AZ_WORLD_CLIENT_IDS="$AZ_WORLD_CLIENT_IDS" \
 COREDNS_HOST="$COREDNS_HOST" \
 yq -i '
+    (.dns.upstream_dns[] | select(. == "coredns")) = "coredns.antizapret" |
+    .dns.upstream_timeout = "5s" |
+    .dns.fallback_dns = (.dns.fallback_dns // []) |
+    (.dns.fallback_dns | select(length == 0)) = ["https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"] |
+    .dns.fallback_dns = ((.dns.fallback_dns + ["[/*.antizapret/]127.0.0.11"]) | unique) |
     .http.address = "0.0.0.0:" + strenv(ADGUARDHOME_PORT) |
     .http.doh.insecure_enabled=true |
     .dns.use_private_ptr_resolvers=false |
     .dns.local_ptr_upstreams=[] |
     .users[0].name=strenv(ADGUARDHOME_USERNAME) |
-    (select(strenv(ADGUARDHOME_PASSWORD_HASH) != "") | .users[0].password) = strenv(ADGUARDHOME_PASSWORD_HASH) |
-    (.clients.persistent[] | select(.name == "az-local") | .ids) = ["az-local", strenv(AZ_LOCAL_HOST)] |
+    .users[0].password=strenv(ADGUARDHOME_PASSWORD_HASH) |
+    (.clients.persistent[] | select(.name == "az-local") | .ids) = (["az-local", strenv(AZ_LOCAL_HOST)] | map(select(. != ""))) |
     (.clients.persistent[] | select(.name == "az-world") | .ids) = env(AZ_WORLD_CLIENT_IDS) |
-    (.clients.persistent[] | select(.name == "coredns") | .ids) = [strenv(COREDNS_HOST)]
+    (.clients.persistent[] | select(.name == "coredns") | .ids) = (["coredns", strenv(COREDNS_HOST)] | map(select(. != ""))) |
+    (.user_rules[] | select(@base64 == ("||*^$dnsrewrite=SERVFAIL,client=az-local" | @base64))) = "||*^$dnsrewrite=REFUSED,client=az-local" |
+    (.user_rules[] | select(@base64 == ("||*^$dnsrewrite=SERVFAIL,client=az-world" | @base64))) = "||*^$dnsrewrite=REFUSED,client=az-world"
     ' /opt/adguardhome/conf/AdGuardHome.yaml || exit 1
 
 if ! yq -e '.clients.persistent[] | select(.name == "az-resolver")' /opt/adguardhome/conf/AdGuardHome.yaml >/dev/null; then
@@ -137,5 +130,7 @@ fi
 
 sed -i 's/antizapret-vpn-docker\/v5/antizapret-vpn-docker\/v6/g' /opt/adguardhome/conf/AdGuardHome.yaml
 
+source /root/dns-reload.sh
+dependency_snapshot "$AZ_LOCAL_HOST" "$AZ_WORLD_HOST" "$COREDNS_HOST" > /dev/shm/.dns_dependencies
 touch "$INIT_FILE"
 exec /opt/adguardhome/AdGuardHome "$@"
