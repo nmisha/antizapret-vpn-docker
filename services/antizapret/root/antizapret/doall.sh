@@ -13,7 +13,12 @@ function reload_dnsmap () {
     pkill -HUP -f '[d]nsmap' 2>/dev/null || true
 }
 
-source "$HERE/list-cache.sh"
+function cached_downloads_available () {
+    [ -z "${IPS_URL:-}" ] || [ -s config/include-ips-dist.txt ] || return 1
+    [ -z "${IPS_WORLD_URL:-}" ] || [ -s config/include-ips-world-dist.txt ] || return 1
+    [ -z "${ASN_URL:-}" ] || [ -s config/include-asn-dist.txt ] || return 1
+    [ -z "${ASN_WORLD_URL:-}" ] || [ -s config/include-asn-world-dist.txt ] || return 1
+}
 
 LOCAL_OWNER_FILE="/dev/shm/.doall_owner"
 RESULT_OWNER_FILE="/root/antizapret/result/.doall_owner"
@@ -22,20 +27,21 @@ RESULT_OWNER="$(cat "$RESULT_OWNER_FILE" 2>/dev/null || true)"
 
 if [ -n "$DOALL_DISABLED" ] || { [ -n "$RESULT_OWNER" ] && [ "$LOCAL_OWNER" != "$RESULT_OWNER" ]; }; then
     echo "DoAll disabled or owner mismatch. Reloading dnsmap only..."
+    /opt/api/app --publish-config-md5
     reload_dnsmap
     exit 0
 fi
 
-# Lock the open file, not its existence: the kernel releases the lock when the
-# holder dies, even by SIGKILL (timeout --kill-after), and there is no race
-# between checking and creating the file. Never unlink it: waiters must all
-# refer to the same inode. Children inherit fd 9, so a killed doall cannot let
-# another refresh start while its download/parse child is still running.
-exec 9>/dev/shm/.doall_lock
-if ! flock -n 9; then
-    echo "DoAll already running. Waiting..."
-    flock 9
-fi
+lock_file="/dev/shm/.doall_lock"
+while [ -f "$lock_file" ]; do
+  echo "DoAll already running. Waiting..."
+  sleep 5
+done
+
+touch "$lock_file"
+
+trap 'trap - EXIT; rm -f $lock_file' \
+    EXIT HUP INT QUIT PIPE TERM
 
 download_failed=false
 echo "run download.sh" && ./download.sh || download_failed=true
@@ -44,11 +50,8 @@ if [ "$download_failed" = true ] && ! cached_downloads_available; then
   exit 1
 fi
 echo "run parse.sh" && ./parse.sh || exit 2
-for kind in ips ips-world asn asn-world; do
-    if list_cache_available "config/include-$kind-dist.txt"; then
-        touch "result/.$kind.txt.ready"
-    fi
-done
+
+/opt/api/app --publish-config-md5
 
 # dnsmap applies the new ASN list on the next lookup without a restart.
 reload_dnsmap

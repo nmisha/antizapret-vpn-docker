@@ -3,10 +3,8 @@
 set -e
 set -x
 
-# run commands after start
-function postrun () {
-    nohup bash -c "$@" &
-}
+WARP_PROTOCOL=${WARP_PROTOCOL:-WireGuard}
+WARP_PORT=${WARP_PORT:-500}
 
 DOCKER_SUBNET="$(ipcalc "$(ip -4 addr show dev eth0 | awk '$1=="inet" {print $2; exit}')" | awk '/Network:/ {print $2}')"
 
@@ -33,7 +31,6 @@ EOF
 source /etc/default/antizapret
 # autoload vars when logging in into shell with 'bash -l'
 ln -sf /etc/default/antizapret /etc/profile.d/antizapret.sh
-
 
 # creating custom hosts files if they have not yet been initialized
 for file in $(echo {exclude,include}-{hosts,ips,ips-world,asn,asn-world}-custom.txt); do
@@ -69,19 +66,21 @@ function cleanup_doall_owner () {
     if [ -f "$DOALL_LOCAL_OWNER_FILE" ] && [ "$(cat "$DOALL_OWNER_FILE" 2>/dev/null || true)" = "$(cat "$DOALL_LOCAL_OWNER_FILE" 2>/dev/null || true)" ]; then
         rm -f "$DOALL_OWNER_FILE"
     fi
-    rm -f "$DOALL_LOCAL_OWNER_FILE"
+    rm -f "$DOALL_LOCAL_OWNER_FILE" /dev/shm/.doall_lock
 }
 
-source /root/antizapret/list-cache.sh
-
 function generated_lists_available () {
-    required_lists_available /root/antizapret/result ""
+    [ -z "${IPS_URL:-}" ] || [ -s /root/antizapret/result/ips.txt ] || return 1
+    [ -z "${IPS_WORLD_URL:-}" ] || [ -s /root/antizapret/result/ips-world.txt ] || return 1
+    [ -z "${ASN_URL:-}" ] || [ -s /root/antizapret/result/asn.txt ] || return 1
+    [ -z "${ASN_WORLD_URL:-}" ] || [ -s /root/antizapret/result/asn-world.txt ] || return 1
 }
 
 configure_doall_owner
 trap cleanup_doall_owner EXIT HUP INT QUIT PIPE TERM
 
-( cat /root/antizapret/result/* /root/antizapret/config/custom/* 2>/dev/null | md5sum ) > /dev/shm/.config_md5
+. /usr/local/lib/docktinel/state.sh
+checksum_files /root/antizapret/result/* /root/antizapret/config/custom/* > /dev/shm/.config_md5
 
 # Prepare iptables for dnsmap.py
 CHAIN=dnsmap
@@ -139,6 +138,15 @@ function stop_services () {
 trap stop_services EXIT HUP INT QUIT PIPE TERM
 
 if [ "$ZAPRET_ENABLED" = "1" ]; then
+    if [ -s "$ZAPRET_CONFIG" ]; then
+        # Regenerate only known, unmodified bundled configs; keep custom rules.
+        case "$(md5sum < "$ZAPRET_CONFIG" | awk '{print $1}')" in
+            5f71da81191ae869d849ed4f11576c56|0c7a96834a14bde6258d1dc283787b4e|c1c4af3a708375336a0c2af953d4d3c6|12297f4db14c2e1c13ca254901cd3853|daf37377faa1ee86efee404d448433d3|b003a523e159ab428102d8a5ceb9734d|65c0a2f4e1803849fce07637aa2cc56c|b3646b00464e8730b0572b61b86f200a)
+                echo "Replacing old default zapret2 config: $ZAPRET_CONFIG"
+                rm -f -- "$ZAPRET_CONFIG"
+                ;;
+        esac
+    fi
     if [ ! -s "$ZAPRET_CONFIG" ]; then
         mkdir -p "$(dirname "$ZAPRET_CONFIG")"
         cp /root/zapret2/config.default "$ZAPRET_CONFIG"
@@ -146,8 +154,6 @@ if [ "$ZAPRET_ENABLED" = "1" ]; then
     /opt/zapret2/init.d/sysv/zapret2 start
     ZAPRET_STARTED=1
 fi
-
-routes &
 
 if [ "$WARP_ENABLED" = "1" ]; then
     mkdir -p /dev/net /run/dbus /var/lib/cloudflare-warp
@@ -158,14 +164,39 @@ if [ "$WARP_ENABLED" = "1" ]; then
 
     timeout 30 bash -c 'until warp-cli --accept-tos status >/dev/null 2>&1; do sleep 1; done'
 
+    warp_read_config() {
+        python3 - <<'PY'
+import json
+with open('/var/lib/cloudflare-warp/conf.json') as f:
+    config = json.load(f)
+print(config['tunnel_key_data']['tunnel_type'], config['endpoints'][0]['v4'].rsplit(':', 1)[0])
+PY
+    }
+
+    warp-cli --accept-tos disconnect
     [ -f /var/lib/cloudflare-warp/reg.json ] || warp-cli --accept-tos registration new
+    read -r warp_previous_protocol warp_endpoint < <(warp_read_config)
+    warp-cli --accept-tos tunnel protocol set "$WARP_PROTOCOL"
+    if [ "$warp_previous_protocol" != "${WARP_PROTOCOL,,}" ]; then
+        echo "Re-registering WARP: $warp_previous_protocol -> $WARP_PROTOCOL"
+        warp-cli --accept-tos registration delete
+        warp-cli --accept-tos registration new
+        read -r warp_previous_protocol warp_endpoint < <(warp_read_config)
+    fi
+    if [ "$WARP_PORT" = 0 ]; then
+        warp-cli --accept-tos tunnel endpoint reset
+    else
+        warp-cli --accept-tos tunnel endpoint set "$warp_endpoint:$WARP_PORT"
+    fi
+    if [ "$WARP_PROTOCOL" = MASQUE ]; then
+        warp-cli --accept-tos tunnel masque-options set h3-with-h2-fallback
+    fi
+    warp-cli --accept-tos mode tunnel_only
     while read -r nameserver; do
         warp-cli --accept-tos tunnel ip add "$nameserver" || true
     done < <(awk '$1 == "nameserver" {print $2}' /etc/resolv.conf)
-    warp-cli --accept-tos tunnel protocol set MASQUE
-    warp-cli --accept-tos mode tunnel_only
     warp-cli --accept-tos connect
-    timeout 30 bash -c 'until warp-cli --accept-tos status | grep -q Connected; do sleep 1; done'
+    timeout --kill-after=5s 30 bash -c 'until warp-cli --accept-tos status | grep -q "^Status update: Connected$"; do sleep 1; done'
 
     iptables -t nat -A POSTROUTING -o CloudflareWARP -j MASQUERADE
     iptables -t mangle -A FORWARD -o CloudflareWARP -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
@@ -180,8 +211,7 @@ if ! timeout --kill-after=5s 5m /usr/bin/doall; then
     fi
 fi
 
-postrun 'while true; do /opt/api/app; done'
-postrun 'while true; do sleep 6h; timeout --kill-after=5s 10m /usr/bin/doall; done'
-postrun 'while true; do /usr/bin/iperf3 -s -1; done'
-
-/usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET" --asn-file "$ASN_FILES"
+/usr/bin/dnsmap -a 0.0.0.0 --iprange "$AZ_SUBNET" --asn-file "$ASN_FILES" &
+DNSMAP_PID=$!
+trap 'stop_services; kill -TERM "$DNSMAP_PID" 2>/dev/null || true; exit 0' HUP INT QUIT PIPE TERM
+wait "$DNSMAP_PID"

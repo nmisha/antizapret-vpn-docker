@@ -7,15 +7,19 @@ import atexit, base64, http.client, os, queue, re, signal, socket, struct, subpr
 from urllib.parse import quote
 
 from collections import deque, namedtuple
+from copy import copy
 from ipaddress import IPv4Network
 
+import idna
 import maxminddb
 
-from dnslib import DNSRecord, RCODE, QTYPE, A
+from dnslib import DNSQuestion, DNSRecord, RCODE, QTYPE, A, HTTPS, RR
 from dnslib.server import DNSServer, DNSHandler, BaseResolver, DNSLogger
 
 
-AsnMatchRules = namedtuple('AsnMatchRules', ('asn_rules', 'substring_rules', 'regex_rules'))
+AsnMatchRules = namedtuple('AsnMatchRules', (
+    'asn_rules', 'substring_rules', 'regex_rules', 'domain_rules'
+), defaults=((),))
 MappingRequest = namedtuple('MappingRequest', ('real_addr', 'fake_addr', 'event'))
 
 
@@ -120,11 +124,22 @@ class ProxyResolver(BaseResolver):
             raise ValueError('Empty organization regex')
         return (line, re.compile(pattern, re.IGNORECASE | re.UNICODE))
 
+    @staticmethod
+    def domain_matcher(condition):
+        kind, _, pattern = condition.partition(':')
+        if kind == 'domain':
+            domain = idna.encode(pattern, uts46=True).decode('ascii').rstrip('.')
+            pattern = r'(?:^|\.)' + re.escape(domain) + r'$'
+        elif kind != 'regexp' or not pattern:
+            raise ValueError('Invalid ASN domain condition: {}'.format(condition))
+        return re.compile(pattern, re.IGNORECASE)
+
     @classmethod
     def load_asn_list(cls, path):
         asn_rules = {}
         substring_rules = []
         regex_rules = []
+        domain_rules = []
         paths = [item.strip() for item in str(path).split(';') if item.strip()]
         for asn_path in paths:
             with open(asn_path, encoding='utf-8') as asn_list:
@@ -132,24 +147,26 @@ class ProxyResolver(BaseResolver):
                     line = raw_line.split('#', 1)[0].strip()
                     if not line:
                         continue
-                    normalized_asn = line.upper()
-                    if normalized_asn.startswith('AS') and normalized_asn[2:].isdigit():
-                        asn = int(normalized_asn[2:])
-                        asn_rules[asn] = line
-                    elif line.isdigit():
-                        asn = int(line)
-                        asn_rules[asn] = line
+                    parts = line.split(None, 1)
+                    asn_match = re.fullmatch(r'(?:AS)?([0-9]+)', parts[0], re.IGNORECASE)
+                    if asn_match:
+                        asn = int(asn_match[1])
+                        if len(parts) == 1:
+                            asn_rules[asn] = line
+                        else:
+                            domain_rules.append((asn, line, cls.domain_matcher(parts[1])))
                     elif line.startswith('/') and line.endswith('/'):
                         regex_rules.append(cls.organization_regex_rule(line))
                     else:
                         substring_rules.append(cls.organization_substring_rule(line))
-        return AsnMatchRules(asn_rules, substring_rules, regex_rules)
+        return AsnMatchRules(asn_rules, substring_rules, regex_rules, domain_rules)
 
     def reload_asn_list(self):
         with self.asn_list_lock:
             rules = self.load_asn_list(self.asn_file)
             self.asn_match_rules = rules
-            return len(rules.asn_rules), len(rules.substring_rules) + len(rules.regex_rules)
+            return (len(rules.asn_rules) + len(rules.domain_rules),
+                    len(rules.substring_rules) + len(rules.regex_rules))
 
     def request_asn_reload(self, signum, frame):
         try:
@@ -248,7 +265,7 @@ class ProxyResolver(BaseResolver):
         print('DNS request processing failed: {}{}'.format(error, suffix))
         traceback.print_exc()
 
-    def is_blocked_asn(self, address):
+    def is_blocked_asn(self, address, hostname=''):
         if not address or address == '0.0.0.0':
             return False
         record = self.asn_database.get(address)
@@ -273,6 +290,12 @@ class ProxyResolver(BaseResolver):
                     if matcher.search(raw_organization):
                         rule = rule_line
                         break
+        if not rule and hostname:
+            hostname = hostname.rstrip('.').lower()
+            for rule_asn, rule_line, matcher in rules.domain_rules:
+                if asn == rule_asn and matcher.search(hostname):
+                    rule = rule_line
+                    break
         if rule:
             print('ASN match for {}: rule: {}'.format(address, rule))
             return True
@@ -355,6 +378,7 @@ class ProxyResolver(BaseResolver):
                     return {real_addr: None for real_addr in unique_addresses}
 
             requests = {}
+            is_batch_leader = False
             for real_addr in unique_addresses:
                 existing_fake_addr = self.get_mapping(real_addr)
                 if existing_fake_addr:
@@ -372,11 +396,11 @@ class ProxyResolver(BaseResolver):
             if requests:
                 if not self.mapping_batch_running:
                     self.mapping_batch_running = True
-                    threading.Thread(
-                        target=self.run_mapping_worker,
-                        name='dnsmap-mappings', daemon=True,
-                    ).start()
+                    is_batch_leader = True
                 self.mapping_condition.notify()
+
+        if is_batch_leader:
+            self.apply_mapping_batches()
 
         for request in requests.values():
             request.event.wait()
@@ -385,21 +409,6 @@ class ProxyResolver(BaseResolver):
             real_addr: self.get_mapping(real_addr)
             for real_addr in unique_addresses
         }
-
-    def run_mapping_worker(self):
-        try:
-            self.apply_mapping_batches()
-        except Exception as error:
-            print("ERROR: Mapping worker failed: {}".format(error))
-            # Never leave DNS callers waiting if the worker exits unexpectedly.
-            with self.mapping_condition:
-                for request in self.pending_mappings.values():
-                    self.unassigned_addresses.appendleft(request.fake_addr)
-                    request.event.set()
-                self.pending_mappings.clear()
-                self.mapping_batch = []
-                self.mapping_batch_running = False
-                self.mapping_condition.notify_all()
 
     def apply_mapping_batches(self):
         while True:
@@ -427,11 +436,10 @@ class ProxyResolver(BaseResolver):
                 result = self.iptables_runner(
                     command,
                     input='\n'.join(rules),
-                    timeout=10,
                     capture_output=True,
                     text=True,
                 )
-            except (OSError, subprocess.TimeoutExpired) as error:
+            except OSError as error:
                 result = None
                 print('ERROR: Failed to execute iptables-restore: {}'.format(error))
 
@@ -456,33 +464,79 @@ class ProxyResolver(BaseResolver):
                     self.mapping_condition.notify_all()
                     return
 
+    def resolve_by_asn(self, request, filtered_reply):
+        address_request = request
+        if request.q.qtype == QTYPE.HTTPS:
+            question = DNSQuestion(request.q.qname, QTYPE.A, request.q.qclass)
+            address_request = DNSRecord(header=copy(request.header), q=question, ar=request.ar)
+
+        addresses = self.query_doh(address_request, self.resolver_client_id)
+        if addresses.header.rcode != RCODE.NOERROR:
+            if address_request is request:
+                return addresses
+            if addresses.header.rcode == RCODE.NXDOMAIN:
+                return filtered_reply
+            reply = request.reply(aa=0)
+            reply.header.rcode = addresses.header.rcode
+            return reply
+        hostname = str(request.q.qname)
+        if not any(record.rtype == QTYPE.A and self.is_blocked_asn(str(record.rdata), hostname)
+                   for record in addresses.rr):
+            return filtered_reply
+
+        if address_request is request:
+            return addresses
+        return self.query_doh(request, self.resolver_client_id)
+
+    @staticmethod
+    def filter_https_reply(request, upstream_reply):
+        reply = request.reply(aa=0)
+        reply.header.ad = 0
+        reply.header.rcode = upstream_reply.header.rcode
+        if reply.header.rcode != RCODE.NOERROR:
+            return reply
+
+        # RFC 9460 SvcParamKeys: mandatory=0, ipv4hint=4, ipv6hint=6.
+        address_hints = {4, 6}
+        records = []
+        for record in upstream_reply.rr:
+            if record.rtype != QTYPE.HTTPS:
+                continue
+            data = record.rdata
+            mandatory = next((value for key, value in data.params if key == 0), b'')
+            if len(mandatory) % 2 or any(key in address_hints for key, in struct.iter_unpack('!H', mandatory)):
+                continue
+            params = [(key, value) for key, value in data.params if key not in address_hints]
+            records.append(RR(record.rname, QTYPE.HTTPS, record.rclass, record.ttl,
+                              HTTPS(data.priority, data.target, params)))
+
+        if records:
+            aliases = [record for record in upstream_reply.rr if record.rtype == QTYPE.CNAME]
+            reply.add_answer(*aliases, *records)
+        return reply
+
     def resolve(self,request,handler):
         try:
+            if (request.q.qtype == QTYPE.A
+                    and str(request.q.qname).lower() == 'healthcheck.invalid.'
+                    and handler.client_address[0] == '127.0.0.1'):
+                reply = request.reply()
+                reply.add_answer(RR(request.q.qname, QTYPE.A, rdata=A('127.0.0.1')))
+                return reply
+
             reply = self.query_doh(request, self.client_id)
 
-            if request.q.qtype == QTYPE.AAAA or request.q.qtype == QTYPE.HTTPS:
-                print('GOT AAAA or HTTPS')
-                reply = request.reply()
-                return reply
+            if request.q.qtype == QTYPE.AAAA:
+                return request.reply()
+            if request.q.qtype in (QTYPE.A, QTYPE.HTTPS) and reply.header.rcode == RCODE.REFUSED:
+                reply = self.resolve_by_asn(request, reply)
+            if request.q.qtype == QTYPE.HTTPS:
+                return self.filter_https_reply(request, reply)
 
             if request.q.qtype == QTYPE.A:
                 print('GOT A')
 
-                if reply.header.rcode == RCODE.SERVFAIL:
-                    filtered_reply = reply
-                    resolved_reply = self.query_doh(request, self.resolver_client_id)
-                    if resolved_reply.header.rcode != RCODE.NOERROR:
-                        return resolved_reply
-                    real_addresses = [
-                        str(record.rdata)
-                        for record in resolved_reply.rr
-                        if record.rtype == QTYPE.A
-                    ]
-                    if not any(self.is_blocked_asn(address) for address in real_addresses):
-                        return filtered_reply
-                    reply = resolved_reply
-
-                if not any(record.rtype == QTYPE.A for record in reply.rr):
+                if reply.header.rcode != RCODE.NOERROR or not any(record.rtype == QTYPE.A for record in reply.rr):
                     return reply
 
                 newrr = []
@@ -621,7 +675,7 @@ if __name__ == '__main__':
     p.add_argument("--client-id", default=os.getenv('CLIENT', 'az-local'),
                    help="AdGuard client ID used for filtered requests")
     p.add_argument("--resolver-client-id", default="az-resolver",
-                   help="AdGuard client ID used to resolve SERVFAIL responses")
+                   help="AdGuard client ID used to resolve REFUSED responses")
     p.add_argument("--asn-file", default="/root/antizapret/result/asn.txt",
                    help="Semicolon-separated files with blocked ASN numbers and organization names")
     p.add_argument("--asn-database", default="/usr/share/GeoIP/GeoLite2-ASN.mmdb",

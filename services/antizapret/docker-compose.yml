@@ -1,7 +1,9 @@
 services:
   antizapret:
-    image: nmisha/antizapret-vpn:6.9.4-2
-    # image: xtrime/antizapret-vpn:6.9.4
+    entrypoint: ["/usr/local/lib/docktinel/entrypoint"]
+    command: ["/init.sh"]
+    # image: xtrime/antizapret-vpn:6.12.5
+    image: nmisha/antizapret-vpn:6.12.5
     restart: unless-stopped
     init: true
     cap_add:
@@ -18,6 +20,8 @@ services:
       - "nmisha.github.io=185.199.110.153"
     build: 
       context: .
+      args:
+        DOCKTINEL_IMAGE: ${DOCKTINEL_IMAGE:-ghcr.io/xtrime-ru/docktinel:0.2.0}
       x-bake:
         platforms:
           - linux/amd64
@@ -27,11 +31,14 @@ services:
       options:
         max-size: 1m
         max-file: 3
+    stop_grace_period: 30s
     healthcheck:
-      test: /healthcheck.sh
+      test: ["CMD", "docktinel", "healthcheck", "--startup-grace", "10m"]
       interval: 10s
-      timeout: 15m
+      timeout: 5s
       start_period: 10m
+      start_interval: 1s
+      retries: 3
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - $PWD/config/antizapret/custom:/root/antizapret/config/custom
@@ -43,6 +50,7 @@ services:
       - $PWD/config/adguard/work:/opt/adguardhome/work
     environment:
       - TINI_KILL_PROCESS_GROUP=1
+      - DOCKTINEL_STARTUP_TIMEOUT=10m
       - |
         ROUTES=
         ocserv:10.1.164.0/24;
@@ -56,8 +64,9 @@ services:
       - CLIENT
       - DOALL_DISABLED
       - IPTABLES_SAVE_DISABLED
-      # - IPTABLES_SAVE_DISABLED=1
       - WARP_ENABLED=0
+      - WARP_PROTOCOL=${WARP_PROTOCOL:-WireGuard}
+      - WARP_PORT=${WARP_PORT:-500}
       - ZAPRET_ENABLED=0
       - ZAPRET_CONFIG
       # - |

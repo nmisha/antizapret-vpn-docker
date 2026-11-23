@@ -11,7 +11,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from dnslib import A, CNAME, DNSRecord, QTYPE, RCODE, RR
+from dnslib import A, AAAA, CNAME, DNSRecord, HTTPS, QTYPE, RCODE, RR
 
 import dnsmap
 
@@ -96,6 +96,31 @@ class ResolverTestCase(unittest.TestCase):
         resolver = dnsmap.ProxyResolver(**arguments)
         self.addCleanup(resolver.close)
         return resolver
+
+
+class HealthcheckTests(ResolverTestCase):
+    def test_local_probe_is_answered_without_upstream(self):
+        resolver = self.make_resolver()
+        resolver.query_doh = Mock(side_effect=OSError('upstream unavailable'))
+        request = DNSRecord.question('HEALTHCHECK.invalid.', 'A')
+        handler = Mock(client_address=('127.0.0.1', 12345))
+
+        reply = resolver.resolve(request, handler)
+
+        self.assertEqual(reply.header.rcode, RCODE.NOERROR)
+        self.assertEqual([str(answer.rdata) for answer in reply.rr], ['127.0.0.1'])
+        resolver.query_doh.assert_not_called()
+
+    def test_remote_probe_follows_normal_resolution(self):
+        resolver = self.make_resolver()
+        request = DNSRecord.question('healthcheck.invalid.', 'A')
+        resolver.query_doh = Mock(return_value=dns_reply(request, rcode=RCODE.NXDOMAIN))
+        handler = Mock(client_address=('192.0.2.1', 12345))
+
+        reply = resolver.resolve(request, handler)
+
+        self.assertEqual(reply.header.rcode, RCODE.NXDOMAIN)
+        resolver.query_doh.assert_called_once_with(request, 'az-local')
 
 
 class DoHClientTests(ResolverTestCase):
@@ -439,6 +464,161 @@ class AsnListTests(ResolverTestCase):
         self.assertEqual(output.call_args.args[0], 2)
 
 
+class ConditionalAsnTests(ResolverTestCase):
+    def load_rules(self, text):
+        self.asn_file.write_text(text, encoding='utf-8')
+        resolver = self.make_resolver()
+        self.asn_database.get.return_value = {
+            'autonomous_system_number': 15169,
+            'autonomous_system_organization': 'Google LLC',
+        }
+        return resolver
+
+    def test_domain_requires_both_asn_and_hostname(self):
+        resolver = self.load_rules('AS15169 domain:googlevideo.com\n')
+        for hostname in ('googlevideo.com', 'RR1.googlevideo.COM.'):
+            self.assertTrue(resolver.is_blocked_asn('192.0.2.1', hostname))
+        for hostname in ('youtube.com', 'evilgooglevideo.com', 'googlevideo.com.example', ''):
+            self.assertFalse(resolver.is_blocked_asn('192.0.2.1', hostname))
+        self.asn_database.get.return_value['autonomous_system_number'] = 3216
+        self.assertFalse(resolver.is_blocked_asn('192.0.2.1', 'rr1.googlevideo.com'))
+
+    def test_idn_domain_rules_accept_unicode_and_punycode(self):
+        for domain in ('пример.рф', 'ПРИМЕР.РФ.', 'xn--e1afmkfd.xn--p1ai'):
+            with self.subTest(domain=domain):
+                resolver = self.load_rules('AS15169 domain:' + domain + '\n')
+                for hostname in ('пример.рф', 'видео.пример.рф',
+                                 'xn--e1afmkfd.xn--p1ai'):
+                    request = DNSRecord.parse(DNSRecord.question(hostname, 'A').pack())
+                    self.assertTrue(resolver.is_blocked_asn(
+                        '192.0.2.1', str(request.q.qname)))
+                self.assertFalse(resolver.is_blocked_asn(
+                    '192.0.2.1', 'evilxn--e1afmkfd.xn--p1ai'))
+
+    def test_idna_validation_rejects_invalid_domains(self):
+        resolver = self.load_rules('AS15169 domain:googlevideo.com\n')
+        old_rules = resolver.asn_match_rules
+        for domain in ('', '.', 'a..com', 'example.com..', '-example.com',
+                       'example-.com', 'bad_name.com', '*.example.com',
+                       'xn--.com', 'a' * 64 + '.com',
+                       '.'.join(['a' * 63] * 4)):
+            with self.subTest(domain=domain):
+                self.asn_file.write_text('AS15169 domain:' + domain, encoding='utf-8')
+                with self.assertRaises((ValueError, UnicodeError)):
+                    resolver.reload_asn_list()
+                self.assertIs(resolver.asn_match_rules, old_rules)
+
+    def test_repeated_asn_rules_are_alternatives_and_regex_keeps_commas(self):
+        resolver = self.load_rules(
+            'AS15169 domain:youtube.com\n'
+            '15169 regexp:^rr[0-9]{1,3}---sn-test\\.googlevideo\\.com$\n'
+        )
+        for hostname in ('www.youtube.com', 'RR12---sn-test.googlevideo.com.'):
+            self.assertTrue(resolver.is_blocked_asn('192.0.2.1', hostname))
+        for hostname in ('rr1234---sn-test.googlevideo.com', 'rr1---sn-other.googlevideo.com'):
+            self.assertFalse(resolver.is_blocked_asn('192.0.2.1', hostname))
+
+    def test_unrestricted_rule_remains_unrestricted_in_either_order(self):
+        for lines in (
+            'AS15169\nAS15169 domain:googlevideo.com\n',
+            'AS15169 domain:googlevideo.com\nAS15169\n',
+            'Google\nAS15169 domain:googlevideo.com\n',
+        ):
+            with self.subTest(lines=lines):
+                resolver = self.load_rules(lines)
+                self.assertTrue(resolver.is_blocked_asn('192.0.2.1', 'gmail.com'))
+
+    def test_invalid_conditions_preserve_previous_rules_on_reload(self):
+        resolver = self.load_rules('AS15169 domain:googlevideo.com\n')
+        old_rules = resolver.asn_match_rules
+        for condition in ('domain:', 'regexp:', 'regexp:[', 'regex:foo',
+                          'domain:googlevideo.com domain:youtube.com', 'unknown:value'):
+            with self.subTest(condition=condition):
+                self.asn_file.write_text('AS15169 ' + condition, encoding='utf-8')
+                with self.assertRaises((ValueError, dnsmap.re.error)):
+                    resolver.reload_asn_list()
+                self.assertIs(resolver.asn_match_rules, old_rules)
+
+    def filter_asn_rules(self, source, exclusions):
+        scripts = Path(dnsmap.__file__).parent / 'scripts'
+
+        def sanitize(text):
+            return subprocess.run(
+                ['awk', '-f', str(scripts / 'sanitize-asn-lists.awk')],
+                input=text, text=True, capture_output=True, check=True,
+            ).stdout
+
+        excluded = Path(self.temp_directory.name) / 'exclude-asn.txt'
+        excluded.write_text(sanitize(exclusions), encoding='utf-8')
+        result = subprocess.run(
+            ['grep', '-v', '-i', '-F', '-w', '-f', str(excluded)],
+            input=sanitize(source), text=True, capture_output=True,
+        )
+        self.assertIn(result.returncode, (0, 1))
+        return result.stdout.splitlines()
+
+    def test_bare_asn_exclusion_removes_conditions_with_word_boundaries(self):
+        source = ('AS15169 # Google\r\n'
+                  'as15169\tdomain:googlevideo.com\n'
+                  'AS15169 regexp:^rr[0-9]{1,3}\\.example$\n'
+                  'AS151690 domain:googlevideo.com\nAS21395\nGoogle\n')
+        for exclusion in (' AS15169 # excluded\r\n', 'as15169\n'):
+            with self.subTest(exclusion=exclusion):
+                self.assertEqual(self.filter_asn_rules(source, exclusion), [
+                    'AS151690 domain:googlevideo.com', 'AS21395', 'Google',
+                ])
+
+    def test_asn_exclusions_use_the_written_number_format(self):
+        source = 'AS15169 domain:googlevideo.com\n15169 domain:googlevideo.com\n'
+        self.assertEqual(self.filter_asn_rules(source, 'AS15169\n'),
+                         ['15169 domain:googlevideo.com'])
+        self.assertEqual(self.filter_asn_rules(source, '15169\n'),
+                         ['AS15169 domain:googlevideo.com'])
+
+    def test_conditions_and_organizations_use_literal_word_matching(self):
+        source = ('AS15169\nAS15169 domain:googlevideo.com\n'
+                  'AS15169 domain:youtube.com\n'
+                  'AS15169 regexp:^rr[0-9]{1,3}\\.example$\n'
+                  '/cdn77|datacamp/\nCloudflare\nCloudflare Inc.\nNotCloudflare\n')
+        self.assertEqual(self.filter_asn_rules(
+            source,
+            'as15169 DOMAIN:googlevideo.com # only this domain\n'
+            'AS15169 regexp:^rr[0-9]{1,3}\\.example$\n'
+            '/cdn77|datacamp/\ncloudflare\n',
+        ), ['AS15169', 'AS15169 domain:youtube.com', 'NotCloudflare'])
+
+    def test_empty_exclusions_preserve_all_rules(self):
+        self.assertEqual(self.filter_asn_rules(
+            'AS15169\nAS15169 domain:googlevideo.com\n', ' # comment\n\n',
+        ), ['AS15169', 'AS15169 domain:googlevideo.com'])
+
+    def test_sanitized_rules_reach_dns_resolution_without_widening(self):
+        script = Path(dnsmap.__file__).parent / 'scripts/sanitize-asn-lists.awk'
+        source = (' # comment\r\n AS15169 domain:googlevideo.com # Google\r\n'
+                  'AS15169 regexp:^rr[0-9]{1,3}\\.example$\n'
+                  'Telegram Messenger, Inc. # legacy name\n')
+        sanitized = subprocess.run(['awk', '-f', str(script)], input=source,
+                                   text=True, capture_output=True, check=True).stdout
+        self.assertIn('Telegram Messenger, Inc.\n', sanitized)
+        resolver = self.load_rules(sanitized)
+        self.assertEqual(resolver.asn_match_rules.asn_rules, {})
+        self.assertEqual(len(resolver.asn_match_rules.domain_rules), 2)
+        for hostname, should_map in (('rr1.googlevideo.com', True), ('gmail.com', False)):
+            with self.subTest(hostname=hostname):
+                request = DNSRecord.question(hostname, 'A')
+                filtered_reply = dns_reply(request, rcode=RCODE.REFUSED)
+                resolved_reply = dns_reply(request, ['192.0.2.1'])
+                # Match the original query name, even when its address belongs to a CNAME target.
+                resolved_reply.rr[0].rname = 'cdn.example.net'
+                resolver.query_doh = Mock(side_effect=[filtered_reply, resolved_reply])
+                reply = resolver.resolve(request, Mock())
+                if should_map:
+                    self.assertEqual(str(reply.rr[0].rdata), '14.16.0.2')
+                    self.assertEqual(str(reply.rr[0].rname), hostname + '.')
+                else:
+                    self.assertIs(reply, filtered_reply)
+
+
 class MappingTests(ResolverTestCase):
     class TrackingDict(dict):
         def __init__(self):
@@ -559,62 +739,6 @@ class MappingTests(ResolverTestCase):
         self.assertFalse(resolver.add_mapping('192.0.2.1'))
         self.iptables_runner.assert_not_called()
 
-    def test_first_request_returns_while_next_batch_is_blocked(self):
-        resolver = self.make_resolver(mapping_batch_delay=0)
-        entered = [threading.Event(), threading.Event()]
-        release = [threading.Event(), threading.Event()]
-        calls = []
-
-        def run_iptables(*args, **kwargs):
-            index = len(calls)
-            calls.append(args)
-            entered[index].set()
-            if not release[index].wait(3):
-                raise TimeoutError('test did not release batch')
-            return Mock(returncode=0, stderr='')
-
-        resolver.iptables_runner = run_iptables
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            try:
-                first = executor.submit(resolver.add_mapping, '192.0.2.1')
-                self.assertTrue(entered[0].wait(1))
-                second = executor.submit(resolver.add_mapping, '192.0.2.2')
-                with resolver.mapping_condition:
-                    self.assertTrue(resolver.mapping_condition.wait_for(
-                        lambda: '192.0.2.2' in resolver.pending_mappings, 1))
-                release[0].set()
-                self.assertTrue(entered[1].wait(1))
-                self.assertEqual(first.result(timeout=1), '14.16.0.2')
-                self.assertFalse(second.done())
-            finally:
-                for event in release:
-                    event.set()
-            self.assertEqual(second.result(timeout=1), '14.16.0.3')
-
-    def test_worker_errors_release_waiters_and_allow_retry(self):
-        for error in (OSError('failed'),
-                      subprocess.TimeoutExpired('iptables-restore', 10),
-                      RuntimeError('unexpected worker failure')):
-            with self.subTest(error=type(error).__name__):
-                resolver = self.make_resolver()
-                resolver.iptables_runner = Mock(side_effect=error)
-                with ThreadPoolExecutor(max_workers=1) as executor:
-                    future = executor.submit(resolver.add_mapping, '192.0.2.1')
-                    self.assertFalse(future.result(timeout=1))
-                resolver.iptables_runner = Mock(return_value=Mock(returncode=0, stderr=''))
-                self.assertEqual(resolver.add_mapping('192.0.2.1'), '14.16.0.2')
-
-    def test_close_drains_pending_batch_without_batch_delay(self):
-        resolver = self.make_resolver(mapping_batch_delay=60)
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            pending = executor.submit(resolver.add_mapping, '192.0.2.1')
-            with resolver.mapping_condition:
-                self.assertTrue(resolver.mapping_condition.wait_for(
-                    lambda: bool(resolver.pending_mappings), 1))
-            executor.submit(resolver.close).result(timeout=1)
-            self.assertEqual(pending.result(timeout=1), '14.16.0.2')
-        self.assertFalse(resolver.add_mapping('192.0.2.2'))
-
     def test_failed_flush_preserves_old_mappings(self):
         def run_iptables(command, **kwargs):
             if '-F' in command:
@@ -651,22 +775,22 @@ class ResolverContractTests(ResolverTestCase):
         self.assertEqual(str(reply.rr[0].rdata), '14.16.0.2')
         resolver.is_blocked_asn.assert_not_called()
 
-    def test_servfail_without_asn_match_is_preserved(self):
+    def test_refused_without_asn_match_is_preserved(self):
         request = DNSRecord.question('example.com', 'A')
         resolver = self.resolver_with_replies([
-            dns_reply(request, rcode=RCODE.SERVFAIL),
+            dns_reply(request, rcode=RCODE.REFUSED),
             dns_reply(request, ['192.0.2.1']),
         ])
 
         reply = resolver.resolve(request, Mock())
 
-        self.assertEqual(reply.header.rcode, RCODE.SERVFAIL)
+        self.assertEqual(reply.header.rcode, RCODE.REFUSED)
         resolver.add_mappings.assert_not_called()
 
     def test_resolver_servfail_is_returned_without_asn_lookup(self):
         request = DNSRecord.question('example.com', 'A')
         resolver = self.resolver_with_replies([
-            dns_reply(request, rcode=RCODE.SERVFAIL),
+            dns_reply(request, rcode=RCODE.REFUSED),
             dns_reply(request, ['192.0.2.1'], rcode=RCODE.SERVFAIL),
         ], asn_match=True)
 
@@ -676,9 +800,39 @@ class ResolverContractTests(ResolverTestCase):
         resolver.is_blocked_asn.assert_not_called()
         resolver.add_mappings.assert_not_called()
 
+    def test_upstream_failure_does_not_trigger_asn_lookup(self):
+        for qtype in ('A', 'HTTPS'):
+            for timeout in (False, True):
+                with self.subTest(qtype=qtype, timeout=timeout):
+                    request = DNSRecord.question('example.com', qtype)
+                    resolver = self.resolver_with_replies([
+                        TimeoutError('DoH timeout') if timeout else dns_reply(request, rcode=RCODE.SERVFAIL),
+                    ])
+                    resolver.log_processing_error = Mock()
+
+                    reply = resolver.resolve(request, Mock())
+
+                    self.assertEqual(reply.header.rcode, RCODE.SERVFAIL)
+                    resolver.query_doh.assert_called_once_with(request, 'az-local')
+                    resolver.is_blocked_asn.assert_not_called()
+
+    def test_https_asn_lookup_failure_is_preserved(self):
+        request = DNSRecord.question('example.com', 'HTTPS')
+        addresses = DNSRecord.question('example.com', 'A')
+        resolver = self.resolver_with_replies([
+            dns_reply(request, rcode=RCODE.REFUSED),
+            dns_reply(addresses, rcode=RCODE.SERVFAIL),
+        ])
+
+        reply = resolver.resolve(request, Mock())
+
+        self.assertEqual(reply.header.rcode, RCODE.SERVFAIL)
+        self.assertEqual(reply.q.qtype, QTYPE.HTTPS)
+        resolver.is_blocked_asn.assert_not_called()
+
     def test_empty_resolver_answer_preserves_filtered_reply(self):
         request = DNSRecord.question('empty.example', 'A')
-        filtered_reply = dns_reply(request, rcode=RCODE.SERVFAIL)
+        filtered_reply = dns_reply(request, rcode=RCODE.REFUSED)
         resolved_reply = dns_reply(request)
         resolver = self.resolver_with_replies([
             filtered_reply,
@@ -688,43 +842,14 @@ class ResolverContractTests(ResolverTestCase):
         reply = resolver.resolve(request, Mock())
 
         self.assertIs(reply, filtered_reply)
-        self.assertEqual(reply.header.rcode, RCODE.SERVFAIL)
-        resolver.is_blocked_asn.assert_not_called()
-        resolver.add_mappings.assert_not_called()
-
-    def test_resolver_servfail_is_returned_without_asn_lookup(self):
-        request = DNSRecord.question('example.com', 'A')
-        resolver = self.resolver_with_replies([
-            dns_reply(request, rcode=RCODE.SERVFAIL),
-            dns_reply(request, ['192.0.2.1'], rcode=RCODE.SERVFAIL),
-        ], asn_match=True)
-
-        reply = resolver.resolve(request, Mock())
-
-        self.assertEqual(reply.header.rcode, RCODE.SERVFAIL)
-        resolver.is_blocked_asn.assert_not_called()
-        resolver.add_mappings.assert_not_called()
-
-    def test_empty_resolver_answer_preserves_filtered_reply(self):
-        request = DNSRecord.question('empty.example', 'A')
-        filtered_reply = dns_reply(request, rcode=RCODE.SERVFAIL)
-        resolved_reply = dns_reply(request)
-        resolver = self.resolver_with_replies([
-            filtered_reply,
-            resolved_reply,
-        ], asn_match=True)
-
-        reply = resolver.resolve(request, Mock())
-
-        self.assertIs(reply, filtered_reply)
-        self.assertEqual(reply.header.rcode, RCODE.SERVFAIL)
+        self.assertEqual(reply.header.rcode, RCODE.REFUSED)
         resolver.is_blocked_asn.assert_not_called()
         resolver.add_mappings.assert_not_called()
 
     def test_one_asn_match_maps_all_resolved_addresses(self):
         request = DNSRecord.question('example.com', 'A')
         resolver = self.resolver_with_replies([
-            dns_reply(request, rcode=RCODE.SERVFAIL),
+            dns_reply(request, rcode=RCODE.REFUSED),
             dns_reply(request, ['192.0.2.1', '192.0.2.2']),
         ])
         resolver.is_blocked_asn.side_effect = [False, True]
@@ -769,19 +894,113 @@ class ResolverContractTests(ResolverTestCase):
         self.assertEqual(reply.rr[0].rtype, QTYPE.CNAME)
         resolver.add_mappings.assert_not_called()
 
-    def test_aaaa_and_https_are_suppressed(self):
-        for query_type in ('AAAA', 'HTTPS'):
-            with self.subTest(query_type=query_type):
-                request = DNSRecord.question('example.com', query_type)
-                resolver = self.resolver_with_replies([dns_reply(request)])
+    def test_aaaa_is_suppressed(self):
+        request = DNSRecord.question('example.com', 'AAAA')
+        resolver = self.resolver_with_replies([dns_reply(request)])
+        reply = resolver.resolve(request, Mock())
+        self.assertEqual(reply.header.rcode, RCODE.NOERROR)
+        self.assertEqual(reply.rr, [])
+
+    def test_https_keeps_alias_target_and_alpn_and_removes_addresses(self):
+        request = DNSRecord.question('video.example', 'HTTPS')
+        upstream = request.reply()
+        upstream.header.ad = 1
+        upstream.add_answer(
+            RR('video.example', QTYPE.CNAME, rdata=CNAME('canonical.example')),
+            RR('canonical.example', QTYPE.HTTPS, ttl=300, rdata=HTTPS.fromZone([
+                '1', 'edge.example.', 'mandatory=alpn', 'alpn=h3,h2',
+                'port=8443', 'ipv4hint=192.0.2.10', 'ipv6hint=2001:db8::10',
+            ])),
+            RR('edge.example', QTYPE.A, rdata=A('192.0.2.10')),
+        )
+        upstream.add_ar(
+            RR('edge.example', QTYPE.A, rdata=A('192.0.2.10')),
+            RR('edge.example', QTYPE.AAAA, rdata=AAAA('2001:db8::10')),
+        )
+        resolver = self.resolver_with_replies([DNSRecord.parse(upstream.pack())])
+
+        reply = DNSRecord.parse(resolver.resolve(request, Mock()).pack())
+
+        self.assertEqual([rr.rtype for rr in reply.rr], [QTYPE.CNAME, QTYPE.HTTPS])
+        self.assertEqual(str(reply.rr[1].rdata), '1 edge.example. mandatory=alpn alpn=h3,h2 port=8443')
+        self.assertEqual(reply.rr[1].ttl, 300)
+        self.assertEqual(reply.ar, [])
+        self.assertFalse(reply.header.ad)
+        resolver.is_blocked_asn.assert_not_called()
+        resolver.add_mappings.assert_not_called()
+
+    def test_https_skips_records_with_mandatory_address_hints(self):
+        request = DNSRecord.question('video.example', 'HTTPS')
+        blocked = [
+            RR(request.q.qname, QTYPE.HTTPS, rdata=HTTPS.fromZone(['1', '.', *params]))
+            for params in (
+                ['mandatory=ipv4hint', 'ipv4hint=192.0.2.10'],
+                ['mandatory=alpn,ipv6hint', 'alpn=h3', 'ipv6hint=2001:db8::10'],
+            )
+        ]
+        allowed = RR(request.q.qname, QTYPE.HTTPS, rdata=HTTPS.fromZone(['2', '.', 'alpn=h3']))
+        for expected in ([], [allowed]):
+            with self.subTest(expected=expected):
+                upstream = request.reply()
+                upstream.add_answer(*blocked, *expected)
+                resolver = self.resolver_with_replies([upstream])
                 reply = resolver.resolve(request, Mock())
                 self.assertEqual(reply.header.rcode, RCODE.NOERROR)
-                self.assertEqual(reply.rr, [])
+                self.assertEqual(reply.rr, expected)
+
+    def test_https_with_matching_asn_returns_filtered_answer(self):
+        request = DNSRecord.question('video.example', 'HTTPS')
+        address_request = DNSRecord.question('video.example', 'A')
+        https_reply = request.reply()
+        https_reply.add_answer(RR(request.q.qname, QTYPE.HTTPS, rdata=HTTPS.fromZone([
+            '1', '.', 'alpn=h3', 'ipv4hint=192.0.2.2',
+        ])))
+        resolver = self.resolver_with_replies([
+            dns_reply(request, rcode=RCODE.REFUSED),
+            dns_reply(address_request, ['192.0.2.1', '192.0.2.2']),
+            https_reply,
+        ])
+        resolver.is_blocked_asn.side_effect = [False, True]
+
+        reply = resolver.resolve(request, Mock())
+
+        self.assertEqual(reply.header.rcode, RCODE.NOERROR)
+        self.assertEqual(str(reply.rr[0].rdata), '1 . alpn=h3')
+        calls = resolver.query_doh.call_args_list
+        self.assertEqual([(call.args[0].q.qtype, call.args[1]) for call in calls], [
+            (QTYPE.HTTPS, 'az-local'), (QTYPE.A, 'az-resolver'), (QTYPE.HTTPS, 'az-resolver'),
+        ])
+        self.assertEqual([call.args[0].q.qname for call in calls], [request.q.qname] * 3)
+        self.assertEqual([call.args for call in resolver.is_blocked_asn.call_args_list], [
+            ('192.0.2.1', 'video.example.'), ('192.0.2.2', 'video.example.'),
+        ])
+        resolver.add_mappings.assert_not_called()
+
+    def test_https_without_matching_asn_preserves_refused(self):
+        request = DNSRecord.question('video.example', 'HTTPS')
+        address_request = DNSRecord.question('video.example', 'A')
+        for address_reply in (
+            dns_reply(address_request, ['192.0.2.1']),
+            dns_reply(address_request),
+            dns_reply(address_request, rcode=RCODE.NXDOMAIN),
+        ):
+            with self.subTest(address_reply=address_reply):
+                resolver = self.resolver_with_replies([
+                    dns_reply(request, rcode=RCODE.REFUSED),
+                    address_reply,
+                ])
+
+                reply = resolver.resolve(request, Mock())
+
+                self.assertEqual(reply.header.rcode, RCODE.REFUSED)
+                self.assertEqual(reply.q.qtype, QTYPE.HTTPS)
+                self.assertEqual(resolver.query_doh.call_count, 2)
+                resolver.add_mappings.assert_not_called()
 
     def test_mmdb_exception_returns_servfail(self):
         request = DNSRecord.question('example.com', 'A')
         resolver = self.resolver_with_replies([
-            dns_reply(request, rcode=RCODE.SERVFAIL),
+            dns_reply(request, rcode=RCODE.REFUSED),
             dns_reply(request, ['192.0.2.1']),
         ])
         resolver.is_blocked_asn.side_effect = RuntimeError('MMDB failed')
