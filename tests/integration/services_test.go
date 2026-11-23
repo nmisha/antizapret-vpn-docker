@@ -19,7 +19,9 @@ func serviceImage(service string) string {
 }
 
 func TestHTTPSCertificateMaintenanceAndLocalHealth(t *testing.T) {
-	f := newFixture(t, "https", "", "DOCKTINEL_RUNTIME_DIR=/tmp/https-watchdog", "PROXY_DOMAIN=sentinel.example", "PROXY_CERT_MODE=auto", "PROXY_ACME_CA=http://127.0.0.1:9", "PROXY_SERVICE_1=Missing:444:127.0.0.1:9")
+	// Keep port 9091 free: the fixture maps unavailable Authelia to loopback.
+	// The legacy HTTPS portal on that port would redirect the HTTP auth request.
+	f := newFixture(t, "https", "", "DOCKTINEL_RUNTIME_DIR=/tmp/https-watchdog", "PROXY_DOMAIN=sentinel.example", "PROXY_AUTHELIA_DOMAIN=auth.sentinel.example", "PROXY_CERT_MODE=auto", "PROXY_ACME_CA=http://127.0.0.1:9", "PROXY_SERVICE_1=Missing:444:127.0.0.1:9")
 	f.runtime()
 	// Parsed certificates are reused, but expiry still advances without file changes.
 	f.mustExec("sh", "-ec", `
