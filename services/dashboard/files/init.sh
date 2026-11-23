@@ -1,4 +1,5 @@
 #!/bin/sh
+set -eu
 
 if [ -z "${SERVER_ROOT:-}" ]; then
     echo "[ERROR] SERVER_ROOT is not defined. Set SERVER_ROOT environment variable."
@@ -10,7 +11,7 @@ HTPASSWD_FILE="/etc/lighttpd/.htpasswd"
 AUTH_CONF_FILE="/etc/lighttpd/conf.d/010-auth.conf"
 
 create_auth() {
-    if [ -z "$DASHBOARD_USERNAME" ] || [ -z "$DASHBOARD_PASSWORD" ]; then
+    if [ -z "${DASHBOARD_USERNAME:-}" ] || [ -z "${DASHBOARD_PASSWORD:-}" ]; then
         echo "[ERROR] DASHBOARD_USERNAME or DASHBOARD_PASSWORD environment variables are not set."
         echo "Example usage:"
         echo "  export DASHBOARD_USERNAME=user"
@@ -36,31 +37,8 @@ EOL
 }
 
 create_empty_auth() {
-    echo "[INFO] Authentication is disabled. Skipping htpasswd creation."
-
-    # Создаём пустой auth-конфиг или перезаписываем существующий
-    cat <<EOL > "$AUTH_CONF_FILE"
-# Authentication disabled
-EOL
-
-    echo "[INFO] Authentication config $AUTH_CONF_FILE created (no auth)."
+    printf '%s\n' '# Authentication disabled' > "$AUTH_CONF_FILE"
 }
-
-disable_auth() {
-    echo "[INFO] Disabling authentication."
-
-    # 1) Гарантированно убрать правила auth (если раньше генерились)
-    cat > "$AUTH_CONF_FILE" <<'EOL'
-# Authentication disabled (no auth.require here)
-EOL
-
-    # 2) (опционально, но надёжно) выпилить mod_auth из дефолтного конфига
-    if [ -f /etc/lighttpd/conf.d/000-default.conf ]; then
-        sed -i 's/, *"mod_auth"//; s/"mod_auth", *//; s/"mod_auth"//g' /etc/lighttpd/conf.d/000-default.conf
-        echo "[INFO] mod_auth removed from /etc/lighttpd/conf.d/000-default.conf"
-    fi
-}
-
 
 create_modules() {
     MOD_CONF_FILE="/etc/lighttpd/conf.d/000-modules.conf"
@@ -134,15 +112,23 @@ create_services_json() {
     config=$(jq -n \
         --arg internalHostname "$(hostname)" \
         --argjson services "[$services]" \
-        '{services: $services, internalHostname: $internalHostname}')
+        --arg authUrl "${DASHBOARD_AUTH_URL:-}" \
+        '{services: $services, internalHostname: $internalHostname, authUrl: $authUrl}')
 
     echo "$config" > "$CONFIG_JSON"
+    jq -e '.services | type == "array"' "$CONFIG_JSON" >/dev/null
     echo "[INFO] JSON file has been successfully created at: $CONFIG_JSON"
 }
 
-# Отключаем basic auth на дашборде
-# create_auth
-create_empty_auth
+case "${DASHBOARD_AUTH_ENABLED:-1}" in
+    1) create_auth ;;
+    0) create_empty_auth ;;
+    *) echo '[ERROR] DASHBOARD_AUTH_ENABLED must be 0 or 1' >&2; exit 1 ;;
+esac
+case "${DASHBOARD_AUTH_URL:-}" in
+    ""|https://?*) ;;
+    *) echo '[ERROR] DASHBOARD_AUTH_URL must be an HTTPS URL' >&2; exit 1 ;;
+esac
 create_modules
 create_cors
 create_services_json

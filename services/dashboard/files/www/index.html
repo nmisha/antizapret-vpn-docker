@@ -14,9 +14,10 @@
       <div class="tab-container" id="tabContainer"></div>
       <div id="pageTitle">
         <a
-                id="logout-link"
-                href="#"
+                id="auth-link"
+                href="https://github.com/xtrime-ru/antizapret-vpn-docker"
                 target="_blank"
+                rel="noopener noreferrer"
                 class="page-title-link"
         >
           <span id="titleText">AZ</span>
@@ -25,12 +26,6 @@
       </div>
     </div>
     <div id="contentWrapper"></div>
-    <script>
-      // Портал Authelia: заменяем первый поддомен Dashboard на auth.
-      const authHostname = window.location.hostname.replace(/^[^.]+\./, "auth.");
-      document.getElementById("logout-link").href =
-        "https://" + authHostname;
-    </script>
     <script src="index.js"></script>
   </div>
   </body>

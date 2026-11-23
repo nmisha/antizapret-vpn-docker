@@ -74,6 +74,14 @@ function tryActivateTabFromHash() {
 fetch(servicesUrl)
     .then(response => response.json())
     .then(config => {
+        if (config.authUrl) {
+            const authUrl = new URL(config.authUrl);
+            if (authUrl.protocol === 'https:') {
+                const authLink = document.getElementById('auth-link');
+                authLink.href = authUrl.href;
+                authLink.title = 'Authelia';
+            }
+        }
         let internalHostname = config.internalHostname;
         let services = config.services;
 
