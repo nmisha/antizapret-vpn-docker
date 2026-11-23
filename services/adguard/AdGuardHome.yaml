@@ -491,7 +491,7 @@ filters:
     url: https://raw.githubusercontent.com/nmisha/NoADS_RU/refs/heads/main/ads_list.txt
     name: Zalexanninev15 NoADS_RU
     id: 1756225571
-  - enabled: true
+  - enabled: false
     url: https://nmisha.github.io/antizapret-vpn-docker/lists-mine/ip_checkers.txt
     name: nmisha ip_checkers.txt (rules)
     id: 1789878707
@@ -512,14 +512,6 @@ user_rules:
   - '||calls.okcdn.ru^'
   - '||pimg.mycdn.me^'
   - '||vk-analytics.ru^'
-  - '||ip.mail.ru^'
-  - '||ifconfig.me^'
-  - '||checkip.amazonaws.com^'
-  - '||api-ipv4.ip.sb^'
-  - '||api-ipv6.ip.sb^'
-  - '||ip.sb^'
-  - '||ifconfig.co^'
-  - '||ipv4-internet.yandex.net^'
 
   - '||tracker.my.com^'
   - '||tracker-s2s.my.com^'

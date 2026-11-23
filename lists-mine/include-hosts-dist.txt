@@ -6,7 +6,6 @@
 # added
 dns.comss.one
 comss.dns.controld.com
-aistudio.google.com
 anthropic.com
 claude.com
 faceulv.com
@@ -63,40 +62,24 @@ ytimg.com
 ggpht.com
 googleusercontent.com
 googlevideo.com
-youtubei.googleapis.com
 
 
 # google
-news.google.com
-chrome.google.com
-gemini.google.com
 googleapis.com
 
 # gemini
-gemini.google.com
-proactivebackend-pa.googleapis.com
 
 
 # google play and android
-play.google.com
 google-analytics.com
-googleusercontent.com
 *gstatic.com
 *.gvt1.com
 *.ggpht.com
-dl.google.com
-dl-ssl.google.com
 android.com
 androidify.com
-android.apis.google.com
-android.clients.google.com
 *.gvt2.com
 *.gvt3.com
 googleplay.com
-play-fe.googleapis.com
-play-games.googleusercontent.com
-play-lh.googleusercontent.com
-play.googleapis.com
 
 
 # microsoft
@@ -117,7 +100,6 @@ zendesk.com
 fbcdn.net
 messenger.com
 fb.com
-cdninstagram.com
 instagram.com
 
 
@@ -213,7 +195,6 @@ discord.gg
 discordapp.net
 discordapp.com
 discord.media
-discord-attachments-uploads-prd.storage.googleapis.com
 
 netflix.com
 
@@ -414,7 +395,6 @@ ip.me
 # ===================================================================================
 
  # 4pda.to/forum/index.php?showforum=1192
-4pda.to
 
 # platform.activestate.com
 activestate.com
@@ -426,7 +406,6 @@ amazon.com
 amd.com
 
 # console.anthropic.com
-anthropic.com
 
 # itunes.apple.com/search
 apple.com
@@ -452,7 +431,6 @@ bacch.com
 battle.net
 
 # bing.com/chat
-bing.com
 
 # portal.bgpmon.net
 bgpmon.net
@@ -465,7 +443,6 @@ brawlstarsgame.com
 
 # login.broadcom.com
 # packages-prod.broadcom.com/tools/
-broadcom.com
 
 # forums.chaos.com
 # try.chaos.com
@@ -500,10 +477,8 @@ corsair.com
 deepsource.com
 
 # dl.dell.com
-dell.com
 
 # afcs.dellcdn.com
-dellcdn.com
 
 # artifacts.elastic.co
 elastic.co
@@ -520,7 +495,7 @@ fastspring.com
 # docs.fortinet.com
 fortinet.com
 
-# d.furaffinity.net/art/targso/1574791654/1574791654.targso_бассеин2.png
+# d.furaffinity.net/art/targso/1574791654/1574791654.targso_Р±Р°СЃСЃРµРёРЅ2.png
 furaffinity.net
 
 # support.ts.fujitsu.com
@@ -528,7 +503,6 @@ fujitsu.com
 
 # Github Copilot, see https://docs.github.com/en/copilot/managing-copilot/managing-github-copilot-in-your-organization/configuring-your-proxy-server-or-firewall-for-copilot
 github.com
-githubcopilot.com
 githubusercontent.com
 
 # packages.gitlab.com/gitlab/gitlab-ee/
@@ -541,7 +515,6 @@ glpals.com
 # gemini.google.com
 # lookerstudio.google.com
 google.com
-googleapis.com
 
 # ai.google.dev
 google.dev
@@ -567,7 +540,6 @@ groupon.com
 grouponcdn.com
 
 # releases.hashicorp.com
-hashicorp.com
 
 # hex-rays.com/vulnfix/
 hex-rays.com
@@ -588,9 +560,8 @@ infineon.com
 intellij.net
 
 # download.jetbrains.com
-jetbrains.com
 
-# joyreactor.cc/search?q=путин
+# joyreactor.cc/search?q=РїСѓС‚РёРЅ
 joyreactor.cc
 
 # myworld.leica-geosystems.com
@@ -618,12 +589,9 @@ metademolab.com
 
 # copilot.microsoft.com
 # software-static.download.prss.microsoft.com
-microsoft.com
 
 # account.mongodb.com
 # cloud.mongodb.com
-mongodb.com
-mongodb.net
 
 # login.norton.com
 norton.com
@@ -633,10 +601,8 @@ notion.so
 
 # developer.nvidia.com
 # install.launcher.omniverse.nvidia.com/installers/omniverse-launcher-win.exe
-nvidia.com
 
 # files.oaiusercontent.com
-oaiusercontent.com
 
 # ripcordchat.onfastspring.com/ripcord
 onfastspring.com
@@ -644,7 +610,6 @@ onfastspring.com
 # api.openai.com
 # auth0.openai.com
 # chat.openai.com
-openai.com
 
 # cloud.oracle.com (oraclecloud.com blocks login attempts from Russia)
 oracle.com
@@ -715,7 +680,6 @@ tailscale.com
 templatemonster.com
 
 # app.terraform.io
-terraform.io
 
 # api.themoviedb.org
 themoviedb.org
@@ -749,7 +713,6 @@ viperatech.com
 
 # docs.vmware.com
 # softwareupdate.vmware.com
-vmware.com
 
 # walmart.com/orders
 walmart.com
@@ -762,10 +725,8 @@ webscraper.io
 
 # accounts.x.ai
 # console.x.ai
-x.ai
 
 # xboxdesignlab.xbox.com
-xbox.com
 
 # accountmanagement.services.xerox.com/sites/customerportal?hc_login
 # www.support.xerox.com
@@ -793,8 +754,6 @@ alienwarearena.com
 alltrails.com
 alphacoders.com
 altaro.com
-amazfitwatchfaces.com
-analog.com
 angryemailtranslator.com
 annimon.com
 anythingllm.com
@@ -814,7 +773,6 @@ bradyid.com
 bricklink.com
 broccolionline.jp
 buf.build
-buymeacoffee.com
 cambiumnetworks.com
 canva.com
 canva-apps.com
@@ -823,7 +781,6 @@ capcut.com
 cdromance.org
 certifytheweb.com
 cesium.com
-chatgpt.com
 cisecurity.org
 citrix.com
 claude.ai
@@ -843,14 +800,12 @@ databricks.com
 dating.com
 daz3d.com
 deepsource.io
-deezer.com
 designify.com
 devart.com
 devexpress.com
 devops.com
 dickssportinggoods.com
 diffblue.com
-digikey.com
 disctech.com
 dnb.com
 docker.io
@@ -864,7 +819,6 @@ elgiganten.se
 engagor.com
 etsy.com
 extremetech.com
-fanatical.com
 fast.com
 fastflux.ai
 findagrave.com
@@ -875,7 +829,6 @@ fluke.com
 formula1.com
 fortiguard.com
 fotoforensics.com
-foxtrot.com.ua
 framer.com
 freeimages.com
 freemyip.com
@@ -890,7 +843,6 @@ getsafeonline.org
 ghidra-sre.org
 grammarly.com
 guilded.gg
-habr.com
 hashkey.com
 healthline.com
 home-connect.com
@@ -904,7 +856,6 @@ iherb.com
 indeed.com
 informit.com
 insanelymac.com
-intel.com
 intel.se
 jabra.com
 joesandbox.com
@@ -928,28 +879,19 @@ macvendors.com
 malwarebytes.org
 mattermost.com
 maximintegrated.com
-mbed.com
 megogo.net
 metopera.org
-microchip.com
 moneypuck.com
 monotype.com
 monotypefonts.com
 monster.ie
-mouser.com
 myfonts.com
 myprepaidcenter.com
 myrotvorets.center
 nba.com
-netflix.com
 nordvpn.com
-nxp.com
-oaistatic.com
 oasis.app
 oclc.org
-octopart.com
-octopart-clicks.com
-octostatic.com
 oculus.com
 omv-extras.org
 ottg.app
@@ -973,25 +915,20 @@ promods.net
 pump.fun
 qaweb.dev
 qcad.org
-qualcomm.com
 quicknode.com
 radarr.video
 ratatype.com
 readdle.com
-readybot.io
-recraft.ai
 redis.com
 redis.io
 refinitiv.com
 reka.ai
 remove.bg
 resp.app
-reverb.com
 salesforce.com
 samsclub.com
 schenker-tech.de
 securitytrails.com
-seekvectorlogo.net
 semrush.com
 sendy.jp
 sentry.io
@@ -1004,7 +941,6 @@ showtime.com
 singlekey-id.com
 skyshowtime.com
 slideshare.net
-smartbear.com
 snort.org
 soapui.org
 solarwinds.com
@@ -1012,29 +948,24 @@ sora.com
 spiceworks.com
 splunk.com
 splunkcloud.com
-spotify.com
 st.com
 stalker2.com
 steamidfinder.com
 steganos.com
 stereophile.com
 stockx.com
-strava.com
 studychat.app
 stuff.co.nz
-swagger.io
 sysdig.com
 systemtek.co.uk
 tableau.com
 target.com
-te.com
 tenable.com
 teslasoft.org
 theaudiodb.com
 thesassway.com
 thinkpads.com
 thomas-krenn.com
-ti.com
 tidal.com
 timberland.com
 tria.ge
@@ -1050,7 +981,6 @@ vans.it
 vans.nl
 vans.se
 vectorworks.net
-veeam.com
 veritas.com
 vpnunlimited.com
 vyos.io
