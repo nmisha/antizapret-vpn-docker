@@ -158,8 +158,16 @@ exceptions_v6=$(sed -n 's/^6 //p' <<< "$exceptions")
 # Each family is updated independently: a bad list keeps its previous set and
 # makes the run fail (the caller retries), while the other family still updates.
 status=0
-refresh_set "$SET_V4" inet "$V4_FILE" || status=1
-refresh_set "$SET_V6" inet6 "$V6_FILE" || status=1
-if ipset list -n "$SET_V4" >/dev/null 2>&1; then install_chain iptables "$SET_V4" "$exceptions_v4"; fi
-if ipset list -n "$SET_V6" >/dev/null 2>&1; then install_chain ip6tables "$SET_V6" "$exceptions_v6"; fi
+case "${FIREWALL_FAMILY:-both}" in
+    both|4|6) ;;
+    *) echo 'Invalid FIREWALL_FAMILY (use both, 4 or 6)' >&2; exit 1 ;;
+esac
+if [ "${FIREWALL_FAMILY:-both}" != 6 ]; then
+    refresh_set "$SET_V4" inet "$V4_FILE" || status=1
+    if ipset list -n "$SET_V4" >/dev/null 2>&1; then install_chain iptables "$SET_V4" "$exceptions_v4"; fi
+fi
+if [ "${FIREWALL_FAMILY:-both}" != 4 ]; then
+    refresh_set "$SET_V6" inet6 "$V6_FILE" || status=1
+    if ipset list -n "$SET_V6" >/dev/null 2>&1; then install_chain ip6tables "$SET_V6" "$exceptions_v6"; fi
+fi
 exit "$status"

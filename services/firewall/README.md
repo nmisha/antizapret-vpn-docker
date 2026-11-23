@@ -15,7 +15,7 @@ Firewall работает в сетевом пространстве хоста 
 - Обновление списков: `ipset restore` во временный набор `<set>_next`, затем `ipset swap`. Во время обновления
   защита не пропадает; если список не загрузился, действующий набор не меняется.
 - Строки с комментариями, IPv6 в v4-списке, октеты > 255, неверные префиксы пропускаются (в логе — количество).
-  Список без единой валидной строки не применяется, запуск завершается ошибкой и повторяется через 30 с.
+  Failed refreshes keep the active sets; Docktinel schedules subsequent refreshes using INTERVAL.
 - Семейства обновляются независимо: ошибка в IPv6-списке не мешает обновить IPv4.
 - Загрузка идёт во временный файл, недокачанный список не заменяет предыдущий.
 - Запуски `block.sh` сериализованы через `flock`: ручной `block.sh` не пересекается с плановым обновлением.
@@ -53,7 +53,7 @@ ens3 2001:db8::10 udp 443
        - EXCEPTIONS_FILE=/root/exceptions.d/exceptions
    ```
 
-Применить изменённый файл сразу: `docker exec <firewall-container> /root/block.sh` (на каждом узле).
+Применить изменённый файл сразу: `docker exec <firewall-container> /root/refresh.sh --restore` (на каждом узле).
 
 ## Переход с Python-версии (`firewall.py`, цепочка `AZ-VPN-FILTER`)
 
@@ -81,5 +81,31 @@ ens3 2001:db8::10 udp 443
 
 ```sh
 docker buildx build --platform linux/amd64,linux/arm64 \
-  -t nmisha/antizapret-vpn-firewall:6.4.0-2 --push services/firewall
+  -t nmisha/antizapret-vpn-firewall:6.12.2 --push services/firewall
 ```
+
+## Lifecycle and persistent cache
+
+The upstream Docktinel entrypoint supervises startup, readiness, liveness and
+periodic refreshes. The custom `AZ-FIREWALL` chain and `EXCEPTIONS_FILE` are kept.
+The local `firewall-lists` volume stores `/var/lib/antizapret-firewall/v4` and `v6`.
+Each family is downloaded, applied and cached independently. A failed family
+keeps its previous active set and cache while the other family can still update.
+On startup, cached lists are applied first; local bundled lists and downloads
+are fallback sources. Readiness requires populated sets and both custom chains.
+
+`INTERVAL` controls scheduled refreshes (default `3h`). Failures return nonzero
+without removing active rules. Run `/root/refresh.sh` to retry downloads now,
+or `/root/refresh.sh --restore` to reapply cached lists and current exceptions.
+The old background loop and its 30-second retry schedule have been replaced.
+Graceful shutdown still clears the custom rules and sets.
+
+The integration checks use real iptables/ipset in an isolated network namespace,
+never the host namespace:
+
+```sh
+python -m unittest discover -s services/firewall/tests -v
+```
+
+Set `FIREWALL_TEST_IMAGE` to select another image with Bash, curl, iptables,
+ipset and flock. Tests mount current scripts read-only and publish no ports.

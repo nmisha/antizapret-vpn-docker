@@ -5,6 +5,6 @@ set -euo pipefail
 # replace the previous list with a partial or empty one.
 tmp=$(mktemp "$2.XXXXXX")
 trap 'rm -f "$tmp"' EXIT
-curl --max-time 60 -fsS -g "$1" -o "$tmp"
+curl --connect-timeout 5 --max-time 60 -fsS -g "$1" -o "$tmp"
 [ -s "$tmp" ]
 mv -f "$tmp" "$2"
