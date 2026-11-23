@@ -1,0 +1,118 @@
+services:
+  tgbot:
+    image: nmisha/antizapret-vpn-tgbot:6.0.40
+#    container_name: tg-domain-bot
+    hostname: tgbot.antizapret
+    restart: unless-stopped
+
+    init: true
+    build:
+      context: .
+      x-bake:
+        platforms:
+          - linux/amd64
+          - linux/arm64
+    logging:
+      driver: json-file
+      options:
+        max-size: 100k
+        max-file: 2
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == world ]
+        # constraints: [ node.labels.location == local ]
+
+    environment:
+#      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
+      TELEGRAM_BOT_TOKEN: "TOKEN"
+      USERS_FILE: /data/users.json
+      # DOMAINS_FILE: /data/domains.txt
+      DOMAINS_FILE: /custom/include-hosts-custom.txt
+      DOMAINS_LOCAL_FILE: /custom/include-hosts-custom.txt
+      DOMAINS_WORLD_FILE: /custom/include-hosts-custom.txt
+      ACCOUNTS_FILE: /data/accounts.json
+      RISK_NOTIFICATIONS_HTTP_ADDR: ":8081"
+      RISK_NOTIFICATIONS_HTTP_TOKEN: "change-me-risk-token"
+      DNS_GUARD_API_URL: "http://dns-guard.antizapret:8090"
+      DNS_GUARD_API_TOKEN: "change-me-dns-guard-api-token"
+
+      # TARGET_SWARM_SERVICE: "your_swarm_service_name"
+      # MANAGER_BASH_CMD: "your bash command here"
+
+      # WG_STATS_SWARM_SERVICE: "WG_STATS_SWARM_SERVICE"
+
+      AGH_HOST: "adguard.antizapret"
+      AGH_LOGIN: ""
+      AGH_PASSWORD: ""
+      AGH_PORT: "3000"
+
+      AGH_USER_COOLDOWN_SECONDS: 600
+      AGH_TIMEOUT_SECONDS: 300
+
+      WG_HOST: "wireguard.antizapret"
+      WG_PORT: "51821"
+      WG_USERNAME: "admin"
+      WG_PASSWORD: "password"
+      WG_TIMEOUT_SECONDS: "90"
+
+      AWG_HOST: "wireguard-amnezia.antizapret"
+      AWG_PORT: "51821"
+      AWG_USERNAME: "admin"
+      AWG_PASSWORD: "password"
+      AWG_TIMEOUT_SECONDS: "90"
+
+      OVPN_HOST: "openvpn-ui.antizapret"
+      OVPN_PORT: "8080"
+      OVPN_USERNAME: "admin"
+      OVPN_PASSWORD: "password"
+
+      # telemt (MTProto proxy) control API, see services-mine/telemt/README.md
+      TELEMT_HOST: "telemt.antizapret"
+      TELEMT_PORT: "9091"
+      TELEMT_TOKEN: "" # current auth_header from config-mine/telemt/config.toml; do not rotate it here, telemt-panel uses it too
+      TELEMT_TIMEOUT_SECONDS: "15"
+
+      NET_DNS_SERVER: "adguard.antizapret" #"antizapret_coredns"
+
+
+# curl -u "admin:ADMIN_PASSWORD" "http://<wg-easy-host>:51821/api/client"
+
+
+    volumes:
+      # - ./config:/data:rw
+      # нужно только если используешь /manage
+      # - /var/run/docker.sock:/var/run/docker.sock:rw
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config-mine/tgbot:/data:rw
+
+      - $PWD/config/antizapret/custom:/custom
+
+      # - $PWD/config/antizapret/custom:/root/antizapret/config/custom
+#      - $PWD/config/antizapret/result:/root/antizapret/result
+
+
+    # init: true
+    # build:
+    #   context: .
+    #   x-bake:
+    #     platforms:
+    #       - linux/amd64
+    #       - linux/arm64
+    # deploy:
+    #   mode: global
+    #   endpoint_mode: dnsrr
+    # network_mode: host
+    # cap_add:
+    #   - NET_ADMIN
+    #   - SYS_MODULE
+    # working_dir: /root
+    # entrypoint: /root/entrypoint.sh
+    # environment:
+    #   - INTERVAL=1d
+    #   - V4_URL=https://raw.githubusercontent.com/C24Be/AS_Network_List/refs/heads/main/blacklists/blacklist-v4.txt
+    #   - V4_FILE=blacklist-v4.txt
+    #   - V6_URL=https://raw.githubusercontent.com/C24Be/AS_Network_List/refs/heads/main/blacklists/blacklist-v6.txt
+    #   - V6_FILE=blacklist-v6.txt

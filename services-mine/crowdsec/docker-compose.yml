@@ -1,0 +1,66 @@
+services:
+  crowdsec-parser:
+#    cpus: "0.3"
+#    mem_limit: 300m
+    image: crowdsecurity/crowdsec
+    container_name: crowdsec-parser
+    hostname: crowdsec-parser
+    restart: always
+    environment:
+      TZ: "Europe/Moscow"
+    # DISABLE_PARSERS: "crowdsecurity/whitelists"
+      # COLLECTIONS: "crowdsecurity/linux crowdsecurity/iptables crowdsecurity/nginx-proxy-manager crowdsecurity/sshd LePresidente/adguardhome crowdsecurity/appsec-virtual-patching crowdsecurity/base-http-scenarios crowdsecurity/http-cve pserranoa/openvpn crowdsecurity/caddy LePresidente/authelia crowdsecurity/nginx crowdsecurity/wireguard"
+      COLLECTIONS: "crowdsecurity/linux crowdsecurity/iptables crowdsecurity/sshd LePresidente/adguardhome crowdsecurity/appsec-virtual-patching crowdsecurity/base-http-scenarios crowdsecurity/http-cve pserranoa/openvpn crowdsecurity/caddy LePresidente/authelia crowdsecurity/wireguard"
+      GID: "${GID-1000}"
+      DISABLE_LOCAL_API: true
+      CROWDSEC_LAPI_URL: "http://crowdsec-lapi:8943"
+    # ports:
+    #   - '127.0.0.1:8943:8080' ## We expose the LAPI 8080 via loopback for bouncers to connect
+    volumes:
+      - $PWD/config-mine/crowdsec/acquis.yaml:/etc/crowdsec/acquis.yaml
+      # - ./crowdsec/db:/var/lib/crowdsec/data/
+      # - ./crowdsec/config:/etc/crowdsec/
+      - crowdsec-db-parser:/var/lib/crowdsec/data/
+      - crowdsec-config-parser:/etc/crowdsec/
+      - $PWD/config-mine/crowdsec/custom_whitelist.yaml:/etc/crowdsec/parsers/s02-enrich/custom_whitelist.yaml
+
+      - /etc/timezone:/etc/timezone:ro
+
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - $PWD/log/caddy:/var/log/caddy:ro
+      - $PWD/config/openvpn/log:/var/log/openvpn:ro
+      - /var/log:/var/log/host:ro
+
+      # - ./acquis.yaml:/etc/crowdsec/acquis.yaml
+      # - ./credentials.yaml:/etc/crowdsec/local_api_credentials.yaml
+
+    deploy:
+      mode: global
+      endpoint_mode: dnsrr
+
+  crowdsec-lapi:
+    image: crowdsecurity/crowdsec
+    # ports:
+    #   - '127.0.0.1:8943:8080' ## We expose the LAPI 8080 via loopback for bouncers to connect
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - crowdsec-db-lapi:/var/lib/crowdsec/data/
+      - crowdsec-config-lapi:/etc/crowdsec/
+
+    environment:
+      TZ: "Europe/Moscow"
+
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == world ]
+
+volumes:
+  crowdsec-db-parser:
+  crowdsec-config-parser:
+  crowdsec-db-lapi:
+  crowdsec-config-lapi:
+
+

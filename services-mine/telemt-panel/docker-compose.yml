@@ -1,0 +1,54 @@
+services:
+  telemt-panel:
+    image: ghcr.io/amirotin/telemt_panel:1.0.0-rc.3
+    # RC3 defaults to uid 65532. Preserve RC2 access to existing root-owned 0700/0600 mounts.
+    user: "0:0"
+    hostname: telemt-panel
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Read telemt's root/65532-owned 0600 config from a read-only mount.
+    cap_add:
+      - DAC_READ_SEARCH
+    entrypoint: ["/bin/sh", "/panel-entrypoint.sh"]
+    environment:
+      - TELEMT_PANEL_DOMAIN=
+    configs:
+      - source: telemt-panel-entrypoint-v1
+        target: /panel-entrypoint.sh
+    # Prepare these directories on world with prepare.py before deploying.
+    volumes:
+      - $PWD/config-mine/telemt:/etc/telemt-source:ro
+      - $PWD/config-mine/telemt-panel/config:/etc/telemt-panel:rw
+      - $PWD/config-mine/telemt-panel/data:/var/lib/telemt-panel:rw
+      # Swarm only creates tmpfs mounts from the long volumes syntax.
+      - type: tmpfs
+        target: /tmp
+        tmpfs:
+          size: 67108864
+    # Caddy reaches port 8080 over the overlay network. No host ports.
+    logging:
+      driver: json-file
+      options:
+        max-size: 1m
+        max-file: "3"
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == world ]
+      update_config:
+        order: stop-first
+      rollback_config:
+        order: stop-first
+      resources:
+        limits:
+          memory: 256M
+
+configs:
+  telemt-panel-entrypoint-v1:
+    file: ./entrypoint.sh

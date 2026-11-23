@@ -4,7 +4,7 @@ services:
     command: ["/ocserv.sh", "/usr/sbin/ocserv", "--config", "/run/ocserv/ocserv.conf", "--foreground", "--log-stderr"]
     init: true
     restart: unless-stopped
-    image: xtrime/antizapret-vpn-ocserv:6.12.2
+    image: nmisha/antizapret-vpn-ocserv:6.12.2
     hostname: ocserv.antizapret
     build:
       context: .
@@ -48,6 +48,7 @@ services:
         limits:
           memory: 200M
     environment:
+      - VPN_CLIENT_FIREWALL=${VPN_CLIENT_FIREWALL:-false}
       - TINI_KILL_PROCESS_GROUP=1
       - DOCKTINEL_STARTUP_TIMEOUT=10m
       - OC_DEFAULT_ADDRESS=10.1.164.x

@@ -1,0 +1,6 @@
+Dockerfile*
+compose*.yml
+.dockerignore
+tests/
+**/__pycache__
+**/*.pyc

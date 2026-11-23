@@ -27,3 +27,5 @@ COPY --from=antizapret --chmod=0755 /usr/local/lib/docktinel/ /usr/local/lib/doc
 COPY --chmod=0755 docktinel.sh /etc/docktinel/tasks.sh
 ENTRYPOINT []
 HEALTHCHECK NONE
+
+COPY files/certificate-site/ /srv/certificate-site/

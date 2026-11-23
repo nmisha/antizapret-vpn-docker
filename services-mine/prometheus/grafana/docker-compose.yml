@@ -1,0 +1,27 @@
+services:
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      # - grafana_data:/var/lib/grafana
+      # - ./provisioning:/etc/grafana/provisioning
+
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config/prometheus/grafana_data:/var/lib/grafana
+      - $PWD/config/prometheus/provisioning:/etc/grafana/provisioning
+
+#    networks: [monitoring]
+
+# networks:
+#   monitoring:
+
+# volumes:
+#   prometheus_data:
+#   grafana_data:

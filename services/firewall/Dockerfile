@@ -7,12 +7,13 @@ FROM xtrime/antizapret-vpn:6.12.1 AS antizapret
 FROM ubuntu:24.04
 
 RUN apt update -y  \
-    && apt install -y curl ipset iptables \
+    && apt install -y curl ipset iptables util-linux \
     && apt-get clean \
     && rm -frv /var/lib/apt/lists/*
 
 WORKDIR /root
 ADD ./ /root
+RUN chmod +x /root/*.sh
 
 CMD []
 

@@ -75,7 +75,8 @@ migrate_filter 'http://az-world.antizapret/list/?regex=1&allow=0&client=az-resol
 ensure_filter 'http://az-local.antizapret/list/?exclude=1&regex=1&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'Excluded Custom Local Rules'
 ensure_filter 'http://az-world.antizapret/list/?exclude=1&regex=1&file=/root/antizapret/config/custom/exclude-hosts-custom.txt' 'Excluded Custom World Rules'
 
-ensure_filter 'http://az-local.antizapret/list/?exclude=1&format=v2fly&url=https://xtrime-ru.github.io/antizapret-vpn-docker/lists/exclude.txt' 'Direct Access Rules'
+# ensure_filter 'http://az-local.antizapret/list/?exclude=1&format=v2fly&url=https://xtrime-ru.github.io/antizapret-vpn-docker/lists/exclude.txt' 'Direct Access Rules'
+ensure_filter 'http://az-local.antizapret/list/?exclude=1&format=v2fly&url=https://nmisha.github.io/antizapret-vpn-docker/lists/exclude.txt' 'Direct Access Rules'
 ensure_filter 'http://az-local.antizapret/list/?exclude=1&format=v2fly&url=https://raw.githubusercontent.com/v2fly/domain-list-community/master/data/category-ip-geo-detect' 'Direct Access Rules - IP Checkers'
 
 # Replace only the old bundled Steam/Rockstar upstream; retain user upstreams.

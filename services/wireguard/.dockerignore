@@ -1,3 +1,6 @@
 .dockerignore
 docker-compose.*
 Dockerfile*
+tests/
+**/__pycache__
+**/*.pyc

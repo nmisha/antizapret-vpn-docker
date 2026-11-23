@@ -1,6 +1,13 @@
 #!/usr/bin/env bash
 . /usr/local/lib/docktinel/state.sh
 
+# Optional server-side destination filtering; disabled by default.
+case "${VPN_CLIENT_FIREWALL:-false}" in
+    true|1) VPN_CLIENT_FIREWALL=true ;;
+    false|0) VPN_CLIENT_FIREWALL=false ;;
+    *) echo "Invalid VPN_CLIENT_FIREWALL (use true/false or 1/0)" >&2; exit 1 ;;
+esac
+
 CONFIG_FILES="/opt/antizapret/result/ips*"
 config_checksum /opt/antizapret/result/.ips-md5 $CONFIG_FILES > /dev/shm/.config_md5 || exit 1
 
@@ -25,7 +32,7 @@ if [[ ! "$WG_INTERFACE" =~ ^[a-zA-Z0-9_=+.-]{1,15}$ ]]; then
     echo "Error: Invalid interface name: $WG_INTERFACE" >&2
     exit 1
 fi
-export MTU=${MTU:-1280}
+export MTU=${WG_MTU:-${MTU:-1280}}
 export AZ_SUBNET=${AZ_SUBNET:-"14.16.0.0/14"}
 WG_DEFAULT_DNS_VALUE="${WG_DEFAULT_DNS:-14.16.0.1}"
 
@@ -98,6 +105,29 @@ fi
 unset PASSWORD
 unset PASSWORD_HASH
 
+# Clients may only reach the destinations from their AllowedIPs (WG_ALLOWED_IPS, the same list that is
+# written to client configs). The client side already enforces this through WireGuard cryptokey routing,
+# this is the server-side guard against a modified profile / manual routes.
+# One subnet-wide chain instead of the wg-easy "Per-Client Firewall" (WG_CLIENTS), which builds
+# clients x ranges rules, rebuilds them on every change and leaves a fail-open window while rebuilding.
+# Loaded atomically with iptables-restore from PostUp; established flows skip the list.
+if [ "$VPN_CLIENT_FIREWALL" = true ]; then
+    AZ_CLIENTS_RULES=/etc/az_clients.rules
+    {
+        echo "*filter"
+        echo ":az_clients - [0:0]"
+        echo "-A az_clients -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"
+        echo "$WG_ALLOWED_IPS" | tr ',' '\n' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' \
+            | grep -E '^[0-9.]+(/[0-9]+)?$' | sort -u | sed 's/.*/-A az_clients -d & -j ACCEPT/'
+        echo "-A az_clients -j REJECT --reject-with icmp-admin-prohibited"
+        echo "COMMIT"
+    } > "$AZ_CLIENTS_RULES"
+fi
+
+# Clients must not ping through the tunnel (echo-request only, PMTUD/traceroute ICMP stay allowed).
+# The rule lives in the mangle table on purpose: if the wg-easy "Per-Client Firewall" is ever enabled
+# again it inserts "-I FORWARD 1 -i wg0 -j WG_CLIENTS" above any filter rule we add here, and its
+# per-client ACCEPT would let echo-request through. mangle FORWARD is evaluated before filter FORWARD.
 # Clamp forwarded TCP MSS while the WireGuard/AmneziaWG interface is up.
 CUSTOM_POST_UP=$(tr '\n' ' ' << EOF
 if ! iptables -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu; then
@@ -126,6 +156,24 @@ iptables -D FORWARD -i ${WG_INTERFACE} -j ACCEPT;
 iptables -D FORWARD -o ${WG_INTERFACE} -j ACCEPT;
 EOF
 )
+
+if [ "$VPN_CLIENT_FIREWALL" = true ]; then
+    CLIENT_POST_UP=$(tr '\n' ' ' << EOF
+iptables -t mangle -I FORWARD -s ${WG_IPV4_CIDR} -p icmp --icmp-type echo-request -j DROP;
+iptables-restore --noflush < ${AZ_CLIENTS_RULES};
+iptables -I FORWARD -s ${WG_IPV4_CIDR} -j az_clients;
+EOF
+)
+    CLIENT_POST_DOWN=$(tr '\n' ' ' << EOF
+iptables -t mangle -D FORWARD -s ${WG_IPV4_CIDR} -p icmp --icmp-type echo-request -j DROP;
+iptables -D FORWARD -s ${WG_IPV4_CIDR} -j az_clients;
+iptables -F az_clients;
+iptables -X az_clients;
+EOF
+)
+    CUSTOM_POST_UP="$CLIENT_POST_UP $CUSTOM_POST_UP"
+    CUSTOM_POST_DOWN="$CUSTOM_POST_DOWN $CLIENT_POST_DOWN"
+fi
 
 DB_FILE="/etc/wireguard/wg-easy.db"
 WG_JSON="/etc/wireguard/wg0.json"
@@ -158,6 +206,11 @@ update_db() {
 
     # Update interface port and CIDR
     sqlite3 "$DB_FILE" "UPDATE interfaces_table SET port=${WG_PORT}, ipv4_cidr='${WG_IPV4_CIDR}', mtu=${MTU} WHERE name='${interface_name}';"
+
+    # The subnet-wide az_clients policy replaces wg-easy's per-client firewall.
+    if [ "$VPN_CLIENT_FIREWALL" = true ]; then
+        sqlite3 "$DB_FILE" "UPDATE interfaces_table SET firewall_enabled=0 WHERE name='${interface_name}';"
+    fi
 
     # Update user config (allowed IPs, DNS, host, port, persistent keepalive)
     sqlite3 "$DB_FILE" "UPDATE user_configs_table SET default_allowed_ips='${ALLOWED_IPS_JSON}', default_dns='${DNS_JSON}', default_mtu=${MTU}, port=${WG_PORT}${host_update} WHERE id='${interface_name}';"

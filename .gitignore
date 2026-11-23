@@ -4,5 +4,19 @@
 !.dockerignore
 /docker-compose.override.yml
 /config/
+/config-mine/
+/config-docker-swarm/
+/docker-compose.override.yml*
+services-mine/tgbot_old/
+stack.rendered.yml
+*.log
+/docs-local/
+/tmp/
+/scripts-diag/
 
+# Python test artifacts
 __pycache__/
+*.py[cod]
+
+# Editor backup files
+*.bak

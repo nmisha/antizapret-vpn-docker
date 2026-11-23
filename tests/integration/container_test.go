@@ -52,7 +52,7 @@ func fixtureWithHost(t *testing.T, service, script string, host *container.HostC
 	}
 	host.Init = new(true)
 	if !strings.HasPrefix(string(host.NetworkMode), "container:") {
-		host.ExtraHosts = append(host.ExtraHosts, "az-local.antizapret:192.0.2.10", "az-world.antizapret:192.0.2.10", "adguard.antizapret:192.0.2.30", "coredns.antizapret:192.0.2.20")
+		host.ExtraHosts = append(host.ExtraHosts, "az-local.antizapret:192.0.2.10", "az-world.antizapret:192.0.2.10", "adguard.antizapret:192.0.2.30", "coredns.antizapret:192.0.2.20", "authelia:127.0.0.1")
 	}
 	cfg := &container.Config{Image: serviceImage(service), Env: env}
 	if script == "" {

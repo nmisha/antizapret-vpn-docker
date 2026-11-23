@@ -3,6 +3,13 @@
 set -Eeuo pipefail
 shopt -s nullglob
 
+# Optional server-side destination filtering; disabled by default.
+case "${VPN_CLIENT_FIREWALL:-false}" in
+    true|1) VPN_CLIENT_FIREWALL=true ;;
+    false|0) VPN_CLIENT_FIREWALL=false ;;
+    *) echo "Invalid VPN_CLIENT_FIREWALL (use true/false or 1/0)" >&2; exit 1 ;;
+esac
+
 FLAG_FILE="/dev/shm/.ocserv_started"
 
 # Define default server vars if they are not set
@@ -118,6 +125,29 @@ fi
 mkdir -p /dev/net
 if [ ! -c /dev/net/tun ]; then
     mknod /dev/net/tun c 10 200
+fi
+
+if [ "$VPN_CLIENT_FIREWALL" = true ]; then
+    # Clients may only reach the routes pushed to them (global + group configs).
+    # tun has no cryptokey routing like WireGuard, so without this a client could run
+    # `ip route add <ip> dev vpns0` and use the server as an exit to any address.
+    {
+        echo "*filter"
+        echo ":az_clients - [0:0]"
+        # Established flows skip the list: the destination is checked once, on the first packet.
+        echo "-A az_clients -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT"
+        grep -hE '^[[:space:]]*route[[:space:]]*=' "$RUNTIME_CONFIG" "$OC_ROUTE"/* \
+            | sed -E 's/^[[:space:]]*route[[:space:]]*=[[:space:]]*//; s/[[:space:]]+$//' \
+            | grep -E '^[0-9.]+(/[0-9]+)?$' | sort -u | sed 's/.*/-A az_clients -d & -j ACCEPT/' || true
+        echo "-A az_clients -j REJECT --reject-with icmp-admin-prohibited"
+        echo "COMMIT"
+    } | iptables-restore --noflush
+    iptables -I FORWARD -s "$OC_IPV4_CIDR" -j az_clients
+
+    # Clients must not ping through the tunnel (echo-request only, keep PMTUD/traceroute ICMP).
+    # Inserted last so it ends up above the az_clients jump.
+    iptables -I FORWARD -s "$OC_IPV4_CIDR" -p icmp --icmp-type echo-request -j DROP
+
 fi
 
 echo "Starting OpenConnect Server"

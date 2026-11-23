@@ -1,0 +1,27 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: adguard_querylog
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: adguard_querylog
+          __path__: /opt/adguardhome/data/querylog.json
+
+    pipeline_stages:
+      - json:
+          expressions:
+            IP: IP
+            QH: QH
+            QT: QT
+            Cached: Cached
+            Upstream: Upstream
+      - labels:
+          IP:
+          QT:
+          Cached:

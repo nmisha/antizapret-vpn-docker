@@ -1,0 +1,64 @@
+services:
+  stalwart:
+    image: stalwartlabs/stalwart:latest
+    container_name: stalwart
+    restart: unless-stopped
+    environment:
+      # Example values; set your actual hostname and URL in the Compose override.
+      - STALWART_HOSTNAME=mail.example.com
+      - STALWART_PUBLIC_URL=https://mail.example.com
+      # Optional bootstrap/recovery credential; remove after initial setup.
+      - STALWART_RECOVERY_ADMIN=
+    # Mail protocol ports are published directly on the host (not proxied through
+    # Caddy/https) since SMTP/IMAP/POP3/ManageSieve are not HTTP. See override.
+    ports: []
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config-mine/mail/etc:/etc/stalwart
+      - $PWD/config-mine/mail/data:/var/lib/stalwart
+      # Export using SNI_CERT_N=mail.example.com:/data/mail on the https service
+      # (certificate.crt/certificate.key). Match the hostname in your override.
+      # Add it in the admin console under Server > TLS and assign it to the mail listeners.
+      - $PWD/config/https/data/mail:/certs/mail:ro
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
+    depends_on:
+      - coredns
+      - az-local
+
+  webmail:
+    image: ghcr.io/bulwarkmail/webmail:latest
+    container_name: webmail
+    restart: unless-stopped
+    environment:
+      - HOSTNAME=0.0.0.0
+      - PORT=3000
+      - JMAP_SERVER_URL=https://mail.example.com
+      # Set SESSION_SECRET in your override. Generate with: openssl rand -hex 32
+      # Example syntax: SESSION_SECRET=<64 hex characters generated for this install>
+      - SESSION_SECRET=
+      - SETTINGS_DATA_DIR=/data/settings
+      - ADMIN_CONFIG_DIR=/data/admin
+      - ADMIN_STATE_DIR=/data/state
+    ports: []
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config-mine/mail/webmail:/data
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      mode: replicated
+      replicas: 1
+      endpoint_mode: dnsrr
+      placement:
+        constraints: [ node.labels.location == local ]
+    depends_on:
+      - stalwart

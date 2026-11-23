@@ -1,0 +1,28 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      # - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # - prometheus_data:/prometheus
+
+      - /etc/localtime:/etc/localtime:ro
+      - $PWD/config/prometheus/prometheus_data:/prometheus
+      - $PWD/config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+#    networks: [monitoring]
+
+
+# networks:
+#   monitoring:
+
+# volumes:
+#   prometheus_data:
+#   grafana_data:

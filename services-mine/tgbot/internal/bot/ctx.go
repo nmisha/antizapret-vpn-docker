@@ -1,0 +1,31 @@
+package bot
+
+import tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+type Ctx struct {
+	Bot        *tgbotapi.BotAPI
+	ChatID     int64
+	TgID       int64
+	User       User
+	UsersStore *UsersStore
+	Domains    *Store
+	Accounts   *AccountsStore
+
+	// chat meta
+	IsPrivate bool
+	ChatType  string
+	ChatTitle string
+
+	// telegram sender label (from telegram, may be empty)
+	FromUser string
+
+	// callback: message with the pressed button (0 for text messages), for edit-in-place menus
+	MessageID int
+
+	// middleware/runtime
+	Cmd             string
+	Fields          []string
+	MessageText     string
+	MessageEntities []tgbotapi.MessageEntity
+	ArgEntities     []tgbotapi.MessageEntity
+}

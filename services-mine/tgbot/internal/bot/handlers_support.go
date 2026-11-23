@@ -1,0 +1,72 @@
+package bot
+
+import (
+	"fmt"
+	"strings"
+
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+)
+
+func RegisterSupportHandlers(reg *CommandRegistry) {
+	reg.Command(CommandSpec{Cmd: "/support", Args: "[сообщение]", Desc: "написать в поддержку (без аргумента откроет UI)", Section: secQuickStart}, handleSupport)
+	reg.Alias("support", "/support")
+}
+
+func handleSupport(ctx *Ctx, arg string) {
+	msg := strings.TrimSpace(arg)
+	if msg == "" {
+		// Soft UI: works both in private and in groups.
+		setConv(ctx.ChatID, ctx.TgID, ConvState{Mode: ConvSupportAwaitText})
+		supportStartUI(ctx)
+		return
+	}
+
+	sendSupportMessage(ctx, msg, ctx.ArgEntities)
+}
+
+// sendSupportMessage forwards a support request to all users with the Support role.
+func sendSupportMessage(ctx *Ctx, msg string, entities []tgbotapi.MessageEntity) {
+
+	users, err := ctx.UsersStore.ListUsers()
+	if err != nil {
+		replyServiceError(ctx, "бот", "Не удалось отправить обращение", err)
+		return
+	}
+
+	sent := 0
+	for _, u := range users {
+		// Only explicit Support role (Admin should not auto-receive unless explicitly given Support).
+		if !u.HasExact(RoleSupport) || u.Disabled {
+			continue
+		}
+
+		source := "private"
+		if !ctx.IsPrivate {
+			source = "group"
+			if ctx.ChatTitle != "" {
+				source = fmt.Sprintf("group: %s", ctx.ChatTitle)
+			}
+		}
+
+		prefix := fmt.Sprintf(
+			"🆘 Support request\nFrom: %s (tg_id=%d)\nChat: %s (chat_id=%d)\n\n",
+			ctx.User.Name,
+			ctx.TgID,
+			source,
+			ctx.ChatID,
+		)
+		body, bodyEntities := prependAndShiftEntities(prefix, msg, entities)
+		m := tgbotapi.NewMessage(u.TelegramID, body)
+		m.Entities = bodyEntities
+		m.DisableWebPagePreview = true
+		if _, e := ctx.Bot.Send(m); e == nil {
+			sent++
+		}
+	}
+
+	if sent == 0 {
+		reply(ctx.Bot, ctx.ChatID, "Сообщение принято, но сейчас нет пользователей с ролью Support.")
+		return
+	}
+	reply(ctx.Bot, ctx.ChatID, fmt.Sprintf("Сообщение отправлено в поддержку (%d получ.).", sent))
+}
