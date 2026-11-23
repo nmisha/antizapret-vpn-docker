@@ -29,8 +29,7 @@ SCRIPT = r"""
 sh -n /source/init.sh
 sh -n /source/entrypoint.sh
 sh /source/init.sh >&2
-sed '/^\/init.sh$/,$d' /source/entrypoint.sh > /tmp/cert-functions.sh
-. /tmp/cert-functions.sh
+. /source/certificates.sh
 sync_all_certificates >&2
 caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >&2
 caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile
@@ -41,7 +40,10 @@ def generate(extra, script=SCRIPT):
     env = BASE | extra
     command = ["docker", "run", "--rm", "--network", "none", "--entrypoint", "sh",
                "--add-host", "authelia:127.0.0.1",
-               "--mount", f"type=bind,source={ROOT / 'services/https/files'},target=/source,readonly"]
+               "--mount", f"type=bind,source={ROOT / 'services/https/files'},target=/source,readonly",
+               "--mount", f"type=bind,source={ROOT / 'services/https/files/certificates.sh'},target=/certificates.sh,readonly",
+               "--mount", f"type=bind,source={ROOT / 'services/https/files/sync-certificate.sh'},target=/sync-certificate.sh,readonly",
+               "--mount", f"type=bind,source={ROOT / 'services/antizapret/common/docktinel'},target=/usr/local/lib/docktinel,readonly"]
     for key, value in env.items():
         command += ["-e", f"{key}={value}"]
     return subprocess.run(command + [IMAGE, "-ec", script], capture_output=True, text=True, encoding="utf-8", timeout=60)
@@ -225,10 +227,63 @@ done
             self.assertIn(f"location: https://{domain}/test?next=1", result.stdout.lower())
         self.assertEqual(result.stdout.count("TLS status: 502"), 2)
 
+    def test_local_health_endpoint(self):
+        config = self.config({"PROXY_CERT_MODE": "selfsigned"})
+        health = next(server for server in config["apps"]["http"]["servers"].values()
+                      if "127.0.0.1:2018" in server["listen"])
+        self.assertNotIn("listener_wrappers", health)
+        script = SCRIPT.replace("caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile", r"""
+caddy start --config /etc/caddy/Caddyfile --adapter caddyfile >&2
+curl -fsS --max-time 3 http://127.0.0.1:2018/healthz
+""")
+        result = generate({"PROXY_CERT_MODE": "selfsigned"}, script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout, "ok")
+
+    def test_certificate_reload_retries_and_key_validation(self):
+        script = SCRIPT.replace("caddy adapt --config /etc/caddy/Caddyfile --adapter caddyfile", r"""
+mkdir -p /tmp/bin
+cat > /tmp/bin/caddy <<'EOF'
+#!/bin/sh
+if [ -f /tmp/reload-fails ]; then exit 1; fi
+echo reload >> /tmp/reloads
+EOF
+chmod +x /tmp/bin/caddy
+export PATH="/tmp/bin:$PATH"
+sh /source/sync-certificate.sh --initial >&2
+mkdir -p /data/caddy/certificates/test/vpn.example.org
+cp /data/ocserv/fallback.crt /data/caddy/certificates/test/vpn.example.org/vpn.example.org.crt
+# A valid certificate paired with the wrong key must not be activated.
+cp /data/web/fallback.key /data/caddy/certificates/test/vpn.example.org/vpn.example.org.key
+export PROXY_CERT_MODE=auto
+sh /source/sync-certificate.sh >&2
+cmp /data/ocserv/fallback.key /data/ocserv/certificate.key
+# Publish a new managed pair and fail the first reload.
+openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 365 \
+    -subj /CN=vpn.example.org -addext subjectAltName=DNS:vpn.example.org \
+    -keyout /data/caddy/certificates/test/vpn.example.org/vpn.example.org.key \
+    -out /data/caddy/certificates/test/vpn.example.org/vpn.example.org.crt 2>/dev/null
+touch /tmp/reload-fails
+if sh /source/sync-certificate.sh >&2; then exit 1; fi
+test -f /run/docktinel/certificate-reload-pending
+rm /tmp/reload-fails
+sh /source/sync-certificate.sh >&2
+test ! -f /run/docktinel/certificate-reload-pending
+cmp /data/caddy/certificates/test/vpn.example.org/vpn.example.org.crt /data/ocserv/certificate.crt
+count=$(wc -l < /tmp/reloads)
+sh /source/sync-certificate.sh >&2
+test "$count" = "$(wc -l < /tmp/reloads)"
+echo passed
+""")
+        result = generate({"PROXY_CERT_MODE": "selfsigned"}, script)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "passed")
+
     def test_dashboard_external_url(self):
         command = ["docker", "run", "--rm", "--network", "none", "--entrypoint", "sh",
                    "--mount", f"type=bind,source={ROOT / 'services/dashboard/files'},target=/source,readonly",
-                   "-e", "SERVER_ROOT=/tmp", "-e", "DASHBOARD_SERVICE_1=Legacy:1443:legacy:80",
+                   "-e", "SERVER_ROOT=/tmp", "-e", "DASHBOARD_AUTH_ENABLED=0",
+                   "-e", "DASHBOARD_SERVICE_1=Legacy:1443:legacy:80",
                    "-e", "DASHBOARD_SERVICE_2=2FAuth:443:2fauth:8000",
                    "-e", "DASHBOARD_SERVICE_URL_2=https://twof.auth.example.org",
                    "nmisha/antizapret-vpn-dashboard:5.0.0", "-ec",

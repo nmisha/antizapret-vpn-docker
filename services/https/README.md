@@ -221,3 +221,20 @@ python -m unittest discover -s services/https/tests -v
 The tests mount current scripts into the existing HTTPS image and run Caddy
 validation with no container network, published ports or persistent data.
 Set `HTTPS_TEST_IMAGE` to use a different image containing the same Caddy modules.
+
+## Container lifecycle
+
+Startup and liveness use the upstream Docktinel integration. Startup generates
+and validates the Caddyfile before Caddy starts. The health endpoint is bound to
+`127.0.0.1:2018/healthz`; it does not depend on Authelia or remote services.
+
+A supervised job synchronizes ocserv, web and all `SNI_CERT_N` exports every
+10 seconds. Certificate/key pairs are validated with the upstream certificate
+cache. Failed reloads and interrupted publications are retried on the next run.
+Self-signed fallback certificates are renewed when less than a day remains.
+SNI routing, virtual hosts, shared identities and certificate-only pages remain
+available with the existing environment variables.
+
+The Compose image is `nmisha/antizapret-vpn-https:6.12.3`. Build and publish the
+modified image before deployment; the registry tag alone does not include local
+changes.

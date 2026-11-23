@@ -1,6 +1,7 @@
 #!/bin/sh
 
 set -eu
+. /certificates.sh
 
 ACME_CA="${PROXY_ACME_CA:-https://acme-v02.api.letsencrypt.org/directory}"
 CERT_MODE="${PROXY_CERT_MODE:-auto}"
@@ -269,31 +270,6 @@ resolve_certificate_identity() {
     if [ "$SNI_ROUTING" -eq 1 ] && [ "$HTTPS_PORT" -eq 443 ]; then
         echo "[ERROR] PROXY_HTTPS_PORT must differ from 443 when SNI routing is configured" >&2
         exit 1
-    fi
-}
-
-generate_fallback_certificate() {
-    identity="$1"
-    identity_type="$2"
-    fallback_crt="$3"
-    fallback_key="$4"
-    mkdir -p "$(dirname "$fallback_crt")"
-    if [ "$identity_type" = "ip" ]; then
-        identity_check="-checkip"
-    else
-        identity_check="-checkhost"
-    fi
-    if ! openssl x509 -in "$fallback_crt" -noout -checkend 86400 \
-            "$identity_check" "$identity" >/dev/null 2>&1 \
-        || [ ! -s "$fallback_key" ]; then
-        [ "$identity_type" = "ip" ] && san="IP:$identity" || san="DNS:$identity"
-        echo "[INFO] Generating fallback certificate for $identity_type:$identity"
-        openssl req -x509 -newkey rsa:2048 -sha256 -nodes -days 365 \
-            -subj "/CN=$identity" -addext "subjectAltName=$san" \
-            -keyout "$fallback_key.tmp" -out "$fallback_crt.tmp" >/dev/null 2>&1
-        chmod 600 "$fallback_key.tmp"
-        mv -f "$fallback_key.tmp" "$fallback_key"
-        mv -f "$fallback_crt.tmp" "$fallback_crt"
     fi
 }
 
@@ -580,6 +556,8 @@ EOF
     cat <<EOF >>"$CONFIG_FILE"
   servers :80 {
   }
+  servers 127.0.0.1:2018 {
+  }
 EOF
     if [ -n "${PROXY_EMAIL:-}" ]; then
         printf '  email %s\n' "$PROXY_EMAIL" >> "$CONFIG_FILE"
@@ -819,6 +797,14 @@ main() {
     add_services_to_config domain
     add_ocserv_certificate_site
     add_sni_certificate_sites
+    cat <<'EOF' >>"$CONFIG_FILE"
+
+# Container liveness; never exposed through the public listeners.
+http://127.0.0.1:2018 {
+  bind 127.0.0.1
+  respond /healthz "ok" 200
+}
+EOF
 
     cat <<EOF >>"$CONFIG_FILE"
 
