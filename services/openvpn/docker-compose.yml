@@ -1,5 +1,7 @@
 services:
   openvpn:
+    entrypoint: ["/usr/local/lib/docktinel/entrypoint"]
+    command: ["/opt/app/docker-entrypoint.sh"]
     hostname: openvpn.antizapret
     restart: unless-stopped
     cap_add:
@@ -10,21 +12,24 @@ services:
       - net.ipv4.conf.all.src_valid_mark=1
     devices:
       - /dev/net/tun:/dev/net/tun
-    image: nmisha/antizapret-vpn-openvpn:6.9.3-1
-    # image: xtrime/antizapret-vpn-openvpn:6.9.3
+    image: nmisha/antizapret-vpn-openvpn:6.12.3
     build:
       context: .
+      args:
+        DOCKTINEL_IMAGE: ${DOCKTINEL_IMAGE:-ghcr.io/xtrime-ru/docktinel:0.2.0}
       x-bake:
         platforms:
           - linux/amd64
           - linux/arm64
     init: true
+    stop_grace_period: 30s
     healthcheck:
-      test: (/opt/app/healthcheck.sh || kill -TERM 1) 2>&1 | tee /proc/1/fd/1
+      test: ["CMD", "docktinel", "healthcheck", "--startup-grace", "10m"]
       interval: 10s
-      timeout: 1s
-      start_period: 5s
+      timeout: 5s
+      start_period: 10m
       start_interval: 1s
+      retries: 3
     volumes:
       - /etc/localtime:/etc/localtime:ro
       - $PWD/config/openvpn:/etc/openvpn
@@ -42,6 +47,8 @@ services:
       placement:
         constraints: [ node.labels.location == local ]
     environment:
+      - TINI_KILL_PROCESS_GROUP=1
+      - DOCKTINEL_STARTUP_TIMEOUT=10m
       - OBFUSCATE_TYPE=1
       - |
         ROUTES=
@@ -54,14 +61,27 @@ services:
         az-world:14.18.0.0/15;
 
   openvpn-ui:
+    entrypoint: ["/usr/local/lib/docktinel/entrypoint"]
+    command: ["/opt/run.sh"]
+    init: true
     hostname: openvpn-ui.antizapret
     restart: unless-stopped
     cap_add:
       - NET_ADMIN
       - SYS_MODULE
-    image: xtrime/antizapret-vpn-openvpn-ui:6.5.2
+    image: xtrime/antizapret-vpn-openvpn-ui:6.12.2
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "docktinel", "healthcheck", "--startup-grace", "10m"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10m
+      start_interval: 1s
+      retries: 3
     build:
       context: .
+      args:
+        DOCKTINEL_IMAGE: ${DOCKTINEL_IMAGE:-ghcr.io/xtrime-ru/docktinel:0.2.0}
       dockerfile: Dockerfile-ui
       x-bake:
         platforms:
@@ -74,6 +94,8 @@ services:
       - $PWD/config/openvpn/pki:/usr/share/easy-rsa/pki
       - $PWD/config/openvpn:/etc/openvpn
     environment:
+      - TINI_KILL_PROCESS_GROUP=1
+      - DOCKTINEL_STARTUP_TIMEOUT=10m
       - OPENVPN_ADMIN_USERNAME=admin
       - OPENVPN_ADMIN_PASSWORD=gagaZush
       - AZ_SUBNET=14.16.0.0

@@ -40,7 +40,7 @@ iptables -A az_clients -d ${DOCKER_SUBNET} -j ACCEPT;
 iptables -A az_clients -d ${OPENVPN_LOCAL_IP_RANGE}/24 -j ACCEPT;
 # Blocked ranges pushed as `push "route <net> <mask>"` (same file the client config is built from).
 # iptables accepts the <net>/<mask> notation as is. The list changes -> healthcheck restarts the container.
-grep -oE 'route [0-9.]+ [0-9.]+' /opt/antizapret/result/openvpn-blocked-ranges.txt 2>/dev/null \
+grep -oE 'route [0-9.]+ [0-9.]+' /etc/openvpn/openvpn-blocked-ranges.txt 2>/dev/null \
     | awk '{print $2 "/" $3}' | sort -u | while read -r range; do
     iptables -A az_clients -d "${range}" -j ACCEPT;
 done
@@ -50,5 +50,3 @@ iptables -I FORWARD -s ${OPENVPN_LOCAL_IP_RANGE}/24 -j az_clients;
 # Clients must not ping through the tunnel (echo-request only, keep PMTUD/traceroute ICMP).
 # Inserted last so it ends up above the az_clients jump.
 iptables -I FORWARD -s ${OPENVPN_LOCAL_IP_RANGE}/24 -p icmp --icmp-type echo-request -j DROP;
-
-routes --vpn &
