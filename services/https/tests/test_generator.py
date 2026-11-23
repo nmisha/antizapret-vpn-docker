@@ -286,7 +286,7 @@ echo passed
                    "-e", "DASHBOARD_SERVICE_1=Legacy:1443:legacy:80",
                    "-e", "DASHBOARD_SERVICE_2=2FAuth:443:2fauth:8000",
                    "-e", "DASHBOARD_SERVICE_URL_2=https://twof.auth.example.org",
-                   "nmisha/antizapret-vpn-dashboard:5.0.0", "-ec",
+                   os.environ.get("DASHBOARD_TEST_IMAGE", "nmisha/antizapret-vpn-dashboard:6.12.2"), "-ec",
                    "sh -n /source/init.sh; sh /source/init.sh >&2; cat /tmp/config.json"]
         result = subprocess.run(command, capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
