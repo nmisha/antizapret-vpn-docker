@@ -1,0 +1,2 @@
+# Keep text files portable across Windows and Linux checkouts.
+* text=auto eol=lf
