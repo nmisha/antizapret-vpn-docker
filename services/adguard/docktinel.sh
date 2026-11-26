@@ -7,5 +7,7 @@ docktinel add check dns-serving --interval 1m --timeout 15s --failures 3 -- \
     bash -c 'exec 3<>/dev/tcp/127.0.0.1/53'
 # Updating clients, DNS endpoints and changed custom rules is maintenance. Its
 # failure must not turn a working resolver into a restart loop.
-docktinel add job refresh-state --interval 10s --timeout 3m -- \
+# Allow both blocklist and whitelist refreshes plus client/cache maintenance.
+refresh_timeout=${ADGUARDHOME_REFRESH_TIMEOUT_SECONDS:-900}
+docktinel add job refresh-state --interval 10s --timeout "$((2 * refresh_timeout + 180))s" -- \
     /root/refresh-state.sh

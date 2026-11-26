@@ -3,8 +3,10 @@ package bot
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -158,8 +160,8 @@ func newAghClientFromEnv() (*aghClient, error) {
 	base := fmt.Sprintf("%s://%s:%s", scheme, host, port)
 
 	// Updating filter lists can be slow (download + parsing).
-	// Default timeout is 5 minutes; override via AGH_TIMEOUT_SECONDS.
-	timeout := 5 * time.Minute
+	// Default timeout is 15 minutes; override via AGH_TIMEOUT_SECONDS.
+	timeout := 15 * time.Minute
 	if timeoutEnv != "" {
 		if n, err := strconv.Atoi(strings.TrimSpace(timeoutEnv)); err == nil && n > 0 {
 			timeout = time.Duration(n) * time.Second
@@ -194,6 +196,10 @@ func (c *aghClient) refreshFilters(whitelist bool) (int, error) {
 
 	resp, err := c.hc.Do(req)
 	if err != nil {
+		var timeoutErr net.Error
+		if errors.As(err, &timeoutErr) && timeoutErr.Timeout() {
+			return 0, fmt.Errorf("время ожидания обновления истекло; AdGuard Home может продолжать обновление списков. Проверьте /agh_last_update перед повторным запуском: %w", err)
+		}
 		return 0, err
 	}
 	defer resp.Body.Close()

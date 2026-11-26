@@ -6,6 +6,8 @@ INIT_FILE="/dev/shm/.inited"
 
 ADGUARDHOME_USERNAME=${ADGUARDHOME_USERNAME:-"admin"}
 ADGUARDHOME_PORT=${ADGUARDHOME_PORT:-"3000"}
+# Refresh is synchronous and downloads every enabled list sequentially.
+ADGUARDHOME_REFRESH_TIMEOUT_SECONDS=${ADGUARDHOME_REFRESH_TIMEOUT_SECONDS:-900}
 
 AUTH=$(echo -n "$ADGUARDHOME_USERNAME:$ADGUARDHOME_PASSWORD" | base64)
 
@@ -83,7 +85,7 @@ if [ "$NEW_MD5" != "$OLD_MD5" ]; then
 
     # AdGuard permits only one filter update at a time.
     for whitelist in false true; do
-        response=$(curl --connect-timeout 2 --max-time 60 -sS --write-out '\n%{http_code}' \
+        response=$(curl --connect-timeout 2 --max-time "$ADGUARDHOME_REFRESH_TIMEOUT_SECONDS" -sS --write-out '\n%{http_code}' \
             "http://127.0.0.1:$ADGUARDHOME_PORT/control/filtering/refresh" \
             -X POST -H 'Content-Type: application/json' \
             -H "Authorization: Basic $AUTH" \

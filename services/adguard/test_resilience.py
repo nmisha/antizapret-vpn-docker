@@ -172,6 +172,49 @@ class ConfigMigrationTests(unittest.TestCase):
 
 
 class DNSReloadTests(unittest.TestCase):
+    def test_changed_filters_use_refresh_budget_and_commit_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp)
+            (work / ".inited").touch()
+            (work / ".config_md5").write_text("old\n")
+            curl = work / "curl"
+            curl.write_text('''#!/usr/bin/env bash
+echo "$*" >> "$API_LOG"
+for arg in "$@"; do
+    case "$arg" in http://*) url=$arg ;; esac
+done
+case "$url" in
+    */control/clients) echo '{"clients":[]}' ;;
+    */config-md5/) echo new ;;
+    */control/filtering/refresh) printf '{"updated":1}\\n200' ;;
+    */control/cache_clear) ;;
+    *) exit 22 ;;
+esac
+''')
+            getent = work / "getent"
+            getent.write_text('#!/usr/bin/env bash\necho "10.0.0.1 $2"\n')
+            curl.chmod(0o755)
+            getent.chmod(0o755)
+            script = (ROOT / "refresh-state.sh").read_text().replace(
+                "/dev/shm/", tmp + "/"
+            ).replace("/root/dns-reload.sh", str(ROOT / "dns-reload.sh"))
+            # Keep DNS maintenance independent of this filter refresh scenario.
+            (work / ".dns_dependencies").write_text(
+                '{"local":"10.0.0.1","world":"","coredns":"10.0.0.1"}\n'
+            )
+            env = {**os.environ, "PATH": tmp + os.pathsep + os.environ["PATH"],
+                   "API_LOG": str(work / "requests"), "AZ_WORLD_ENABLED": "0",
+                   "ADGUARDHOME_REFRESH_TIMEOUT_SECONDS": "720"}
+            for _ in range(2):
+                result = subprocess.run(["bash", "-c", script], env=env,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            requests = (work / "requests").read_text().splitlines()
+            refreshes = [line for line in requests if "/control/filtering/refresh" in line]
+            self.assertEqual(len(refreshes), 2)
+            self.assertTrue(all("--max-time 720 " in line for line in refreshes))
+            self.assertEqual((work / ".config_md5").read_text(), "new\n")
+
     def test_healthcheck_repairs_dns_without_refreshing_unchanged_filters(self):
         with tempfile.TemporaryDirectory() as tmp:
             work = Path(tmp)
